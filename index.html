@@ -324,7 +324,7 @@
         </div>
         <button class="btn btn-primary btn-sm" onclick="addSite()">Ajouter le site</button>
       </fieldset>
-      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Statut</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody id="sitesBody"></tbody></table></div>
     </div>
   </div>
@@ -746,10 +746,30 @@ async function setSite(id,site_id){ const {error}=await sb.from("profiles").upda
    ADMIN — SITES
    ===================================================================== */
 function renderSites(){
-  $("sitesBody").innerHTML=SITES.map(s=>`<tr><td><b>${esc(s.nom)}</b></td><td>${esc(s.ville||"—")}</td>
-    <td>${s.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td></tr>`).join("")
-    ||`<tr><td colspan="3" class="empty">Aucun site enregistré.</td></tr>`;
+  $("sitesBody").innerHTML=SITES.map(s=>`
+    <tr>
+      <td><input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="min-width:140px;padding:6px 8px"></td>
+      <td><input type="text" value="${esc(s.ville||"")}" id="site_ville_${s.id}" placeholder="Ville" style="min-width:110px;padding:6px 8px"></td>
+      <td><select id="site_actif_${s.id}" style="padding:6px 8px">
+        <option value="true"${s.actif?" selected":""}>Actif</option>
+        <option value="false"${!s.actif?" selected":""}>Inactif</option>
+      </select></td>
+      <td><button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button></td>
+    </tr>`).join("")
+    ||`<tr><td colspan="4" class="empty">Aucun site enregistré.</td></tr>`;
 }
+
+async function updateSite(id){
+  const nom=$("site_nom_"+id).value.trim();
+  const ville=$("site_ville_"+id).value.trim();
+  const actif=$("site_actif_"+id).value==="true";
+  if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
+  const {error}=await sb.from("sites").update({nom,ville:ville||null,actif}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  renderSites(); buildTabsSiteFilter(); toast("Site mis à jour");
+}
+
 async function addSite(){
   const nom=$("s_nom").value.trim(), ville=$("s_ville").value.trim();
   if(!nom){ alertIn("sitesAlert","err","Le nom du site est requis."); return; }

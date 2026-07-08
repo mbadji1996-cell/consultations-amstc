@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a5a2a">
+<link rel="icon" type="image/png" href="./icon.png">
+<link rel="apple-touch-icon" href="./icon.png">
+<title>Consultations AMSTC</title>
+<style>
+  :root{
+    --green-900:#123c1c; --green-700:#1a5a2a; --green-500:#2ea038; --green-50:#eef6f0;
+    --orange:#f39c12; --orange-dark:#cf850a;
+    --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
+    --danger:#c0392b; --danger-bg:#fdecea;
+    --radius:12px; --radius-sm:8px;
+    --shadow:0 1px 3px rgba(20,50,25,.08),0 1px 2px rgba(20,50,25,.04);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+  .hidden{display:none!important}
+
+  /* ---------- AUTH ---------- */
+  #authScreen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .auth-card{background:var(--white);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+    width:100%;max-width:400px;padding:32px 28px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .brand-mark{width:44px;height:44px;border-radius:12px;background:var(--green-700);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;letter-spacing:.5px}
+  .brand-txt h1{font-size:17px;font-weight:700;color:var(--green-900);line-height:1.2}
+  .brand-txt p{font-size:12px;color:var(--muted)}
+  .auth-card h2{font-size:20px;margin-bottom:4px}
+  .auth-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
+
+  /* ---------- FORM ELEMENTS ---------- */
+  .field{margin-bottom:16px}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--ink)}
+  .req{color:var(--danger)}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);
+    font-size:15px;background:var(--white);color:var(--ink);transition:border-color .15s,box-shadow .15s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-500);
+    box-shadow:0 0 0 3px rgba(46,160,56,.13)}
+  textarea{resize:vertical;min-height:60px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border:none;
+    border-radius:var(--radius-sm);font-size:15px;font-weight:600;transition:background .15s,opacity .15s}
+  .btn-block{width:100%}
+  .btn-primary{background:var(--green-700);color:#fff}
+  .btn-primary:hover{background:var(--green-900)}
+  .btn-primary:disabled{opacity:.55;cursor:not-allowed}
+  .btn-accent{background:var(--orange);color:#3a2600}
+  .btn-accent:hover{background:var(--orange-dark);color:#fff}
+  .btn-ghost{background:transparent;color:var(--green-700);border:1px solid var(--line)}
+  .btn-ghost:hover{background:var(--green-50)}
+  .btn-danger{background:transparent;color:var(--danger);border:1px solid #f0c9c4}
+  .btn-danger:hover{background:var(--danger-bg)}
+  .btn-sm{padding:6px 10px;font-size:13px}
+  .link-btn{background:none;border:none;color:var(--green-700);font-weight:600;font-size:14px;padding:0;text-decoration:underline}
+  .or-sep{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--muted);font-size:13px}
+  .or-sep span{flex:1;height:1px;background:var(--line)}
+  .gbtn{background:#fff;border:1px solid var(--line);color:var(--ink);gap:10px}
+  .gbtn:hover{background:#f7faf8}
+
+  /* ---------- ALERTS ---------- */
+  .alert{padding:11px 13px;border-radius:var(--radius-sm);font-size:14px;margin-bottom:14px;border:1px solid}
+  .alert-ok{background:var(--green-50);color:var(--green-900);border-color:#c5e3cc}
+  .alert-err{background:var(--danger-bg);color:#8a231a;border-color:#f0c9c4}
+  .alert-info{background:#fff6e6;color:#7a4d05;border-color:#f6d99a}
+
+  /* ---------- APP SHELL ---------- */
+  #appScreen{min-height:100dvh;display:flex;flex-direction:column}
+  .topbar{background:var(--green-700);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;
+    position:sticky;top:0;z-index:20}
+  .topbar .brand-mark{background:rgba(255,255,255,.16);width:34px;height:34px;font-size:13px;border-radius:9px}
+  .topbar-title{font-size:15px;font-weight:700;flex:1;line-height:1.15}
+  .topbar-title span{display:block;font-size:11px;font-weight:400;opacity:.85}
+  .sync-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);padding:6px 11px;
+    border-radius:100px;font-size:12.5px;font-weight:600;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dot-on{background:#7ee29a} .dot-off{background:var(--orange)} .dot-sync{background:#8ecbff;animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  .sync-count{background:var(--orange);color:#3a2600;border-radius:100px;padding:1px 7px;font-size:11px;font-weight:700}
+
+  .usermenu{position:relative}
+  .avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;
+    font-weight:700;font-size:13px}
+  .menu-pop{position:absolute;right:0;top:42px;background:#fff;color:var(--ink);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:0 8px 24px rgba(20,50,25,.16);min-width:200px;overflow:hidden;z-index:30}
+  .menu-head{padding:12px 14px;border-bottom:1px solid var(--line)}
+  .menu-head b{display:block;font-size:14px}
+  .menu-head small{color:var(--muted);font-size:12px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;margin-top:4px}
+  .badge-admin{background:#fff1d6;color:#8a5a05} .badge-agent{background:var(--green-50);color:var(--green-900)}
+  .menu-pop button{width:100%;text-align:left;padding:11px 14px;background:none;border:none;font-size:14px;color:var(--ink)}
+  .menu-pop button:hover{background:var(--green-50)}
+
+  /* ---------- TABS ---------- */
+  .tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:58px;z-index:15;overflow-x:auto}
+  .tab{flex:1;min-width:max-content;padding:13px 16px;border:none;background:none;font-size:14px;font-weight:600;
+    color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap}
+  .tab.active{color:var(--green-700);border-bottom-color:var(--green-700)}
+
+  .content{padding:18px 16px 40px;max-width:760px;width:100%;margin:0 auto;flex:1}
+  .panel{display:none} .panel.active{display:block}
+  fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:16px}
+  legend{font-weight:700;font-size:13px;color:var(--green-900);padding:0 6px}
+  .constants{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .constants .field{margin-bottom:0}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+
+  /* ---------- CARDS / LIST ---------- */
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  .toolbar input,.toolbar select{width:auto;flex:1;min-width:140px}
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:#fff;border:1px solid var(--line);border-left:3px solid var(--green-500);border-radius:var(--radius);padding:14px 16px}
+  .stat b{display:block;font-size:26px;font-weight:700;color:var(--green-900);line-height:1}
+  .stat span{font-size:12px;color:var(--muted)}
+
+  .rec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .rec-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
+  .rec-name{font-weight:700;font-size:15px}
+  .rec-meta{font-size:12.5px;color:var(--muted)}
+  .rec-diag{font-size:14px;margin:8px 0}
+  .rec-diag b{color:var(--green-900)}
+  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap}
+  .tag-sent{background:var(--green-50);color:var(--green-900)} .tag-queue{background:#fff1d6;color:#8a5a05}
+  .rec-foot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:var(--radius);overflow:hidden}
+  th{background:var(--green-700);color:#fff;text-align:left;padding:11px 12px;font-weight:600;font-size:12.5px}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+  .empty{text-align:center;color:var(--muted);padding:40px 16px;font-size:14px}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--green-900);color:#fff;
+    padding:12px 18px;border-radius:100px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);
+    z-index:60;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:var(--danger)}
+
+  @media(max-width:480px){.row2,.constants{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH ============ -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="brand" style="flex-direction:column;text-align:center;gap:10px">
+      <img src="./logo.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:160px;height:auto">
+      <p style="font-size:13px;color:var(--muted);font-weight:600">Plateforme de consultations</p>
+    </div>
+
+    <div id="loginBox">
+      <h2>Connexion</h2>
+      <p class="auth-sub">Accédez à votre espace de consultations.</p>
+      <div id="loginAlert"></div>
+      <div class="field"><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="email"></div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-block" id="loginBtn" onclick="doLogin()">Se connecter</button>
+      <div class="or-sep"><span></span>ou<span></span></div>
+      <button class="btn btn-block gbtn" onclick="doGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.47.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+        Continuer avec Google
+      </button>
+      <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--muted)">
+        Pas encore de compte ? <button class="link-btn" onclick="showSignup()">Créer un compte</button>
+      </p>
+    </div>
+
+    <div id="signupBox" class="hidden">
+      <h2>Créer un compte</h2>
+      <p class="auth-sub">Votre compte sera activé par un administrateur avant utilisation.</p>
+      <div id="signupAlert"></div>
+      <div class="row2">
+        <div class="field"><label>Prénom</label><input type="text" id="suPrenom"></div>
+        <div class="field"><label>Nom</label><input type="text" id="suNom"></div>
+      </div>
+      <div class="field"><label>Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
+      <div class="field"><label>Mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
+        <input type="password" id="suPass" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-block" id="signupBtn" onclick="doSignup()">Créer le compte</button>
+      <div class="or-sep"><span></span>ou<span></span></div>
+      <button class="btn btn-block gbtn" onclick="doGoogle()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.02-3.7H.96v2.34A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.98 10.72a5.4 5.4 0 0 1 0-3.44V4.94H.96a9 9 0 0 0 0 8.12l3.02-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.47.9 11.43 0 9 0A9 9 0 0 0 .96 4.94l3.02 2.34C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+        Continuer avec Google
+      </button>
+      <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--muted)">
+        Déjà inscrit ? <button class="link-btn" onclick="showLogin()">Se connecter</button>
+      </p>
+    </div>
+
+    <div id="pendingBox" class="hidden">
+      <h2>Compte en attente</h2>
+      <div class="alert alert-info" style="margin-top:14px">
+        Votre compte est créé mais pas encore activé. Un administrateur doit l'activer et vous attribuer un site
+        avant que vous puissiez saisir des consultations.
+      </div>
+      <button class="btn btn-ghost btn-block" onclick="doLogout()">Se déconnecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="appScreen" class="hidden">
+  <div class="topbar">
+    <div class="brand-mark" style="background:#fff;padding:5px;display:flex;align-items:center;justify-content:center">
+      <img src="./icon.png" alt="AMSTC" style="width:100%;height:100%;object-fit:contain">
+    </div>
+    <div class="topbar-title">Consultations AMSTC<span id="siteLabel"></span></div>
+    <div class="sync-pill" id="syncPill"><span class="dot dot-off"></span><span id="syncText">Hors ligne</span></div>
+    <div class="usermenu">
+      <button class="avatar" id="avatarBtn" onclick="toggleMenu()" aria-label="Mon compte" title="Mon compte">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </button>
+      <div class="menu-pop hidden" id="menuPop">
+        <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span></div>
+        <button onclick="doLogout()">Se déconnecter</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <!-- Sélection du site par l'agent — une seule fois, avant de démarrer -->
+  <div class="content hidden" id="siteSelectScreen" style="max-width:460px">
+    <fieldset>
+      <legend>Choix de votre site de consultation</legend>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
+        Sélectionnez le site où vous exercez. Ce choix est <b>définitif</b> une fois confirmé ;
+        seul un administrateur pourra le modifier ensuite.
+      </p>
+      <div id="siteSelectAlert"></div>
+      <div class="field"><label>Site <span class="req">*</span></label>
+        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option></select></div>
+      <button class="btn btn-primary btn-block" id="siteSelectBtn" onclick="confirmSiteSelection()">Confirmer mon site</button>
+    </fieldset>
+  </div>
+
+  <div class="content" id="mainContent">
+    <!-- AGENT: nouvelle consultation -->
+    <div class="panel" id="panel-form">
+      <div id="formAlert"></div>
+      <div class="field row2">
+        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
+        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Sexe <span class="req">*</span></label>
+          <select id="c_sexe"><option value="">— Sélectionner —</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
+        <div class="field"><label>Âge (années) <span class="req">*</span></label><input type="number" id="c_age" min="0" max="150"></div>
+      </div>
+      <div class="field"><label>Adresse</label><input type="text" id="c_adresse" placeholder="Quartier / localité"></div>
+      <div class="field"><label>Motifs de consultation <span class="req">*</span></label>
+        <textarea id="c_motifs" placeholder="Raisons de la visite"></textarea></div>
+
+      <fieldset>
+        <legend>Constantes vitales</legend>
+        <div class="constants">
+          <div class="field"><label>Tension artérielle</label><input type="text" id="c_ta" placeholder="120/80"></div>
+          <div class="field"><label>Température (°C)</label><input type="number" id="c_temperature" step="0.1" placeholder="37.5"></div>
+          <div class="field"><label>Fréquence cardiaque</label><input type="number" id="c_fc" placeholder="72"></div>
+          <div class="field"><label>Taille (cm)</label><input type="number" id="c_taille" step="0.1" placeholder="165"></div>
+          <div class="field"><label>Poids (kg)</label><input type="number" id="c_poids" step="0.1" placeholder="65.5"></div>
+        </div>
+      </fieldset>
+
+      <div class="field"><label>Antécédents et terrain</label>
+        <textarea id="c_antecedents" placeholder="Antécédents, allergies, maladies chroniques…"></textarea></div>
+      <div class="field"><label>Signes cliniques <span class="req">*</span></label>
+        <textarea id="c_signes" placeholder="Résultats de l'examen clinique"></textarea></div>
+      <div class="field"><label>Diagnostic <span class="req">*</span></label>
+        <textarea id="c_diagnostic" placeholder="Diagnostic principal"></textarea></div>
+      <div class="field"><label>Explorations complémentaires demandées</label>
+        <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
+      <div class="field"><label>Conduite à tenir / Traitement <span class="req">*</span></label>
+        <textarea id="c_conduite" placeholder="Recommandations, prescriptions, suivi…"></textarea></div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="saveBtn" onclick="saveConsultation()">Enregistrer la consultation</button>
+        <button class="btn btn-ghost" onclick="resetForm()">Réinitialiser</button>
+      </div>
+    </div>
+
+    <!-- TABLEAU DE BORD (agent et admin) -->
+    <div class="panel" id="panel-dashboard"><div id="dashBody"></div></div>
+
+    <!-- AGENT: mes consultations / ADMIN: toutes -->
+    <div class="panel" id="panel-list">
+      <div class="stat-row" id="listStats"></div>
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Rechercher (nom, diagnostic…)" oninput="renderList()">
+        <select id="siteFilter" class="hidden" onchange="renderList()"></select>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Exporter CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshData()">Actualiser</button>
+      </div>
+      <div id="listBody"></div>
+    </div>
+
+    <!-- ADMIN: utilisateurs -->
+    <div class="panel" id="panel-users">
+      <div id="usersAlert"></div>
+      <div class="table-wrap"><table id="usersTable"><thead><tr>
+        <th>Nom</th><th>Rôle</th><th>Site</th><th>Statut</th><th>Actions</th>
+      </tr></thead><tbody id="usersBody"></tbody></table></div>
+    </div>
+
+    <!-- ADMIN: sites -->
+    <div class="panel" id="panel-sites">
+      <div id="sitesAlert"></div>
+      <fieldset><legend>Ajouter un site</legend>
+        <div class="row2">
+          <div class="field"><label>Nom du site <span class="req">*</span></label><input type="text" id="s_nom" placeholder="Daara / structure"></div>
+          <div class="field"><label>Ville</label><input type="text" id="s_ville" placeholder="Dakar"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addSite()">Ajouter le site</button>
+      </fieldset>
+      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Statut</th></tr></thead>
+        <tbody id="sitesBody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =====================================================================
+   CONFIGURATION — À REMPLIR (une seule fois)
+   Récupère ces deux valeurs dans Supabase :
+   Project Settings → Data API / API Keys
+   ---------------------------------------------------------------------
+   La "anon key" est publique et peut rester ici sans risque :
+   c'est la Row Level Security qui protège les données, pas cette clé.
+   ===================================================================== */
+const SUPABASE_URL      = "https://krhvnuhwqlsdfecodmrp.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_9j8QN9IEROZen5ecVuWwkQ_V3ySs699";
+/* ===================================================================== */
+
+const QUEUE_KEY = "amstc_queue";
+const CACHE_KEY = "amstc_cache_list";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let ME = null;            // profil courant {id,prenom,nom,role,site_id,actif}
+let SITES = [];           // liste des sites
+let LIST = [];            // consultations chargées depuis le serveur
+let CURRENT_TAB = null;
+
+/* ---------- utilitaires ---------- */
+const $ = id => document.getElementById(id);
+function toast(msg, isErr){ const t=$("toast"); t.textContent=msg; t.className="toast show"+(isErr?" err":"");
+  setTimeout(()=>t.className="toast",2600); }
+function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;
+  if(type==="ok") setTimeout(()=>el.innerHTML="",3500); }
+function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"—"; }
+
+/* ---------- offline queue ---------- */
+function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return[];} }
+function setQueue(q){ localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); updateSync(); }
+function getCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||"[]");}catch{return[];} }
+function setCache(l){ localStorage.setItem(CACHE_KEY,JSON.stringify(l)); }
+
+/* ---------- statut de synchronisation (élément signature) ---------- */
+function updateSync(){
+  const pill=$("syncPill"), txt=$("syncText"); if(!pill) return;
+  const pending=getQueue().length;
+  pill.querySelector(".dot")?.remove();
+  const dot=document.createElement("span"); dot.className="dot"; pill.prepend(dot);
+  pill.querySelector(".sync-count")?.remove();
+  if(!navigator.onLine){ dot.classList.add("dot-off"); txt.textContent="Hors ligne"; }
+  else { dot.classList.add("dot-on"); txt.textContent="En ligne"; }
+  if(pending>0){ const c=document.createElement("span"); c.className="sync-count"; c.textContent=pending+" à envoyer"; pill.appendChild(c); }
+}
+
+/* =====================================================================
+   AUTHENTIFICATION
+   ===================================================================== */
+function showLogin(){ $("loginBox").classList.remove("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); }
+function showSignup(){ $("signupBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); }
+function showPending(){ $("pendingBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); }
+
+async function doLogin(){
+  const email=$("loginEmail").value.trim(), pass=$("loginPass").value;
+  if(!email||!pass){ alertIn("loginAlert","err","Renseignez votre e-mail et mot de passe."); return; }
+  $("loginBtn").disabled=true; $("loginBtn").textContent="Connexion…";
+  const {error}=await sb.auth.signInWithPassword({email,password:pass});
+  $("loginBtn").disabled=false; $("loginBtn").textContent="Se connecter";
+  if(error){ alertIn("loginAlert","err","Identifiants incorrects ou compte introuvable."); return; }
+  await enterApp();
+}
+
+async function doSignup(){
+  const prenom=$("suPrenom").value.trim(), nom=$("suNom").value.trim();
+  const email=$("suEmail").value.trim(), pass=$("suPass").value;
+  if(!prenom||!nom||!email||!pass){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  if(pass.length<6){ alertIn("signupAlert","err","Le mot de passe doit faire au moins 6 caractères."); return; }
+  $("signupBtn").disabled=true; $("signupBtn").textContent="Création…";
+  const {error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom}}});
+  $("signupBtn").disabled=false; $("signupBtn").textContent="Créer le compte";
+  if(error){ alertIn("signupAlert","err","Échec : "+error.message); return; }
+  showLogin();
+  alertIn("loginAlert","ok","Compte créé. Il doit être activé par un administrateur avant utilisation.");
+}
+
+async function doGoogle(){
+  const {error}=await sb.auth.signInWithOAuth({
+    provider:"google",
+    options:{ redirectTo: window.location.origin + window.location.pathname }
+  });
+  if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+error.message); }
+  // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app
+}
+
+async function doLogout(){ await sb.auth.signOut(); location.reload(); }
+
+async function loadProfile(){
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user) return null;
+  const {data,error}=await sb.from("profiles").select("*").eq("id",user.id).single();
+  if(error||!data) return null;
+  data.email=user.email; return data;
+}
+
+async function enterApp(){
+  ME=await loadProfile();
+  if(!ME){ showPending(); return; }
+  if(!ME.actif){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); showPending(); return; }
+
+  // charge les sites (nécessaire pour libellés + filtres + attribution)
+  const {data:sites}=await sb.from("sites").select("*").order("nom");
+  SITES=sites||[];
+
+  $("authScreen").classList.add("hidden");
+  $("appScreen").classList.remove("hidden");
+
+  // en-tête utilisateur
+  // l'icône de compte reste fixe ; le nom complet est affiché dans le menu déroulant ci-dessous
+  $("menuName").textContent=`${ME.prenom||""} ${ME.nom||""}`.trim();
+  $("menuEmail").textContent=ME.email||"";
+  $("menuRole").textContent=ME.role==="admin"?"Administrateur":"Agent";
+  $("menuRole").className="badge "+(ME.role==="admin"?"badge-admin":"badge-agent");
+  $("siteLabel").textContent=ME.role==="admin"?"Espace administrateur":siteName(ME.site_id);
+
+  // Un agent sans site attribué doit d'abord choisir le sien, une seule fois.
+  if(ME.role==="agent" && !ME.site_id){
+    $("tabs").classList.add("hidden");
+    $("mainContent").classList.add("hidden");
+    $("siteSelectScreen").classList.remove("hidden");
+    $("siteSelectInput").innerHTML = `<option value="">— Sélectionner votre site —</option>`+
+      SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
+    return;
+  }
+  $("tabs").classList.remove("hidden");
+  $("mainContent").classList.remove("hidden");
+  $("siteSelectScreen").classList.add("hidden");
+
+  buildTabs();
+  await refreshData();
+  updateSync();
+}
+
+async function confirmSiteSelection(){
+  const site_id=$("siteSelectInput").value;
+  if(!site_id){ alertIn("siteSelectAlert","err","Veuillez sélectionner un site."); return; }
+  $("siteSelectBtn").disabled=true; $("siteSelectBtn").textContent="Confirmation…";
+  const {error}=await sb.from("profiles").update({site_id}).eq("id",ME.id);
+  $("siteSelectBtn").disabled=false; $("siteSelectBtn").textContent="Confirmer mon site";
+  if(error){ alertIn("siteSelectAlert","err","Échec : "+error.message); return; }
+  toast("Site confirmé");
+  await enterApp(); // recharge le profil à jour et poursuit normalement
+}
+
+/* =====================================================================
+   ONGLETS SELON LE RÔLE
+   ===================================================================== */
+function buildTabs(){
+  const tabs = ME.role==="admin"
+    ? [["dashboard","Tableau de bord"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"]]
+    : [["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
+  $("tabs").innerHTML = tabs.map(([k,l],i)=>
+    `<button class="tab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${l}</button>`).join("");
+  // le filtre par site n'a de sens que pour l'admin
+  $("siteFilter").classList.toggle("hidden", ME.role!=="admin");
+  if(ME.role==="admin"){
+    $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
+      SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
+  }
+  switchTab(tabs[0][0]);
+}
+
+function switchTab(tab){
+  CURRENT_TAB=tab;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===tab));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  $("panel-"+tab).classList.add("active");
+  if(tab==="dashboard") renderDashboard();
+  if(tab==="list") renderList();
+  if(tab==="users") loadUsers();
+  if(tab==="sites") renderSites();
+}
+
+/* =====================================================================
+   CONSULTATIONS
+   ===================================================================== */
+async function refreshData(){
+  if(navigator.onLine){
+    await flushQueue();
+    const q = sb.from("consultations").select("*").order("created_at",{ascending:false});
+    const {data,error}=await q;
+    if(!error){ LIST=data||[]; setCache(LIST); }
+  } else {
+    LIST=getCache();
+  }
+  if(CURRENT_TAB==="list") renderList();
+}
+
+async function saveConsultation(){
+  const rec={
+    agent_id: ME.id, site_id: ME.site_id,
+    prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
+    sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
+    adresse:$("c_adresse").value.trim(),
+    motifs:$("c_motifs").value.trim(),
+    ta:$("c_ta").value.trim()||null,
+    temperature:$("c_temperature").value?parseFloat($("c_temperature").value):null,
+    fc:$("c_fc").value?parseInt($("c_fc").value):null,
+    taille:$("c_taille").value?parseFloat($("c_taille").value):null,
+    poids:$("c_poids").value?parseFloat($("c_poids").value):null,
+    antecedents:$("c_antecedents").value.trim(),
+    signes:$("c_signes").value.trim(),
+    diagnostic:$("c_diagnostic").value.trim(),
+    explorations:$("c_explorations").value.trim()||null,
+    conduite:$("c_conduite").value.trim(),
+  };
+  // validation des champs obligatoires
+  const missing=[];
+  if(!rec.prenom||!rec.nom) missing.push("nom et prénom");
+  if(!rec.sexe) missing.push("sexe"); if(rec.age===null) missing.push("âge");
+  if(!rec.motifs) missing.push("motifs"); if(!rec.signes) missing.push("signes cliniques");
+  if(!rec.diagnostic) missing.push("diagnostic"); if(!rec.conduite) missing.push("conduite à tenir");
+  if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
+
+  $("saveBtn").disabled=true;
+  if(navigator.onLine){
+    const {error}=await sb.from("consultations").insert(rec);
+    $("saveBtn").disabled=false;
+    if(error){ // bascule en file d'attente si l'envoi échoue
+      const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
+      toast("Enregistré localement (envoi différé)");
+    } else { toast("Consultation enregistrée"); await refreshData(); }
+  } else {
+    const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
+    $("saveBtn").disabled=false;
+    toast("Enregistré hors ligne · sera synchronisé");
+  }
+  resetForm();
+  alertIn("formAlert","ok","Consultation enregistrée.");
+}
+
+async function flushQueue(){
+  let q=getQueue(); if(!q.length||!navigator.onLine) return;
+  const remaining=[];
+  for(const item of q){
+    const {_local,...rec}=item;
+    const {error}=await sb.from("consultations").insert(rec);
+    if(error) remaining.push(item);
+  }
+  setQueue(remaining);
+  if(q.length && !remaining.length) toast("Synchronisation terminée");
+}
+
+function resetForm(){
+  ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"]
+    .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
+}
+
+function currentRows(){
+  const q=($("search").value||"").toLowerCase();
+  const sf=$("siteFilter").value;
+  // consultations serveur + file locale (marquée « à envoyer »)
+  const queued=getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString(),id:"q"+x._local}));
+  let rows=[...queued,...LIST];
+  if(ME.role==="admin" && sf) rows=rows.filter(r=>r.site_id===sf);
+  if(q) rows=rows.filter(r=>(`${r.prenom} ${r.nom} ${r.diagnostic} ${r.motifs}`).toLowerCase().includes(q));
+  return rows;
+}
+
+function renderList(){
+  const rows=currentRows();
+  const total=LIST.length, pending=getQueue().length;
+  $("listStats").innerHTML=
+    `<div class="stat"><b>${total}</b><span>${ME.role==="admin"?"Consultations enregistrées":"Mes consultations"}</span></div>`+
+    (pending?`<div class="stat" style="border-left-color:var(--orange)"><b>${pending}</b><span>En attente d'envoi</span></div>`:"");
+  if(!rows.length){ $("listBody").innerHTML=`<div class="empty">Aucune consultation${$("search").value?" pour cette recherche":""}.</div>`; return; }
+  $("listBody").innerHTML=rows.map(r=>{
+    const d=new Date(r.created_at).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    const tag=r._queued?`<span class="tag tag-queue">À envoyer</span>`:`<span class="tag tag-sent">Synchronisée</span>`;
+    const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
+    const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    return `<div class="rec">
+      <div class="rec-top">
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site} · ${d}</div></div>
+        ${tag}
+      </div>
+      <div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>
+      <div class="rec-meta">${esc((r.motifs||"").slice(0,120))}${(r.motifs||"").length>120?"…":""}</div>
+      ${explo}
+      <div class="rec-foot">
+        <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function deleteConsultation(id, isQueued){
+  if(!confirm("Supprimer définitivement cette consultation ? Cette action est irréversible.")) return;
+  if(isQueued){
+    // suppression d'une saisie encore locale, pas encore envoyée au serveur
+    const localTs = id.replace(/^q/,"");
+    setQueue(getQueue().filter(x=>String(x._local)!==localTs));
+    renderList(); toast("Consultation en attente supprimée"); return;
+  }
+  const {error}=await sb.from("consultations").delete().eq("id",id);
+  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  toast("Consultation supprimée");
+  await refreshData();
+}
+
+
+function renderDashboard(){
+  // Périmètre : agent -> ses propres saisies (déjà filtré par RLS dans LIST) ; admin -> tout, avec filtre site optionnel
+  const rows=[...getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString()})),...LIST];
+  const total=rows.length;
+  const now=new Date();
+  const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+  const startWeek=new Date(now); startWeek.setDate(now.getDate()-6); startWeek.setHours(0,0,0,0);
+  const today=rows.filter(r=>isSameDay(new Date(r.created_at),now)).length;
+  const semaine=rows.filter(r=>new Date(r.created_at)>=startWeek).length;
+  const hommes=rows.filter(r=>r.sexe==="M").length;
+  const femmes=rows.filter(r=>r.sexe==="F").length;
+  const ages=rows.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
+  const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
+  const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
+
+  // top motifs (comptage simple sur le texte complet, regroupé tel quel)
+  const countTop=(field,n=5)=>{
+    const map={};
+    rows.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
+  };
+  const topDiag=countTop("diagnostic");
+
+  const bar=(label,count,max)=>{
+    const pct=max?Math.round(count/max*100):0;
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span>${esc(label.slice(0,60))}${label.length>60?"…":""}</span><b>${count}</b>
+      </div>
+      <div style="background:var(--green-50);border-radius:100px;height:8px;overflow:hidden">
+        <div style="background:var(--green-500);height:100%;width:${pct}%;border-radius:100px"></div>
+      </div>
+    </div>`;
+  };
+
+  let siteBars="";
+  if(ME.role==="admin" && SITES.length){
+    const maxSite=Math.max(1,...SITES.map(s=>rows.filter(r=>r.site_id===s.id).length));
+    siteBars = SITES.map(s=>bar(s.nom, rows.filter(r=>r.site_id===s.id).length, maxSite)).join("");
+  }
+
+  const maxDiag=Math.max(1,...topDiag.map(([,c])=>c));
+
+  $("dashBody").innerHTML=`
+    <div class="stat-row">
+      <div class="stat"><b>${total}</b><span>${ME.role==="admin"?"Consultations au total":"Mes consultations"}</span></div>
+      <div class="stat"><b>${today}</b><span>Aujourd'hui</span></div>
+      <div class="stat"><b>${semaine}</b><span>7 derniers jours</span></div>
+      <div class="stat"><b>${ageMoyen??"—"}</b><span>Âge moyen (ans)</span></div>
+      <div class="stat"><b>${explorations}</b><span>Explorations demandées</span></div>
+    </div>
+
+    <fieldset>
+      <legend>Répartition par sexe</legend>
+      ${bar("Féminin",femmes,Math.max(1,hommes,femmes))}
+      ${bar("Masculin",hommes,Math.max(1,hommes,femmes))}
+    </fieldset>
+
+    ${topDiag.length?`<fieldset><legend>Diagnostics les plus fréquents</legend>
+      ${topDiag.map(([label,count])=>bar(label,count,maxDiag)).join("")}
+    </fieldset>`:""}
+
+    ${siteBars?`<fieldset><legend>Consultations par site</legend>${siteBars}</fieldset>`:""}
+
+    ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
+  `;
+}
+
+function exportCSV(){
+  const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
+  const cols=["created_at","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"];
+  const csv=[cols.join(",")].concat(rows.map(r=>cols.map(c=>`"${(r[c]??"").toString().replace(/"/g,'""')}"`).join(","))).join("\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`consultations_amstc_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+/* =====================================================================
+   ADMIN — GESTION DES UTILISATEURS
+   ===================================================================== */
+async function loadUsers(){
+  const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
+  if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
+  const siteOpts=id=>`<option value="">— Aucun —</option>`+SITES.map(s=>`<option value="${s.id}"${s.id===id?" selected":""}>${esc(s.nom)}</option>`).join("");
+  $("usersBody").innerHTML=(data||[]).map(u=>`
+    <tr>
+      <td><b>${(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>'}</b>
+        <div class="rec-meta">${esc(u.email||"")}</div></td>
+      <td><select class="btn-sm" onchange="setRole('${u.id}',this.value)" style="padding:5px">
+        <option value="agent"${u.role==="agent"?" selected":""}>Agent</option>
+        <option value="admin"${u.role==="admin"?" selected":""}>Admin</option></select></td>
+      <td><select class="btn-sm" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOpts(u.site_id)}</select></td>
+      <td>${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td>
+      <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
+        `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>`}</td>
+    </tr>`).join("")||`<tr><td colspan="5" class="empty">Aucun utilisateur.</td></tr>`;
+}
+async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
+  if(error) toast("Échec : "+error.message,true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
+async function setRole(id,role){ const {error}=await sb.from("profiles").update({role}).eq("id",id);
+  if(error) toast("Échec : "+error.message,true); else toast("Rôle mis à jour"); }
+async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
+  if(error) toast("Échec : "+error.message,true); else toast("Site attribué"); }
+
+/* =====================================================================
+   ADMIN — SITES
+   ===================================================================== */
+function renderSites(){
+  $("sitesBody").innerHTML=SITES.map(s=>`<tr><td><b>${esc(s.nom)}</b></td><td>${esc(s.ville||"—")}</td>
+    <td>${s.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td></tr>`).join("")
+    ||`<tr><td colspan="3" class="empty">Aucun site enregistré.</td></tr>`;
+}
+async function addSite(){
+  const nom=$("s_nom").value.trim(), ville=$("s_ville").value.trim();
+  if(!nom){ alertIn("sitesAlert","err","Le nom du site est requis."); return; }
+  const {error}=await sb.from("sites").insert({nom,ville:ville||null});
+  if(error){ alertIn("sitesAlert","err","Échec : "+error.message); return; }
+  $("s_nom").value=""; $("s_ville").value="";
+  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  renderSites(); buildTabsSiteFilter(); toast("Site ajouté");
+}
+function buildTabsSiteFilter(){
+  if(ME.role==="admin"){ $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
+    SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join(""); }
+}
+
+/* ---------- menu / événements réseau ---------- */
+function toggleMenu(){ $("menuPop").classList.toggle("hidden"); }
+document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) $("menuPop").classList.add("hidden"); });
+window.addEventListener("online",async()=>{ updateSync(); await refreshData(); });
+window.addEventListener("offline",updateSync);
+
+/* ---------- service worker (mode hors ligne) ---------- */
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
+
+/* ---------- démarrage ---------- */
+(async function(){
+  updateSync();
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) await enterApp();
+})();
+</script>
+</body>
+</html>

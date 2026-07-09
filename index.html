@@ -287,8 +287,7 @@
         seul un administrateur pourra le modifier ensuite.
       </p>
       <div id="siteSelectAlert"></div>
-      <div class="field"><label>Site <span class="req">*</span></label>
-        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option></select></div>
+      <div id="siteSelectDynamic"></div>
       <button class="btn btn-primary btn-block" id="siteSelectBtn" onclick="confirmSiteSelection()">Confirmer mon site</button>
     </fieldset>
   </div>
@@ -297,6 +296,10 @@
     <!-- AGENT: nouvelle consultation -->
     <div class="panel" id="panel-form">
       <div id="formAlert"></div>
+      <div class="field hidden" id="c_site_wrap">
+        <label>Site de consultation <span class="req">*</span></label>
+        <select id="c_site"><option value="">— Sélectionner un site —</option></select>
+      </div>
       <div class="field row2">
         <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
         <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
@@ -364,7 +367,7 @@
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
       <div class="table-wrap"><table id="usersTable"><thead><tr>
-        <th>Nom</th><th>Rôle</th><th>Site</th><th>Statut</th><th>Actions</th>
+        <th>Nom</th><th>Rôle</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
       </tr></thead><tbody id="usersBody"></tbody></table></div>
     </div>
 
@@ -548,11 +551,10 @@ async function enterApp(){
   const {data:sites}=await sb.from("sites").select("*").order("nom");
   SITES=sites||[];
 
-  // charge les campagnes (admin uniquement, non nécessaire pour un agent)
-  if(ME.role==="admin"){
-    const {data:campagnes}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
-    CAMPAGNES=campagnes||[];
-  }
+  // charge les campagnes — nécessaire pour tous les rôles désormais :
+  // l'admin les gère, l'agent en a besoin pour choisir campagne puis site en cascade
+  const {data:campagnes}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
+  CAMPAGNES=campagnes||[];
 
   $("authScreen").classList.add("hidden");
   $("appScreen").classList.remove("hidden");
@@ -565,13 +567,12 @@ async function enterApp(){
   $("menuRole").className="badge "+(ME.role==="admin"?"badge-admin":"badge-agent");
   $("siteLabel").textContent=ME.role==="admin"?"Espace administrateur":siteName(ME.site_id);
 
-  // Un agent sans site attribué doit d'abord choisir le sien, une seule fois.
+  // Un agent sans site attribué doit d'abord choisir le sien (et sa campagne si besoin), une seule fois.
   if(ME.role==="agent" && !ME.site_id){
     $("tabs").classList.add("hidden");
     $("mainContent").classList.add("hidden");
     $("siteSelectScreen").classList.remove("hidden");
-    $("siteSelectInput").innerHTML = `<option value="">— Sélectionner votre site —</option>`+
-      SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
+    setupSiteSelectScreen();
     return;
   }
   $("tabs").classList.remove("hidden");
@@ -583,11 +584,60 @@ async function enterApp(){
   updateSync();
 }
 
+// Construit l'écran de choix de site selon la situation de l'agent :
+// - campagne déjà imposée par l'admin -> uniquement le choix du site, filtré sur cette campagne
+// - aucune campagne imposée mais des campagnes existent -> l'agent choisit sa campagne puis son site
+// - aucune campagne dans le système -> comportement historique, liste plate de tous les sites
+function setupSiteSelectScreen(){
+  const wrap=$("siteSelectDynamic");
+  if(ME.campagne_id){
+    const c=CAMPAGNES.find(x=>x.id===ME.campagne_id);
+    const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id);
+    wrap.innerHTML=`
+      <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"—")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
+      <div class="field"><label>Site <span class="req">*</span></label>
+        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option>
+          ${opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
+        </select></div>`;
+  } else if(CAMPAGNES.length){
+    wrap.innerHTML=`
+      <div class="field"><label>Campagne <span class="req">*</span></label>
+        <select id="siteSelectCampagne" onchange="onSiteSelectCampagneChange()">
+          <option value="">— Sélectionner une campagne —</option>
+          ${CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>Site <span class="req">*</span></label>
+        <select id="siteSelectInput" disabled><option value="">— Choisissez d'abord une campagne —</option></select></div>`;
+  } else {
+    wrap.innerHTML=`
+      <div class="field"><label>Site <span class="req">*</span></label>
+        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option>
+          ${SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
+        </select></div>`;
+  }
+}
+
+function onSiteSelectCampagneChange(){
+  const cid=$("siteSelectCampagne").value;
+  const sel=$("siteSelectInput");
+  if(!cid){ sel.disabled=true; sel.innerHTML=`<option value="">— Choisissez d'abord une campagne —</option>`; return; }
+  const opts=SITES.filter(s=>s.campagne_id===cid);
+  sel.disabled=false;
+  sel.innerHTML=`<option value="">— Sélectionner votre site —</option>`+
+    opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
+}
+
 async function confirmSiteSelection(){
-  const site_id=$("siteSelectInput").value;
+  const site_id=$("siteSelectInput")?.value;
   if(!site_id){ alertIn("siteSelectAlert","err","Veuillez sélectionner un site."); return; }
+  const payload={ site_id };
+  const campSel=$("siteSelectCampagne");
+  if(campSel){
+    if(!campSel.value){ alertIn("siteSelectAlert","err","Veuillez d'abord sélectionner une campagne."); return; }
+    payload.campagne_id=campSel.value;
+  }
   $("siteSelectBtn").disabled=true; $("siteSelectBtn").textContent="Confirmation…";
-  const {error}=await sb.from("profiles").update({site_id}).eq("id",ME.id);
+  const {error}=await sb.from("profiles").update(payload).eq("id",ME.id);
   $("siteSelectBtn").disabled=false; $("siteSelectBtn").textContent="Confirmer mon site";
   if(error){ alertIn("siteSelectAlert","err","Échec : "+error.message); return; }
   toast("Site confirmé");
@@ -599,7 +649,7 @@ async function confirmSiteSelection(){
    ===================================================================== */
 function buildTabs(){
   const tabs = ME.role==="admin"
-    ? [["dashboard","Tableau de bord"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"],["campagnes","Campagnes"]]
+    ? [["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"],["campagnes","Campagnes"]]
     : [["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
     `<button class="tab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${l}</button>`).join("");
@@ -614,6 +664,12 @@ function buildTabs(){
   if(ME.role==="admin" && CAMPAGNES.length){
     $("dashCampagneFilter").innerHTML=`<option value="">Toutes les campagnes</option>`+
       CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("");
+  }
+  // l'admin n'a pas de site fixe (contrairement à l'agent) : il choisit à chaque consultation
+  $("c_site_wrap").classList.toggle("hidden", ME.role!=="admin");
+  if(ME.role==="admin"){
+    $("c_site").innerHTML=`<option value="">— Sélectionner un site —</option>`+
+      SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
   }
   switchTab(tabs[0][0]);
 }
@@ -651,8 +707,17 @@ async function refreshData(){
 }
 
 async function saveConsultation(){
+  // Générés côté app pour fonctionner même hors ligne : l'id devient définitif dès la saisie,
+  // ce qui permet un numéro de consultation stable et connu immédiatement (pas d'attente de synchro).
+  const newId=crypto.randomUUID();
+  const numero="AMSTC-"+newId.slice(0,8).toUpperCase();
+  const medecinNom=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email||"—";
+  // L'agent a un site fixe (choisi une fois) ; l'admin, "chef d'équipe", choisit son site à chaque consultation.
+  const siteId = ME.role==="admin" ? ($("c_site").value||null) : ME.site_id;
+
   const rec={
-    agent_id: ME.id, site_id: ME.site_id,
+    id:newId, numero_consultation:numero, medecin_nom:medecinNom,
+    agent_id: ME.id, site_id: siteId,
     prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
     sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
     adresse:$("c_adresse").value.trim(),
@@ -670,6 +735,7 @@ async function saveConsultation(){
   };
   // validation des champs obligatoires
   const missing=[];
+  if(ME.role==="admin" && !siteId) missing.push("site de consultation");
   if(!rec.prenom||!rec.nom) missing.push("nom et prénom");
   if(!rec.sexe) missing.push("sexe"); if(rec.age===null) missing.push("âge");
   if(!rec.motifs) missing.push("motifs"); if(!rec.signes) missing.push("signes cliniques");
@@ -717,7 +783,7 @@ function currentRows(){
   const queued=getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString(),id:"q"+x._local}));
   let rows=[...queued,...LIST];
   if(ME.role==="admin" && sf) rows=rows.filter(r=>r.site_id===sf);
-  if(q) rows=rows.filter(r=>(`${r.prenom} ${r.nom} ${r.diagnostic} ${r.motifs}`).toLowerCase().includes(q));
+  if(q) rows=rows.filter(r=>(`${r.prenom} ${r.nom} ${r.diagnostic} ${r.motifs} ${r.numero_consultation||""}`).toLowerCase().includes(q));
   return rows;
 }
 
@@ -732,11 +798,14 @@ function renderList(){
     const d=new Date(r.created_at).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
     const tag=r._queued?`<span class="tag tag-queue">À envoyer</span>`:`<span class="tag tag-sent">Synchronisée</span>`;
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
+    const medecin=ME.role==="admin"&&r.medecin_nom?` · Dr/Agent : ${esc(r.medecin_nom)}`:"";
+    const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
     return `<div class="rec">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
-          <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site} · ${d}</div></div>
+          <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site}${medecin} · ${d}</div>
+          ${numero}</div>
         ${tag}
       </div>
       <div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>
@@ -1167,7 +1236,7 @@ async function downloadReportWord(){
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
-  const cols=["created_at","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"];
+  const cols=["numero_consultation","created_at","medecin_nom","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"];
   const csv=[cols.join(",")].concat(rows.map(r=>cols.map(c=>`"${(r[c]??"").toString().replace(/"/g,'""')}"`).join(","))).join("\n");
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -1181,7 +1250,11 @@ async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
   USERS_CACHE=data||[];
-  const siteOpts=id=>`<option value="">— Aucun —</option>`+SITES.map(s=>`<option value="${s.id}"${s.id===id?" selected":""}>${esc(s.nom)}</option>`).join("");
+  // le site proposé pour un utilisateur est limité aux sites de SA campagne (ou aux sites sans campagne, si "Aucune")
+  const siteOptsForCampagne=(campagneId,selectedSiteId)=>{
+    const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
+    return `<option value="">— Aucun —</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
+  };
   $("usersBody").innerHTML=(data||[]).map(u=>`
     <tr>
       <td><b>${(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>'}</b>
@@ -1189,12 +1262,13 @@ async function loadUsers(){
       <td><select class="btn-sm" onchange="setRole('${u.id}',this.value)" style="padding:5px">
         <option value="agent"${u.role==="agent"?" selected":""}>Agent</option>
         <option value="admin"${u.role==="admin"?" selected":""}>Admin</option></select></td>
-      <td><select class="btn-sm" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOpts(u.site_id)}</select></td>
+      <td><select class="btn-sm" id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')" style="padding:5px">${campagneOpts(u.campagne_id)}</select></td>
+      <td><select class="btn-sm" id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select></td>
       <td>${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td>
       <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
         `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
         <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
-    </tr>`).join("")||`<tr><td colspan="5" class="empty">Aucun utilisateur.</td></tr>`;
+    </tr>`).join("")||`<tr><td colspan="6" class="empty">Aucun utilisateur.</td></tr>`;
 }
 async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
   if(error) toast("Échec : "+error.message,true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
@@ -1202,6 +1276,15 @@ async function setRole(id,role){ const {error}=await sb.from("profiles").update(
   if(error) toast("Échec : "+error.message,true); else toast("Rôle mis à jour"); }
 async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
   if(error) toast("Échec : "+error.message,true); else toast("Site attribué"); }
+// Changer la campagne d'un utilisateur réinitialise son site (l'ancien site n'a probablement plus de sens
+// dans la nouvelle campagne) — l'admin choisit ensuite explicitement le nouveau site dans la liste filtrée.
+async function onUserCampagneChange(id){
+  const campagne_id=$("user_campagne_"+id).value||null;
+  const {error}=await sb.from("profiles").update({campagne_id,site_id:null}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  toast("Campagne attribuée — sélectionnez maintenant un site");
+  loadUsers();
+}
 async function deleteUser(id){
   const u=USERS_CACHE.find(x=>x.id===id);
   const label=u?(`${u.prenom||""} ${u.nom||""}`.trim()||u.email||"cet utilisateur"):"cet utilisateur";

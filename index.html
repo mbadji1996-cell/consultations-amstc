@@ -118,6 +118,24 @@
   .constants .field{margin-bottom:0}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
 
+  /* ---------- TABLEAU DE BORD : bandeau, cartes de stats, cartes de contenu ---------- */
+  .dash-greeting{background:linear-gradient(135deg,var(--green-700),var(--green-900));border-radius:18px;
+    padding:20px 22px;margin-bottom:16px;color:#fff;box-shadow:0 4px 14px rgba(18,60,28,.18)}
+  .dash-greeting-title{font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px}
+  .dash-greeting-date{font-size:13px;opacity:.85;font-weight:500;text-transform:capitalize}
+  .dash-card{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(18,60,28,.07),0 1px 3px rgba(18,60,28,.05);
+    padding:18px;margin-bottom:16px;border:1px solid rgba(18,60,28,.05)}
+  .dash-card-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .dash-card-head svg{color:var(--green-700);flex-shrink:0}
+  .dash-card-head span{font-weight:700;font-size:14.5px;color:var(--green-900)}
+  .stat{background:#fff;border-radius:16px;padding:15px;box-shadow:0 2px 8px rgba(18,60,28,.06);
+    border:1px solid rgba(18,60,28,.05);display:flex;flex-direction:column;gap:10px}
+  .stat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .stat-icon-g{background:var(--green-50);color:var(--green-700)}
+  .stat-icon-o{background:#fff3de;color:var(--orange-dark)}
+  .stat b{font-size:23px;font-weight:800;color:var(--green-900);line-height:1}
+  .stat span{font-size:11.5px;color:var(--muted);font-weight:600}
+
   /* ---------- CARDS / LIST ---------- */
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
   .toolbar input,.toolbar select{width:auto;flex:1;min-width:140px}
@@ -918,6 +936,40 @@ function renderDashboard(){
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats } = S;
 
+  // Icônes (traits fins, cohérentes avec le reste de l'app — même style que l'icône de compte)
+  const ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
+  const ICON_CALENDAR=`<rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>`;
+  const ICON_TREND=`<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline>`;
+  const ICON_USER=`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>`;
+  const ICON_FLASK=`<path d="M10 2v7.31"></path><path d="M14 9.3V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.5 16h13"></path>`;
+  const svg=(paths,cls)=>`<svg class="${cls||""}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+  // Bandeau d'accueil, personnalisé et daté
+  const now2=new Date();
+  const heureSalut = now2.getHours()<12?"Bonjour":(now2.getHours()<18?"Bon après-midi":"Bonsoir");
+  const prenomAffiche = ME.prenom||"";
+  let dateLong = now2.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  dateLong = dateLong.charAt(0).toUpperCase()+dateLong.slice(1);
+  const greetingHtml=`<div class="dash-greeting">
+    <div class="dash-greeting-title">${heureSalut}${prenomAffiche?", "+esc(prenomAffiche):""} 👋</div>
+    <div class="dash-greeting-date">${dateLong}</div>
+  </div>`;
+
+  const statCard=(icon,tone,value,label)=>`<div class="stat">
+    <div class="stat-icon stat-icon-${tone}">${svg(icon)}</div>
+    <div><b>${value}</b><span>${label}</span></div>
+  </div>`;
+
+  const statsHtml=`<div class="stat-row">
+    ${statCard(ICON_USERS,"g",total,ME.role==="admin"?"Consultations au total":"Mes consultations")}
+    ${statCard(ICON_CALENDAR,"o",today,"Aujourd'hui")}
+    ${statCard(ICON_TREND,"g",semaine,"7 derniers jours")}
+    ${statCard(ICON_USER,"o",ageMoyen??"—","Âge moyen (ans)")}
+    ${statCard(ICON_FLASK,"g",explorations,"Explorations demandées")}
+  </div>`;
+
+  const cardOpen=(icon,title)=>`<div class="dash-card"><div class="dash-card-head">${svg(icon)}<span>${title}</span></div>`;
+
   let siteTableHtml="";
   if(siteStats.length){
     const siteRows=siteStats.map(s=>`<tr>
@@ -928,30 +980,24 @@ function renderDashboard(){
         <td>${s.moy??"—"}</td>
         <td>${s.topPath?esc(s.topPath):"—"}</td>
       </tr>`).join("");
-    siteTableHtml=`<fieldset><legend>Statistiques par site</legend>
+    siteTableHtml=`${cardOpen(ICON_USERS,"Statistiques par site")}
       <div class="table-wrap"><table><thead><tr>
         <th>Site</th><th>Consult.</th><th>% F</th><th>% M</th><th>Âge moyen</th><th>Pathologie la + fréquente</th>
       </tr></thead><tbody>${siteRows}</tbody></table></div>
-    </fieldset>`;
+    </div>`;
   }
 
-
   $("dashBody").innerHTML=`
-    <div class="stat-row">
-      <div class="stat"><b>${total}</b><span>${ME.role==="admin"?"Consultations au total":"Mes consultations"}</span></div>
-      <div class="stat"><b>${today}</b><span>Aujourd'hui</span></div>
-      <div class="stat"><b>${semaine}</b><span>7 derniers jours</span></div>
-      <div class="stat"><b>${ageMoyen??"—"}</b><span>Âge moyen (ans)</span></div>
-      <div class="stat"><b>${explorations}</b><span>Explorations demandées</span></div>
-    </div>
+    ${greetingHtml}
+    ${statsHtml}
 
-    ${total?`<fieldset><legend>Évolution — 14 derniers jours</legend><div style="height:220px"><canvas id="dashTrendChart"></canvas></div></fieldset>`:""}
+    ${total?`${cardOpen(ICON_TREND,"Évolution — 14 derniers jours")}<div style="height:220px"><canvas id="dashTrendChart"></canvas></div></div>`:""}
 
-    ${(hommes+femmes)?`<fieldset><legend>Répartition par sexe</legend><div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div></fieldset>`:""}
+    ${(hommes+femmes)?`${cardOpen(ICON_USERS,"Répartition par sexe")}<div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div></div>`:""}
 
-    ${hasAgeData?`<fieldset><legend>Pyramide des âges</legend><div style="height:${Math.max(220,AGE_BRACKETS.length*34)}px"><canvas id="dashAgeChart"></canvas></div></fieldset>`:""}
+    ${hasAgeData?`${cardOpen(ICON_USERS,"Pyramide des âges")}<div style="height:${Math.max(220,AGE_BRACKETS.length*34)}px"><canvas id="dashAgeChart"></canvas></div></div>`:""}
 
-    ${topDiag.length?`<fieldset><legend>Pathologies les plus fréquentes</legend><div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></fieldset>`:""}
+    ${topDiag.length?`${cardOpen(ICON_FLASK,"Pathologies les plus fréquentes")}<div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></div>`:""}
 
     ${siteTableHtml}
 

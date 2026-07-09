@@ -423,7 +423,7 @@
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
       <div class="toolbar">
-        <input type="text" id="userSearch" placeholder="Rechercher un agent (nom, e-mail…)" oninput="renderUsers()">
+        <input type="text" id="userSearch" placeholder="Rechercher un praticien (nom, e-mail…)" oninput="renderUsers()">
       </div>
       <div class="table-wrap"><table id="usersTable"><thead><tr>
         <th>Nom</th><th>Rôle</th><th>Spécialités</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
@@ -641,7 +641,7 @@ async function enterApp(){
   // l'icône de compte reste fixe ; le nom complet est affiché dans le menu déroulant ci-dessous
   $("menuName").textContent=`${ME.prenom||""} ${ME.nom||""}`.trim();
   $("menuEmail").textContent=ME.email||"";
-  $("menuRole").textContent=ME.role==="admin"?"Administrateur":"Agent";
+  $("menuRole").textContent=ME.role==="admin"?"Administrateur":"Praticien";
   $("menuRole").className="badge "+(ME.role==="admin"?"badge-admin":"badge-agent");
   $("siteLabel").textContent=ME.role==="admin"?"Espace administrateur":siteName(ME.site_id);
 
@@ -1594,7 +1594,7 @@ function renderUsers(){
       <td><b>${(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>'}</b>
         <div class="rec-meta">${esc(u.email||"")}</div></td>
       <td><select class="btn-sm" onchange="setRole('${u.id}',this.value)" style="padding:5px">
-        <option value="agent"${u.role==="agent"?" selected":""}>Agent</option>
+        <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
         <option value="admin"${u.role==="admin"?" selected":""}>Admin</option></select></td>
       <td style="min-width:170px">
         <select class="btn-sm" onchange="setSpecialite('${u.id}',this.value)" style="padding:5px">
@@ -1614,7 +1614,7 @@ function renderUsers(){
       <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
         `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
         <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
-    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">${q?"Aucun agent ne correspond à cette recherche.":"Aucun utilisateur."}</td></tr>`;
+    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">${q?"Aucun praticien ne correspond à cette recherche.":"Aucun utilisateur."}</td></tr>`;
 }
 async function setSpecialite(id,value){
   const payload={ specialite:value };
@@ -1943,7 +1943,7 @@ async function updateSite(id){
 async function deleteSite(id){
   const s=SITES.find(x=>x.id===id);
   const label=s?s.nom:"ce site";
-  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et agents déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
+  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et praticiens déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
   const {data,error}=await sb.from("sites").delete().eq("id",id).select();
   if(error){ toast("Échec de la suppression : "+error.message,true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }

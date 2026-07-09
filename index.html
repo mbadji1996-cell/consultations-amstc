@@ -339,7 +339,13 @@
     </div>
 
     <!-- TABLEAU DE BORD (agent et admin) -->
-    <div class="panel" id="panel-dashboard"><div id="dashBody"></div></div>
+    <div class="panel" id="panel-dashboard">
+      <div class="actions" style="margin-bottom:16px">
+        <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
+      </div>
+      <div id="dashBody"></div>
+    </div>
 
     <!-- AGENT: mes consultations / ADMIN: toutes -->
     <div class="panel" id="panel-list">
@@ -381,6 +387,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
 <script>
 /* =====================================================================
    CONFIGURATION — À REMPLIR (une seule fois)
@@ -721,8 +730,16 @@ async function deleteConsultation(id, isQueued){
 let CHARTS={}; // instances Chart.js actives, détruites/recréées à chaque rendu pour éviter les doublons sur le même canvas
 function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
 
-function renderDashboard(){
-  // Périmètre : agent -> ses propres saisies (déjà filtré par RLS dans LIST) ; admin -> tout
+const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
+const bracketLabel=([a,b])=>b>=200?`${a}+`:`${a}-${b}`;
+function countTop(list,field,n=5){
+  const map={};
+  list.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
+}
+
+// Calcul centralisé, utilisé à la fois par l'affichage du tableau de bord et par les exports PDF/Word
+function computeDashboardStats(){
   const rows=[...getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString()})),...LIST];
   const total=rows.length;
   const now=new Date();
@@ -735,22 +752,12 @@ function renderDashboard(){
   const ages=rows.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
   const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
   const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
-
-  const countTop=(list,field,n=5)=>{
-    const map={};
-    list.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
-    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
-  };
   const topDiag=countTop(rows,"diagnostic");
 
-  // Tendance sur les 14 derniers jours
   const days=[]; for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); d.setHours(0,0,0,0); days.push(d); }
   const trendCounts=days.map(d=>rows.filter(r=>isSameDay(new Date(r.created_at),d)).length);
   const trendLabels=days.map(d=>d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}));
 
-  // Pyramide des âges : tranches classiques, répartie par sexe
-  const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
-  const bracketLabel=([a,b])=>b>=200?`${a}+`:`${a}-${b}`;
   const bracketOf=age=>AGE_BRACKETS.findIndex(([a,b])=>age>=a&&age<=b);
   const ageF=new Array(AGE_BRACKETS.length).fill(0);
   const ageM=new Array(AGE_BRACKETS.length).fill(0);
@@ -761,30 +768,45 @@ function renderDashboard(){
   });
   const hasAgeData=ageF.some(v=>v>0)||ageM.some(v=>v>0);
 
-  let siteTableHtml="";
+  let siteStats=[];
   if(ME.role==="admin" && SITES.length){
-    const siteRows=SITES.map(s=>{
+    siteStats=SITES.map(s=>{
       const rs=rows.filter(r=>r.site_id===s.id);
       const n=rs.length;
       const f=rs.filter(r=>r.sexe==="F").length, m=rs.filter(r=>r.sexe==="M").length;
       const as=rs.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
       const moy=as.length?Math.round(as.reduce((a,b)=>a+b,0)/as.length):null;
       const top=countTop(rs,"diagnostic",1);
-      return `<tr>
+      return { nom:s.nom, n, pctF:n?Math.round(f/n*100):null, pctM:n?Math.round(m/n*100):null, moy, topPath:top.length?top[0][0]:null };
+    });
+  }
+
+  return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats };
+}
+
+function renderDashboard(){
+  const S=computeDashboardStats();
+  const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats } = S;
+
+  let siteTableHtml="";
+  if(siteStats.length){
+    const siteRows=siteStats.map(s=>`<tr>
         <td><b>${esc(s.nom)}</b></td>
-        <td>${n}</td>
-        <td>${n?Math.round(f/n*100)+"%":"—"}</td>
-        <td>${n?Math.round(m/n*100)+"%":"—"}</td>
-        <td>${moy??"—"}</td>
-        <td>${top.length?esc(top[0][0]):"—"}</td>
-      </tr>`;
-    }).join("");
+        <td>${s.n}</td>
+        <td>${s.pctF!=null?s.pctF+"%":"—"}</td>
+        <td>${s.pctM!=null?s.pctM+"%":"—"}</td>
+        <td>${s.moy??"—"}</td>
+        <td>${s.topPath?esc(s.topPath):"—"}</td>
+      </tr>`).join("");
     siteTableHtml=`<fieldset><legend>Statistiques par site</legend>
       <div class="table-wrap"><table><thead><tr>
         <th>Site</th><th>Consult.</th><th>% F</th><th>% M</th><th>Âge moyen</th><th>Pathologie la + fréquente</th>
       </tr></thead><tbody>${siteRows}</tbody></table></div>
     </fieldset>`;
   }
+
 
   $("dashBody").innerHTML=`
     <div class="stat-row">
@@ -872,6 +894,190 @@ function renderDashboard(){
   }
 }
 
+/* =====================================================================
+   EXPORT DU RAPPORT STATISTIQUE — PDF et Word
+   Réutilise exactement les mêmes chiffres que le tableau de bord affiché
+   (computeDashboardStats), pour qu'un rapport téléchargé corresponde
+   toujours à ce que la personne voit à l'écran au même moment.
+   ===================================================================== */
+function reportFileBaseName(){
+  const scope=ME.role==="admin"?"admin":"agent";
+  return `rapport_amstc_${scope}_${new Date().toISOString().slice(0,10)}`;
+}
+
+function reportTitleLines(S){
+  return [
+    "Rapport statistique — Consultations AMSTC",
+    ME.role==="admin" ? "Périmètre : toutes les consultations" : `Périmètre : consultations de ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(),
+    `Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`,
+  ];
+}
+
+// Capture l'image d'un graphique Chart.js actuellement affiché à l'écran (si disponible)
+function chartImage(canvasId){
+  try{
+    const c=$(canvasId);
+    if(!c) return null;
+    return c.toDataURL("image/png",1.0);
+  }catch(e){ return null; }
+}
+
+async function downloadReportPDF(){
+  if(typeof window.jspdf==="undefined"){
+    toast("Génération PDF indisponible : bibliothèque non chargée. Vérifiez votre connexion et réessayez.",true);
+    return;
+  }
+  const S=computeDashboardStats();
+  const { jsPDF }=window.jspdf;
+  const doc=new jsPDF({ unit:"mm", format:"a4" });
+  const pageW=doc.internal.pageSize.getWidth();
+  const margin=14;
+  let y=18;
+
+  const green=[46,160,56], green900=[18,60,28];
+  const titles=reportTitleLines(S);
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(...green900);
+  doc.text(titles[0], margin, y); y+=8;
+  doc.setFont("helvetica","normal"); doc.setFontSize(10.5); doc.setTextColor(90,90,90);
+  doc.text(titles[1], margin, y); y+=5.5;
+  doc.text(titles[2], margin, y); y+=9;
+
+  // Tableau des chiffres clés
+  doc.autoTable({
+    startY:y, margin:{left:margin,right:margin}, theme:"grid",
+    headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" },
+    styles:{ fontSize:10 },
+    head:[["Indicateur","Valeur"]],
+    body:[
+      [ME.role==="admin"?"Consultations au total":"Mes consultations", String(S.total)],
+      ["Aujourd'hui", String(S.today)],
+      ["7 derniers jours", String(S.semaine)],
+      ["Âge moyen (ans)", S.ageMoyen??"—"],
+      ["Explorations complémentaires demandées", String(S.explorations)],
+      ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
+    ],
+  });
+  y=doc.lastAutoTable.finalY+10;
+
+  // Graphiques (si actuellement affichés à l'écran)
+  const addChartImage=(canvasId,label)=>{
+    const img=chartImage(canvasId);
+    if(!img) return;
+    if(y>230){ doc.addPage(); y=18; }
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
+    doc.text(label, margin, y); y+=5;
+    const w=pageW-margin*2, h=w*0.45;
+    doc.addImage(img,"PNG",margin,y,w,h);
+    y+=h+9;
+  };
+  addChartImage("dashTrendChart","Évolution — 14 derniers jours");
+  addChartImage("dashSexChart","Répartition par sexe");
+  addChartImage("dashAgeChart","Pyramide des âges");
+  addChartImage("dashDiagChart","Pathologies les plus fréquentes");
+
+  // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
+  if(S.topDiag.length){
+    if(y>250){ doc.addPage(); y=18; }
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
+    doc.text("Détail — Pathologies les plus fréquentes", margin, y); y+=4;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Pathologie","Nombre de cas"]],
+      body:S.topDiag.map(([l,c])=>[l,String(c)]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
+  // Tableau par site (admin uniquement)
+  if(S.siteStats.length){
+    if(y>230){ doc.addPage(); y=18; }
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
+    doc.text("Statistiques par site", margin, y); y+=4;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
+      head:[["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"]],
+      body:S.siteStats.map(s=>[s.nom,String(s.n),s.pctF!=null?s.pctF+"%":"—",s.pctM!=null?s.pctM+"%":"—",s.moy??"—",s.topPath||"—"]),
+    });
+  }
+
+  doc.save(reportFileBaseName()+".pdf");
+  toast("Rapport PDF téléchargé");
+}
+
+async function downloadReportWord(){
+  if(typeof window.docx==="undefined"){
+    toast("Génération Word indisponible : bibliothèque non chargée. Vérifiez votre connexion et réessayez.",true);
+    return;
+  }
+  const S=computeDashboardStats();
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, ImageRun, AlignmentType }=window.docx;
+  const titles=reportTitleLines(S);
+
+  const mkTable=(head,rows)=>new Table({
+    width:{ size:100, type:WidthType.PERCENTAGE },
+    rows:[
+      new TableRow({ children:head.map(h=>new TableCell({ shading:{fill:"2EA038"}, children:[new Paragraph({ children:[new TextRun({text:h,bold:true,color:"FFFFFF"})] })] })) }),
+      ...rows.map(r=>new TableRow({ children:r.map(v=>new TableCell({ children:[new Paragraph(String(v))] })) })),
+    ],
+  });
+
+  const children=[
+    new Paragraph({ text:titles[0], heading:HeadingLevel.HEADING_1 }),
+    new Paragraph({ text:titles[1], spacing:{after:80} }),
+    new Paragraph({ text:titles[2], spacing:{after:240} }),
+
+    new Paragraph({ text:"Chiffres clés", heading:HeadingLevel.HEADING_2, spacing:{before:160,after:120} }),
+    mkTable(["Indicateur","Valeur"],[
+      [ME.role==="admin"?"Consultations au total":"Mes consultations", S.total],
+      ["Aujourd'hui", S.today],
+      ["7 derniers jours", S.semaine],
+      ["Âge moyen (ans)", S.ageMoyen??"—"],
+      ["Explorations complémentaires demandées", S.explorations],
+      ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
+    ]),
+  ];
+
+  // Graphiques capturés en image, si actuellement affichés à l'écran
+  const addChartImage=(canvasId,label)=>{
+    const img=chartImage(canvasId);
+    if(!img) return;
+    const base64=img.split(",")[1];
+    const bin=atob(base64);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    children.push(new Paragraph({ text:label, heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:bytes, transformation:{ width:520, height:230 } })] }));
+  };
+  addChartImage("dashTrendChart","Évolution — 14 derniers jours");
+  addChartImage("dashSexChart","Répartition par sexe");
+  addChartImage("dashAgeChart","Pyramide des âges");
+  addChartImage("dashDiagChart","Pathologies les plus fréquentes");
+
+  if(S.topDiag.length){
+    children.push(new Paragraph({ text:"Détail — Pathologies les plus fréquentes", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
+  }
+
+  if(S.siteStats.length){
+    children.push(new Paragraph({ text:"Statistiques par site", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(mkTable(["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"],
+      S.siteStats.map(s=>[s.nom,s.n,s.pctF!=null?s.pctF+"%":"—",s.pctM!=null?s.pctM+"%":"—",s.moy??"—",s.topPath||"—"])));
+  }
+
+  const doc=new Document({ sections:[{ children }] });
+  try{
+    const blob=await Packer.toBlob(doc);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=reportFileBaseName()+".docx";
+    a.click();
+    toast("Rapport Word téléchargé");
+  }catch(e){
+    toast("Échec de la génération du document Word : "+e.message,true);
+  }
+}
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }

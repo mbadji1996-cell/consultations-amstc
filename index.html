@@ -736,21 +736,54 @@ function renderDashboard(){
   const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
   const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
 
-  const countTop=(field,n=5)=>{
+  const countTop=(list,field,n=5)=>{
     const map={};
-    rows.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
+    list.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
   };
-  const topDiag=countTop("diagnostic");
+  const topDiag=countTop(rows,"diagnostic");
 
   // Tendance sur les 14 derniers jours
   const days=[]; for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); d.setHours(0,0,0,0); days.push(d); }
   const trendCounts=days.map(d=>rows.filter(r=>isSameDay(new Date(r.created_at),d)).length);
   const trendLabels=days.map(d=>d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}));
 
-  let siteHtml="";
+  // Pyramide des âges : tranches classiques, répartie par sexe
+  const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
+  const bracketLabel=([a,b])=>b>=200?`${a}+`:`${a}-${b}`;
+  const bracketOf=age=>AGE_BRACKETS.findIndex(([a,b])=>age>=a&&age<=b);
+  const ageF=new Array(AGE_BRACKETS.length).fill(0);
+  const ageM=new Array(AGE_BRACKETS.length).fill(0);
+  rows.forEach(r=>{
+    if(r.age==null||isNaN(r.age)) return;
+    const i=bracketOf(r.age); if(i<0) return;
+    if(r.sexe==="F") ageF[i]++; else if(r.sexe==="M") ageM[i]++;
+  });
+  const hasAgeData=ageF.some(v=>v>0)||ageM.some(v=>v>0);
+
+  let siteTableHtml="";
   if(ME.role==="admin" && SITES.length){
-    siteHtml = `<fieldset><legend>Consultations par site</legend><div style="height:${Math.max(160,SITES.length*38)}px"><canvas id="dashSiteChart"></canvas></div></fieldset>`;
+    const siteRows=SITES.map(s=>{
+      const rs=rows.filter(r=>r.site_id===s.id);
+      const n=rs.length;
+      const f=rs.filter(r=>r.sexe==="F").length, m=rs.filter(r=>r.sexe==="M").length;
+      const as=rs.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
+      const moy=as.length?Math.round(as.reduce((a,b)=>a+b,0)/as.length):null;
+      const top=countTop(rs,"diagnostic",1);
+      return `<tr>
+        <td><b>${esc(s.nom)}</b></td>
+        <td>${n}</td>
+        <td>${n?Math.round(f/n*100)+"%":"—"}</td>
+        <td>${n?Math.round(m/n*100)+"%":"—"}</td>
+        <td>${moy??"—"}</td>
+        <td>${top.length?esc(top[0][0]):"—"}</td>
+      </tr>`;
+    }).join("");
+    siteTableHtml=`<fieldset><legend>Statistiques par site</legend>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Site</th><th>Consult.</th><th>% F</th><th>% M</th><th>Âge moyen</th><th>Pathologie la + fréquente</th>
+      </tr></thead><tbody>${siteRows}</tbody></table></div>
+    </fieldset>`;
   }
 
   $("dashBody").innerHTML=`
@@ -766,9 +799,11 @@ function renderDashboard(){
 
     ${(hommes+femmes)?`<fieldset><legend>Répartition par sexe</legend><div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div></fieldset>`:""}
 
-    ${topDiag.length?`<fieldset><legend>Diagnostics les plus fréquents</legend><div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></fieldset>`:""}
+    ${hasAgeData?`<fieldset><legend>Pyramide des âges</legend><div style="height:${Math.max(220,AGE_BRACKETS.length*34)}px"><canvas id="dashAgeChart"></canvas></div></fieldset>`:""}
 
-    ${siteHtml}
+    ${topDiag.length?`<fieldset><legend>Pathologies les plus fréquentes</legend><div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></fieldset>`:""}
+
+    ${siteTableHtml}
 
     ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
     <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
@@ -776,7 +811,7 @@ function renderDashboard(){
 
   if(typeof Chart==="undefined"){
     $("chartFallbackNote")?.classList.remove("hidden");
-    return; // les chiffres restent affichés, seuls les graphiques sont indisponibles
+    return; // les chiffres et le tableau par site restent affichés, seuls les graphiques sont indisponibles
   }
 
   const green="#2ea038", green900="#123c1c", orange="#f39c12", grid="#e3e9e5";
@@ -804,22 +839,32 @@ function renderDashboard(){
     });
   }
 
+  if(hasAgeData){
+    killChart("age");
+    CHARTS.age=new Chart($("dashAgeChart"),{
+      type:"bar",
+      data:{
+        labels:AGE_BRACKETS.map(bracketLabel),
+        datasets:[
+          { label:"Masculin", data:ageM.map(v=>-v), backgroundColor:green, borderRadius:3 },
+          { label:"Féminin", data:ageF, backgroundColor:orange, borderRadius:3 },
+        ]
+      },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ position:"bottom" },
+          tooltip:{ callbacks:{ label:(ctx)=>`${ctx.dataset.label} : ${Math.abs(ctx.parsed.x)}` } } },
+        scales:{
+          x:{ stacked:false, grid:{color:grid}, ticks:{ callback:v=>Math.abs(v), precision:0 } },
+          y:{ stacked:false, grid:{display:false} }
+        } }
+    });
+  }
+
   if(topDiag.length){
     killChart("diag");
     CHARTS.diag=new Chart($("dashDiagChart"),{
       type:"bar",
       data:{ labels:topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:topDiag.map(([,c])=>c), backgroundColor:green, borderRadius:4 }] },
-      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:false} },
-        scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
-    });
-  }
-
-  if(ME.role==="admin" && SITES.length){
-    killChart("site");
-    CHARTS.site=new Chart($("dashSiteChart"),{
-      type:"bar",
-      data:{ labels:SITES.map(s=>s.nom), datasets:[{ data:SITES.map(s=>rows.filter(r=>r.site_id===s.id).length), backgroundColor:green900, borderRadius:4 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }

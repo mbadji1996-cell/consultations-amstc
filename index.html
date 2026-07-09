@@ -163,6 +163,9 @@
       <div id="loginAlert"></div>
       <div class="field"><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="email"></div>
       <div class="field"><label>Mot de passe</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+      <p style="text-align:right;margin:-8px 0 14px;font-size:13px">
+        <button class="link-btn" onclick="showForgot()">Mot de passe oublié ?</button>
+      </p>
       <button class="btn btn-primary btn-block" id="loginBtn" onclick="doLogin()">Se connecter</button>
       <div class="or-sep"><span></span>ou<span></span></div>
       <button class="btn btn-block gbtn" onclick="doGoogle()">
@@ -203,6 +206,28 @@
         avant que vous puissiez saisir des consultations.
       </div>
       <button class="btn btn-ghost btn-block" onclick="doLogout()">Se déconnecter</button>
+    </div>
+
+    <div id="forgotBox" class="hidden">
+      <h2>Mot de passe oublié</h2>
+      <p class="auth-sub">Indiquez votre adresse e-mail : un lien de réinitialisation vous sera envoyé.</p>
+      <div id="forgotAlert"></div>
+      <div class="field"><label>Adresse e-mail</label><input type="email" id="forgotEmail" autocomplete="email"></div>
+      <button class="btn btn-primary btn-block" id="forgotBtn" onclick="doForgotPassword()">Envoyer le lien</button>
+      <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--muted)">
+        <button class="link-btn" onclick="showLogin()">Retour à la connexion</button>
+      </p>
+    </div>
+
+    <div id="resetPasswordBox" class="hidden">
+      <h2>Nouveau mot de passe</h2>
+      <p class="auth-sub">Choisissez un nouveau mot de passe pour votre compte.</p>
+      <div id="resetAlert"></div>
+      <div class="field"><label>Nouveau mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
+        <input type="password" id="resetPass" autocomplete="new-password"></div>
+      <div class="field"><label>Confirmer le mot de passe</label>
+        <input type="password" id="resetPass2" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-block" id="resetBtn" onclick="doUpdatePassword()">Enregistrer le nouveau mot de passe</button>
     </div>
   </div>
 </div>
@@ -333,6 +358,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 /* =====================================================================
    CONFIGURATION — À REMPLIR (une seule fois)
@@ -386,9 +412,34 @@ function updateSync(){
 /* =====================================================================
    AUTHENTIFICATION
    ===================================================================== */
-function showLogin(){ $("loginBox").classList.remove("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); }
-function showSignup(){ $("signupBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); }
-function showPending(){ $("pendingBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); }
+function showLogin(){ $("loginBox").classList.remove("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
+function showSignup(){ $("signupBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
+function showPending(){ $("pendingBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
+function showForgot(){ $("forgotBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
+function showResetPassword(){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); $("resetPasswordBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); }
+
+async function doForgotPassword(){
+  const email=$("forgotEmail").value.trim();
+  if(!email){ alertIn("forgotAlert","err","Renseignez votre adresse e-mail."); return; }
+  $("forgotBtn").disabled=true; $("forgotBtn").textContent="Envoi…";
+  const {error}=await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
+  $("forgotBtn").disabled=false; $("forgotBtn").textContent="Envoyer le lien";
+  if(error){ alertIn("forgotAlert","err","Échec : "+error.message); return; }
+  alertIn("forgotAlert","ok","Si un compte existe avec cette adresse, un e-mail vient d'être envoyé. Pensez à vérifier vos spams.");
+}
+
+async function doUpdatePassword(){
+  const p1=$("resetPass").value, p2=$("resetPass2").value;
+  if(p1.length<6){ alertIn("resetAlert","err","Le mot de passe doit faire au moins 6 caractères."); return; }
+  if(p1!==p2){ alertIn("resetAlert","err","Les deux mots de passe ne correspondent pas."); return; }
+  $("resetBtn").disabled=true; $("resetBtn").textContent="Enregistrement…";
+  const {error}=await sb.auth.updateUser({ password:p1 });
+  $("resetBtn").disabled=false; $("resetBtn").textContent="Enregistrer le nouveau mot de passe";
+  if(error){ alertIn("resetAlert","err","Échec : "+error.message); return; }
+  IS_RECOVERY=false;
+  toast("Mot de passe mis à jour");
+  await enterApp();
+}
 
 async function doLogin(){
   const email=$("loginEmail").value.trim(), pass=$("loginPass").value;
@@ -644,8 +695,11 @@ async function deleteConsultation(id, isQueued){
 }
 
 
+let CHARTS={}; // instances Chart.js actives, détruites/recréées à chaque rendu pour éviter les doublons sur le même canvas
+function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
+
 function renderDashboard(){
-  // Périmètre : agent -> ses propres saisies (déjà filtré par RLS dans LIST) ; admin -> tout, avec filtre site optionnel
+  // Périmètre : agent -> ses propres saisies (déjà filtré par RLS dans LIST) ; admin -> tout
   const rows=[...getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString()})),...LIST];
   const total=rows.length;
   const now=new Date();
@@ -659,7 +713,6 @@ function renderDashboard(){
   const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
   const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
 
-  // top motifs (comptage simple sur le texte complet, regroupé tel quel)
   const countTop=(field,n=5)=>{
     const map={};
     rows.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
@@ -667,25 +720,15 @@ function renderDashboard(){
   };
   const topDiag=countTop("diagnostic");
 
-  const bar=(label,count,max)=>{
-    const pct=max?Math.round(count/max*100):0;
-    return `<div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
-        <span>${esc(label.slice(0,60))}${label.length>60?"…":""}</span><b>${count}</b>
-      </div>
-      <div style="background:var(--green-50);border-radius:100px;height:8px;overflow:hidden">
-        <div style="background:var(--green-500);height:100%;width:${pct}%;border-radius:100px"></div>
-      </div>
-    </div>`;
-  };
+  // Tendance sur les 14 derniers jours
+  const days=[]; for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); d.setHours(0,0,0,0); days.push(d); }
+  const trendCounts=days.map(d=>rows.filter(r=>isSameDay(new Date(r.created_at),d)).length);
+  const trendLabels=days.map(d=>d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"}));
 
-  let siteBars="";
+  let siteHtml="";
   if(ME.role==="admin" && SITES.length){
-    const maxSite=Math.max(1,...SITES.map(s=>rows.filter(r=>r.site_id===s.id).length));
-    siteBars = SITES.map(s=>bar(s.nom, rows.filter(r=>r.site_id===s.id).length, maxSite)).join("");
+    siteHtml = `<fieldset><legend>Consultations par site</legend><div style="height:${Math.max(160,SITES.length*38)}px"><canvas id="dashSiteChart"></canvas></div></fieldset>`;
   }
-
-  const maxDiag=Math.max(1,...topDiag.map(([,c])=>c));
 
   $("dashBody").innerHTML=`
     <div class="stat-row">
@@ -696,21 +739,71 @@ function renderDashboard(){
       <div class="stat"><b>${explorations}</b><span>Explorations demandées</span></div>
     </div>
 
-    <fieldset>
-      <legend>Répartition par sexe</legend>
-      ${bar("Féminin",femmes,Math.max(1,hommes,femmes))}
-      ${bar("Masculin",hommes,Math.max(1,hommes,femmes))}
-    </fieldset>
+    ${total?`<fieldset><legend>Évolution — 14 derniers jours</legend><div style="height:220px"><canvas id="dashTrendChart"></canvas></div></fieldset>`:""}
 
-    ${topDiag.length?`<fieldset><legend>Diagnostics les plus fréquents</legend>
-      ${topDiag.map(([label,count])=>bar(label,count,maxDiag)).join("")}
-    </fieldset>`:""}
+    ${(hommes+femmes)?`<fieldset><legend>Répartition par sexe</legend><div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div></fieldset>`:""}
 
-    ${siteBars?`<fieldset><legend>Consultations par site</legend>${siteBars}</fieldset>`:""}
+    ${topDiag.length?`<fieldset><legend>Diagnostics les plus fréquents</legend><div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></fieldset>`:""}
+
+    ${siteHtml}
 
     ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
+    <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
   `;
+
+  if(typeof Chart==="undefined"){
+    $("chartFallbackNote")?.classList.remove("hidden");
+    return; // les chiffres restent affichés, seuls les graphiques sont indisponibles
+  }
+
+  const green="#2ea038", green900="#123c1c", orange="#f39c12", grid="#e3e9e5";
+  Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+  Chart.defaults.color="#5f6b62";
+
+  if(total){
+    killChart("trend");
+    CHARTS.trend=new Chart($("dashTrendChart"),{
+      type:"line",
+      data:{ labels:trendLabels, datasets:[{ label:"Consultations", data:trendCounts,
+        borderColor:green, backgroundColor:"rgba(46,160,56,.12)", fill:true, tension:.3, pointRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, x:{ grid:{display:false} } } }
+    });
+  }
+
+  if(hommes+femmes){
+    killChart("sex");
+    CHARTS.sex=new Chart($("dashSexChart"),{
+      type:"doughnut",
+      data:{ labels:["Féminin","Masculin"], datasets:[{ data:[femmes,hommes], backgroundColor:[orange,green], borderWidth:0 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:"bottom" } } }
+    });
+  }
+
+  if(topDiag.length){
+    killChart("diag");
+    CHARTS.diag=new Chart($("dashDiagChart"),{
+      type:"bar",
+      data:{ labels:topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:topDiag.map(([,c])=>c), backgroundColor:green, borderRadius:4 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
+    });
+  }
+
+  if(ME.role==="admin" && SITES.length){
+    killChart("site");
+    CHARTS.site=new Chart($("dashSiteChart"),{
+      type:"bar",
+      data:{ labels:SITES.map(s=>s.nom), datasets:[{ data:SITES.map(s=>rows.filter(r=>r.site_id===s.id).length), backgroundColor:green900, borderRadius:4 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
+    });
+  }
 }
+
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
@@ -825,9 +918,20 @@ window.addEventListener("offline",updateSync);
 /* ---------- service worker (mode hors ligne) ---------- */
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
 
+/* ---------- réinitialisation de mot de passe ----------
+   Quand la personne clique le lien reçu par e-mail, Supabase crée une
+   session temporaire et déclenche cet événement — on l'intercepte pour
+   afficher l'écran "nouveau mot de passe" avant tout accès à l'app. */
+let IS_RECOVERY=false;
+sb.auth.onAuthStateChange((event)=>{
+  if(event==="PASSWORD_RECOVERY"){ IS_RECOVERY=true; showResetPassword(); }
+});
+
 /* ---------- démarrage ---------- */
 (async function(){
   updateSync();
+  await new Promise(r=>setTimeout(r,150)); // laisse le temps à un éventuel lien de récupération d'être détecté
+  if(IS_RECOVERY) return;
   const {data:{session}}=await sb.auth.getSession();
   if(session) await enterApp();
 })();

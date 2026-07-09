@@ -1,11 +1,12 @@
 /* Service worker AMSTC — cache l'app shell pour un fonctionnement hors ligne.
    Incrémente CACHE_VERSION à chaque mise à jour de index.html pour forcer
    le rafraîchissement du cache chez les utilisateurs. */
-const CACHE_VERSION = "amstc-v2";
+const CACHE_VERSION = "amstc-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+  "https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js",
 ];
 
 self.addEventListener("install", (e) => {

@@ -318,6 +318,14 @@
         <label>Site de consultation <span class="req">*</span></label>
         <select id="c_site"><option value="">— Sélectionner un site —</option></select>
       </div>
+      <div class="field hidden" id="typePickerWrap">
+        <label>Type de consultation</label>
+        <select id="c_type" onchange="onConsultTypeChange()">
+          <option value="generaliste">Généraliste</option>
+          <option value="dentiste">Dentaire</option>
+          <option value="specialiste">Spécialiste</option>
+        </select>
+      </div>
       <div class="field row2">
         <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
         <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
@@ -331,27 +339,67 @@
       <div class="field"><label>Motifs de consultation <span class="req">*</span></label>
         <textarea id="c_motifs" placeholder="Raisons de la visite"></textarea></div>
 
-      <fieldset>
-        <legend>Constantes vitales</legend>
-        <div class="constants">
-          <div class="field"><label>Tension artérielle</label><input type="text" id="c_ta" placeholder="120/80"></div>
-          <div class="field"><label>Température (°C)</label><input type="number" id="c_temperature" step="0.1" placeholder="37.5"></div>
-          <div class="field"><label>Fréquence cardiaque</label><input type="number" id="c_fc" placeholder="72"></div>
-          <div class="field"><label>Taille (cm)</label><input type="number" id="c_taille" step="0.1" placeholder="165"></div>
-          <div class="field"><label>Poids (kg)</label><input type="number" id="c_poids" step="0.1" placeholder="65.5"></div>
+      <!-- ===== GÉNÉRALISTE ===== -->
+      <div id="type_generaliste_fields">
+        <fieldset>
+          <legend>Constantes vitales</legend>
+          <div class="constants">
+            <div class="field"><label>Tension artérielle</label><input type="text" id="c_ta" placeholder="120/80"></div>
+            <div class="field"><label>Température (°C)</label><input type="number" id="c_temperature" step="0.1" placeholder="37.5"></div>
+            <div class="field"><label>Fréquence cardiaque</label><input type="number" id="c_fc" placeholder="72"></div>
+            <div class="field"><label>Taille (cm)</label><input type="number" id="c_taille" step="0.1" placeholder="165"></div>
+            <div class="field"><label>Poids (kg)</label><input type="number" id="c_poids" step="0.1" placeholder="65.5"></div>
+          </div>
+        </fieldset>
+        <div class="field"><label>Antécédents et terrain</label>
+          <textarea id="c_antecedents" placeholder="Antécédents, allergies, maladies chroniques…"></textarea></div>
+        <div class="field"><label>Signes cliniques <span class="req">*</span></label>
+          <textarea id="c_signes" placeholder="Résultats de l'examen clinique"></textarea></div>
+        <div class="field"><label>Diagnostic <span class="req">*</span></label>
+          <textarea id="c_diagnostic" placeholder="Diagnostic principal"></textarea></div>
+        <div class="field"><label>Explorations complémentaires demandées</label>
+          <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
+        <div class="field">
+          <label>Conduite à tenir / Traitement <span class="req">*</span></label>
+          <div id="medsList_generaliste"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addMedRow('generaliste')">+ Ajouter un médicament</button>
+          <textarea id="c_conduite_notes" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
-      </fieldset>
+      </div>
 
-      <div class="field"><label>Antécédents et terrain</label>
-        <textarea id="c_antecedents" placeholder="Antécédents, allergies, maladies chroniques…"></textarea></div>
-      <div class="field"><label>Signes cliniques <span class="req">*</span></label>
-        <textarea id="c_signes" placeholder="Résultats de l'examen clinique"></textarea></div>
-      <div class="field"><label>Diagnostic <span class="req">*</span></label>
-        <textarea id="c_diagnostic" placeholder="Diagnostic principal"></textarea></div>
-      <div class="field"><label>Explorations complémentaires demandées</label>
-        <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
-      <div class="field"><label>Conduite à tenir / Traitement <span class="req">*</span></label>
-        <textarea id="c_conduite" placeholder="Recommandations, prescriptions, suivi…"></textarea></div>
+      <!-- ===== DENTISTE ===== -->
+      <div id="type_dentiste_fields" class="hidden">
+        <div class="row2">
+          <div class="field"><label>Dent(s) concernée(s)</label><input type="text" id="c_dent" placeholder="ex : 26, 36"></div>
+          <div class="field"><label>Acte réalisé <span class="req">*</span></label>
+            <select id="c_acte_dentaire"><option value="">— Sélectionner —</option>
+              <option>Consultation / contrôle</option><option>Détartrage</option><option>Extraction</option>
+              <option>Soin de carie</option><option>Dévitalisation</option><option>Pose de prothèse</option><option>Autre</option>
+            </select></div>
+        </div>
+        <div class="field"><label>Observations cliniques</label>
+          <textarea id="c_signes_dent" placeholder="État bucco-dentaire, observations"></textarea></div>
+        <div class="field"><label>Conduite à tenir / Soins prescrits <span class="req">*</span></label>
+          <textarea id="c_conduite_dent" placeholder="Traitement, prescriptions, prochain rendez-vous…"></textarea></div>
+      </div>
+
+      <!-- ===== SPÉCIALISTE ===== -->
+      <div id="type_specialiste_fields" class="hidden">
+        <div class="field"><label>Spécialité médicale <span class="req">*</span></label>
+          <input type="text" id="c_specialite_med" placeholder="ex : Cardiologie, Gynécologie, ORL…"></div>
+        <div class="field"><label>Signes cliniques <span class="req">*</span></label>
+          <textarea id="c_signes_spec" placeholder="Résultats de l'examen"></textarea></div>
+        <div class="field"><label>Diagnostic <span class="req">*</span></label>
+          <textarea id="c_diagnostic_spec" placeholder="Diagnostic principal"></textarea></div>
+        <div class="field"><label>Explorations complémentaires demandées</label>
+          <textarea id="c_explorations_spec"></textarea></div>
+        <div class="field">
+          <label>Conduite à tenir / Traitement <span class="req">*</span></label>
+          <div id="medsList_specialiste"></div>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addMedRow('specialiste')">+ Ajouter un médicament</button>
+          <textarea id="c_conduite_notes_spec" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
+        </div>
+      </div>
 
       <div class="actions">
         <button class="btn btn-primary" id="saveBtn" onclick="saveConsultation()">Enregistrer la consultation</button>
@@ -386,7 +434,7 @@
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
       <div class="table-wrap"><table id="usersTable"><thead><tr>
-        <th>Nom</th><th>Rôle</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
+        <th>Nom</th><th>Rôle</th><th>Spécialités</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
       </tr></thead><tbody id="usersBody"></tbody></table></div>
     </div>
 
@@ -405,6 +453,17 @@
         <button class="btn btn-primary btn-sm" onclick="addCampagne()">Créer la campagne</button>
       </fieldset>
       <div id="campagnesBody"></div>
+    </div>
+
+    <!-- PHARMACIEN (et admin) : suivi des délivrances -->
+    <div class="panel" id="panel-dispensation">
+      <div class="toolbar">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap">
+          <input type="checkbox" id="dispShowDelivered" onchange="renderDispensation()"> Afficher aussi les prescriptions déjà délivrées
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="loadDispensation()">Actualiser</button>
+      </div>
+      <div id="dispensationBody"></div>
     </div>
   </div>
 </div>
@@ -438,6 +497,7 @@ let SITES = [];           // liste des sites
 let LIST = [];            // consultations chargées depuis le serveur
 let CURRENT_TAB = null;
 let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
+let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
 let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
 
@@ -651,10 +711,22 @@ async function confirmSiteSelection(){
 /* =====================================================================
    ONGLETS SELON LE RÔLE
    ===================================================================== */
+const SPEC_LABELS={generaliste:"Généraliste",dentiste:"Dentaire",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
+function getClinicalSpecs(){
+  if(ME.role==="admin") return ["generaliste","dentiste","specialiste"];
+  const s=(ME.specialites||[]).filter(x=>["generaliste","dentiste","specialiste"].includes(x));
+  return s.length?s:["generaliste"]; // comportement historique : par défaut, généraliste
+}
+function isPharmacien(){ return ME.role==="admin" || (ME.specialites||[]).includes("pharmacien"); }
+
 function buildTabs(){
-  const tabs = ME.role==="admin"
-    ? [["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"]]
-    : [["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
+  let tabs;
+  if(ME.role==="admin"){
+    tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Dispensation"]];
+  } else {
+    tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
+    if(isPharmacien()) tabs.push(["dispensation","Dispensation"]);
+  }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
     `<button class="tab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${l}</button>`).join("");
   // le filtre par site n'a de sens que pour l'admin
@@ -676,7 +748,55 @@ function buildTabs(){
     $("c_site").innerHTML=`<option value="">— Sélectionner un site —</option>`+
       SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
   }
+  // sélecteur de type de consultation — visible seulement si plusieurs spécialités cliniques sont possibles
+  const clinical=getClinicalSpecs();
+  $("typePickerWrap").classList.toggle("hidden", clinical.length<2);
+  $("c_type").innerHTML = clinical.map(k=>`<option value="${k}">${SPEC_LABELS[k]}</option>`).join("");
+  $("c_type").value = clinical[0];
+  onConsultTypeChange();
   switchTab(tabs[0][0]);
+}
+
+function onConsultTypeChange(){
+  const t=$("c_type").value||"generaliste";
+  $("type_generaliste_fields").classList.toggle("hidden", t!=="generaliste");
+  $("type_dentiste_fields").classList.toggle("hidden", t!=="dentiste");
+  $("type_specialiste_fields").classList.toggle("hidden", t!=="specialiste");
+}
+
+// Liste de médicaments saisis un par un — utilisée par les formulaires généraliste et spécialiste.
+function addMedRow(scope){
+  const container=$("medsList_"+scope); if(!container) return;
+  const row=document.createElement("div");
+  row.className="med-row";
+  row.style.cssText="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-end";
+  row.innerHTML=`
+    <div style="flex:2;min-width:130px"><label style="font-size:11px;color:var(--muted)">Médicament</label>
+      <input type="text" class="med-nom" placeholder="ex : Paracétamol"></div>
+    <div style="flex:1;min-width:100px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
+      <input type="text" class="med-poso" placeholder="1 cp x3/j"></div>
+    <div style="flex:1;min-width:90px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
+      <input type="text" class="med-qte" placeholder="10 cp"></div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.med-row').remove()">Retirer</button>`;
+  container.appendChild(row);
+}
+
+function readMedRows(scope){
+  const container=$("medsList_"+scope); if(!container) return [];
+  return [...container.querySelectorAll(".med-row")].map(row=>({
+    nom: row.querySelector(".med-nom").value.trim(),
+    posologie: row.querySelector(".med-poso").value.trim(),
+    quantite: row.querySelector(".med-qte").value.trim(),
+    delivre: false, delivre_par: null, delivre_le: null,
+  })).filter(m=>m.nom); // les lignes laissées vides ne comptent pas
+}
+
+function clearMedRows(scope){
+  const container=$("medsList_"+scope); if(container) container.innerHTML="";
+}
+
+function medsToText(meds){
+  return meds.map(m=>`${m.nom}${m.posologie?" — "+m.posologie:""}${m.quantite?" ("+m.quantite+")":""}`).join("; ");
 }
 
 function onCampagneFilterChange(){
@@ -693,6 +813,7 @@ function switchTab(tab){
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
   if(tab==="campagnes") renderCampagnes();
+  if(tab==="dispensation") loadDispensation();
 }
 
 /* =====================================================================
@@ -718,32 +839,64 @@ async function saveConsultation(){
   const medecinNom=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email||"—";
   // L'agent a un site fixe (choisi une fois) ; l'admin, "chef d'équipe", choisit son site à chaque consultation.
   const siteId = ME.role==="admin" ? ($("c_site").value||null) : ME.site_id;
+  const type = $("c_type").value || "generaliste";
 
   const rec={
-    id:newId, numero_consultation:numero, medecin_nom:medecinNom,
+    id:newId, numero_consultation:numero, medecin_nom:medecinNom, type_consultation:type,
     agent_id: ME.id, site_id: siteId,
     prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
     sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
     adresse:$("c_adresse").value.trim(),
     motifs:$("c_motifs").value.trim(),
-    ta:$("c_ta").value.trim()||null,
-    temperature:$("c_temperature").value?parseFloat($("c_temperature").value):null,
-    fc:$("c_fc").value?parseInt($("c_fc").value):null,
-    taille:$("c_taille").value?parseFloat($("c_taille").value):null,
-    poids:$("c_poids").value?parseFloat($("c_poids").value):null,
-    antecedents:$("c_antecedents").value.trim(),
-    signes:$("c_signes").value.trim(),
-    diagnostic:$("c_diagnostic").value.trim(),
-    explorations:$("c_explorations").value.trim()||null,
-    conduite:$("c_conduite").value.trim(),
+    ta:null, temperature:null, fc:null, taille:null, poids:null, antecedents:"",
+    signes:"", diagnostic:"", explorations:null, conduite:"", medicaments:[],
+    dent_concernee:null, acte_dentaire:null, specialite_medicale:null,
   };
-  // validation des champs obligatoires
+
   const missing=[];
   if(ME.role==="admin" && !siteId) missing.push("site de consultation");
   if(!rec.prenom||!rec.nom) missing.push("nom et prénom");
   if(!rec.sexe) missing.push("sexe"); if(rec.age===null) missing.push("âge");
-  if(!rec.motifs) missing.push("motifs"); if(!rec.signes) missing.push("signes cliniques");
-  if(!rec.diagnostic) missing.push("diagnostic"); if(!rec.conduite) missing.push("conduite à tenir");
+  if(!rec.motifs) missing.push("motifs");
+
+  if(type==="dentiste"){
+    rec.dent_concernee=$("c_dent").value.trim()||null;
+    rec.acte_dentaire=$("c_acte_dentaire").value||null;
+    rec.diagnostic=rec.acte_dentaire||""; // permet aux statistiques "pathologies fréquentes" de rester pertinentes
+    rec.signes=$("c_signes_dent").value.trim();
+    rec.conduite=$("c_conduite_dent").value.trim();
+    if(!rec.acte_dentaire) missing.push("acte réalisé");
+    if(!rec.conduite) missing.push("conduite à tenir");
+  } else if(type==="specialiste"){
+    rec.specialite_medicale=$("c_specialite_med").value.trim()||null;
+    rec.signes=$("c_signes_spec").value.trim();
+    rec.diagnostic=$("c_diagnostic_spec").value.trim();
+    rec.explorations=$("c_explorations_spec").value.trim()||null;
+    rec.medicaments=readMedRows("specialiste");
+    { const notes=$("c_conduite_notes_spec").value.trim();
+      rec.conduite=[notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+    if(!rec.specialite_medicale) missing.push("spécialité médicale");
+    if(!rec.signes) missing.push("signes cliniques");
+    if(!rec.diagnostic) missing.push("diagnostic");
+    if(!rec.conduite) missing.push("conduite à tenir (médicament ou note)");
+  } else { // généraliste
+    rec.ta=$("c_ta").value.trim()||null;
+    rec.temperature=$("c_temperature").value?parseFloat($("c_temperature").value):null;
+    rec.fc=$("c_fc").value?parseInt($("c_fc").value):null;
+    rec.taille=$("c_taille").value?parseFloat($("c_taille").value):null;
+    rec.poids=$("c_poids").value?parseFloat($("c_poids").value):null;
+    rec.antecedents=$("c_antecedents").value.trim();
+    rec.signes=$("c_signes").value.trim();
+    rec.diagnostic=$("c_diagnostic").value.trim();
+    rec.explorations=$("c_explorations").value.trim()||null;
+    rec.medicaments=readMedRows("generaliste");
+    { const notes=$("c_conduite_notes").value.trim();
+      rec.conduite=[notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+    if(!rec.signes) missing.push("signes cliniques");
+    if(!rec.diagnostic) missing.push("diagnostic");
+    if(!rec.conduite) missing.push("conduite à tenir (médicament ou note)");
+  }
+
   if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
 
   $("saveBtn").disabled=true;
@@ -785,8 +938,11 @@ async function flushQueue(){
 }
 
 function resetForm(){
-  ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"]
+  ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite_notes",
+   "dent","acte_dentaire","signes_dent","conduite_dent","specialite_med","signes_spec","diagnostic_spec","explorations_spec","conduite_notes_spec"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
+  clearMedRows("generaliste");
+  clearMedRows("specialiste");
 }
 
 function currentRows(){
@@ -814,14 +970,16 @@ function renderList(){
     const medecin=ME.role==="admin"&&r.medecin_nom?` · Dr/Agent : ${esc(r.medecin_nom)}`:"";
     const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    const typeLabel=SPEC_LABELS[r.type_consultation]||"Généraliste";
+    const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
     return `<div class="rec">
       <div class="rec-top">
-        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-sent" style="margin-left:4px">${typeLabel}</span></div>
           <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site}${medecin} · ${d}</div>
           ${numero}</div>
         ${tag}
       </div>
-      <div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>
+      <div class="rec-diag"><b>${diagLabel} :</b> ${esc(r.diagnostic)}</div>
       <div class="rec-meta">${esc((r.motifs||"").slice(0,120))}${(r.motifs||"").length>120?"…":""}</div>
       ${explo}
       <div class="rec-foot">
@@ -1295,8 +1453,13 @@ async function downloadFullBackup(){
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
-  const cols=["numero_consultation","created_at","medecin_nom","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"];
-  const csv=[cols.join(",")].concat(rows.map(r=>cols.map(c=>`"${(r[c]??"").toString().replace(/"/g,'""')}"`).join(","))).join("\n");
+  const cols=["numero_consultation","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
+  const rowsForExport=rows.map(r=>{
+    const meds=Array.isArray(r.medicaments)?r.medicaments:[];
+    const resume=meds.map(m=>`${m.nom}${m.posologie?" ("+m.posologie+")":""}${m.quantite?" x"+m.quantite:""} [${m.delivre?"délivré":"en attente"}]`).join("; ");
+    return { ...r, medicaments_resume: resume };
+  });
+  const csv=[cols.join(",")].concat(rowsForExport.map(r=>cols.map(c=>`"${(r[c]??"").toString().replace(/"/g,'""')}"`).join(","))).join("\n");
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download=`consultations_amstc_${new Date().toISOString().slice(0,10)}.csv`; a.click();
@@ -1314,20 +1477,33 @@ async function loadUsers(){
     const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
     return `<option value="">— Aucun —</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
   };
-  $("usersBody").innerHTML=(data||[]).map(u=>`
+  $("usersBody").innerHTML=(data||[]).map(u=>{
+    const specs=u.specialites||[];
+    const specPill=(key,label)=>`<button class="btn btn-sm ${specs.includes(key)?"btn-accent":"btn-ghost"}" style="padding:4px 8px;font-size:11px;margin:2px" onclick="toggleSpecialite('${u.id}','${key}')">${label}</button>`;
+    return `
     <tr>
       <td><b>${(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>'}</b>
         <div class="rec-meta">${esc(u.email||"")}</div></td>
       <td><select class="btn-sm" onchange="setRole('${u.id}',this.value)" style="padding:5px">
         <option value="agent"${u.role==="agent"?" selected":""}>Agent</option>
         <option value="admin"${u.role==="admin"?" selected":""}>Admin</option></select></td>
+      <td style="min-width:190px">${specPill("generaliste","Généraliste")}${specPill("dentiste","Dentiste")}${specPill("specialiste","Spécialiste")}${specPill("pharmacien","Pharmacien")}</td>
       <td><select class="btn-sm" id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')" style="padding:5px">${campagneOpts(u.campagne_id)}</select></td>
       <td><select class="btn-sm" id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select></td>
       <td>${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td>
       <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
         `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
         <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
-    </tr>`).join("")||`<tr><td colspan="6" class="empty">Aucun utilisateur.</td></tr>`;
+    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">Aucun utilisateur.</td></tr>`;
+}
+async function toggleSpecialite(id,key){
+  const u=USERS_CACHE.find(x=>x.id===id); if(!u) return;
+  const current=u.specialites||[];
+  const next=current.includes(key)?current.filter(s=>s!==key):[...current,key];
+  const {error}=await sb.from("profiles").update({specialites:next}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  toast("Spécialités mises à jour");
+  loadUsers();
 }
 async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
   if(error) toast("Échec : "+error.message,true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
@@ -1353,6 +1529,59 @@ async function deleteUser(id){
   if(!data||!data.length){ toast("Suppression refusée par la base",true); loadUsers(); return; }
   toast("Utilisateur supprimé");
   loadUsers();
+}
+
+/* =====================================================================
+   PHARMACIEN — SUIVI DES DÉLIVRANCES
+   L'accès en lecture est élargi (RLS : consult_pharmacien_lecture_site)
+   mais l'écriture passe exclusivement par la fonction mark_delivered,
+   qui ne peut jamais toucher qu'aux 3 colonnes de délivrance.
+   ===================================================================== */
+async function loadDispensation(){
+  const {data,error}=await sb.from("consultations")
+    .select("id,numero_consultation,created_at,prenom,nom,medicaments,medecin_nom,site_id")
+    .order("created_at",{ascending:false})
+    .limit(300);
+  if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.length);
+  renderDispensation();
+}
+
+function renderDispensation(){
+  const showAll=$("dispShowDelivered")?.checked;
+  const rows=DISPENSATION_LIST.filter(r=>showAll || r.medicaments.some(m=>!m.delivre));
+  if(!rows.length){ $("dispensationBody").innerHTML=`<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`; return; }
+  $("dispensationBody").innerHTML=rows.map(r=>{
+    const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
+    const medsHtml=r.medicaments.map((m,i)=>{
+      if(m.delivre && !showAll) return ""; // masqué si déjà délivré et qu'on ne veut voir que le reste
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+        <div>
+          <b>${esc(m.nom)}</b>
+          ${m.posologie?` · ${esc(m.posologie)}`:""}${m.quantite?` · ${esc(m.quantite)}`:""}
+          ${m.delivre?`<div class="rec-meta">Délivré par ${esc(m.delivre_par||"—")}</div>`:""}
+        </div>
+        <button class="btn ${m.delivre?"btn-ghost":"btn-accent"} btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},${!m.delivre})">${m.delivre?"Annuler":"Délivré"}</button>
+      </div>`;
+    }).join("");
+    if(!medsHtml) return ""; // tout est déjà délivré et masqué
+    return `<div class="rec">
+      <div class="rec-top">
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          <div class="rec-meta">${d}${site} · Prescrit par ${esc(r.medecin_nom||"—")}</div>
+          <div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation||"")}</div></div>
+      </div>
+      ${medsHtml}
+    </div>`;
+  }).join("");
+}
+
+async function toggleMedDelivered(consultId,idx,delivered){
+  const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered});
+  if(error){ toast("Échec : "+error.message,true); return; }
+  toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
+  loadDispensation();
 }
 
 /* =====================================================================

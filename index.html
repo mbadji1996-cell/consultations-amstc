@@ -372,22 +372,7 @@
     </div>
 
     <!-- ADMIN: sites -->
-    <div class="panel" id="panel-sites">
-      <div id="sitesAlert"></div>
-      <fieldset><legend>Ajouter un site</legend>
-        <div class="row2">
-          <div class="field"><label>Nom du site <span class="req">*</span></label><input type="text" id="s_nom" placeholder="Daara / structure"></div>
-          <div class="field"><label>Ville</label><input type="text" id="s_ville" placeholder="Dakar"></div>
-        </div>
-        <div class="field"><label>Campagne</label>
-          <select id="s_campagne"><option value="">— Aucune (site autonome) —</option></select></div>
-        <button class="btn btn-primary btn-sm" onclick="addSite()">Ajouter le site</button>
-      </fieldset>
-      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Campagne</th><th>Statut</th><th>Actions</th></tr></thead>
-        <tbody id="sitesBody"></tbody></table></div>
-    </div>
-
-    <!-- ADMIN: campagnes -->
+    <!-- ADMIN: campagnes + leurs sites, dans un même onglet -->
     <div class="panel" id="panel-campagnes">
       <div id="campagnesAlert"></div>
       <fieldset><legend>Créer une campagne</legend>
@@ -400,10 +385,22 @@
         </div>
         <button class="btn btn-primary btn-sm" onclick="addCampagne()">Créer la campagne</button>
       </fieldset>
-      <p class="rec-meta" style="margin-bottom:10px">Une fois la campagne créée, ouvre l'onglet <b>Sites</b> pour lui rattacher un ou plusieurs sites de consultation.</p>
-      <div class="table-wrap"><table><thead><tr>
+      <div class="table-wrap" style="margin-bottom:24px"><table><thead><tr>
         <th>Nom</th><th>Lieu</th><th>Début</th><th>Fin</th><th>Sites</th><th>Statut</th><th>Actions</th>
       </tr></thead><tbody id="campagnesBody"></tbody></table></div>
+
+      <fieldset>
+        <legend>Sites de consultation</legend>
+        <div class="field"><label>Campagne concernée</label>
+          <select id="siteScopeSelect" onchange="onSiteScopeChange()"></select></div>
+        <div id="siteScopeHint" class="rec-meta" style="margin-bottom:10px"></div>
+        <div class="field"><label>Nom du site <span class="req">*</span></label>
+          <input type="text" id="s_nom" placeholder="Daara / structure"></div>
+        <button class="btn btn-primary btn-sm" onclick="addSite()">Ajouter ce site</button>
+      </fieldset>
+      <div id="sitesAlert"></div>
+      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Statut</th><th>Actions</th></tr></thead>
+        <tbody id="sitesBody"></tbody></table></div>
     </div>
   </div>
 </div>
@@ -649,7 +646,7 @@ async function confirmSiteSelection(){
    ===================================================================== */
 function buildTabs(){
   const tabs = ME.role==="admin"
-    ? [["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"],["campagnes","Campagnes"]]
+    ? [["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"]]
     : [["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
     `<button class="tab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${l}</button>`).join("");
@@ -687,8 +684,7 @@ function switchTab(tab){
   if(tab==="dashboard") renderDashboard();
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
-  if(tab==="sites") renderSites();
-  if(tab==="campagnes") renderCampagnes();
+  if(tab==="campagnes"){ renderCampagnes(); renderCampagneSites(); }
 }
 
 /* =====================================================================
@@ -1297,74 +1293,17 @@ async function deleteUser(id){
 }
 
 /* =====================================================================
-   ADMIN — SITES
+   ADMIN — CAMPAGNES ET LEURS SITES (onglet fusionné)
+   Un seul contexte de campagne pilote la section "Sites" du bas :
+   ACTIVE_SITE_SCOPE = id d'une campagne, ou "" pour les sites autonomes
+   (sans campagne — conservés pour compatibilité avec les données existantes).
    ===================================================================== */
+let ACTIVE_SITE_SCOPE=null; // null = pas encore choisi (on affichera la campagne la plus récente par défaut) ; "" = sites autonomes, choisi explicitement
 function campagneName(id){ const c=CAMPAGNES.find(x=>x.id===id); return c?c.nom:null; }
 function campagneOpts(selectedId){
   return `<option value="">— Aucune —</option>`+
     CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===selectedId?" selected":""}>${esc(c.nom)}</option>`).join("");
 }
-
-function renderSites(){
-  $("s_campagne").innerHTML=campagneOpts(null);
-  $("sitesBody").innerHTML=SITES.map(s=>`
-    <tr>
-      <td><input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="min-width:140px;padding:6px 8px"></td>
-      <td><input type="text" value="${esc(s.ville||"")}" id="site_ville_${s.id}" placeholder="Ville" style="min-width:110px;padding:6px 8px"></td>
-      <td><select id="site_campagne_${s.id}" style="padding:6px 8px">${campagneOpts(s.campagne_id)}</select></td>
-      <td><select id="site_actif_${s.id}" style="padding:6px 8px">
-        <option value="true"${s.actif?" selected":""}>Actif</option>
-        <option value="false"${!s.actif?" selected":""}>Inactif</option>
-      </select></td>
-      <td>
-        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
-        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteSite('${s.id}')">Supprimer</button>
-      </td>
-    </tr>`).join("")
-    ||`<tr><td colspan="5" class="empty">Aucun site enregistré.</td></tr>`;
-}
-
-async function updateSite(id){
-  const nom=$("site_nom_"+id).value.trim();
-  const ville=$("site_ville_"+id).value.trim();
-  const campagne_id=$("site_campagne_"+id).value||null;
-  const actif=$("site_actif_"+id).value==="true";
-  if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
-  const {error}=await sb.from("sites").update({nom,ville:ville||null,campagne_id,actif}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
-  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
-  renderSites(); buildTabsSiteFilter(); toast("Site mis à jour");
-}
-
-async function deleteSite(id){
-  const s=SITES.find(x=>x.id===id);
-  const label=s?s.nom:"ce site";
-  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et agents déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
-  const {data,error}=await sb.from("sites").delete().eq("id",id).select();
-  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
-  if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
-  const {data:fresh}=await sb.from("sites").select("*").order("nom"); SITES=fresh||[];
-  renderSites(); buildTabsSiteFilter(); toast("Site supprimé");
-}
-
-async function addSite(){
-  const nom=$("s_nom").value.trim(), ville=$("s_ville").value.trim();
-  const campagne_id=$("s_campagne").value||null;
-  if(!nom){ alertIn("sitesAlert","err","Le nom du site est requis."); return; }
-  const {error}=await sb.from("sites").insert({nom,ville:ville||null,campagne_id});
-  if(error){ alertIn("sitesAlert","err","Échec : "+error.message); return; }
-  $("s_nom").value=""; $("s_ville").value=""; $("s_campagne").value="";
-  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
-  renderSites(); buildTabsSiteFilter(); toast("Site ajouté");
-}
-function buildTabsSiteFilter(){
-  if(ME.role==="admin"){ $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
-    SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join(""); }
-}
-
-/* =====================================================================
-   ADMIN — CAMPAGNES
-   ===================================================================== */
 function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
 
 function renderCampagnes(){
@@ -1375,7 +1314,7 @@ function renderCampagnes(){
       <td><input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="min-width:110px;padding:6px 8px"></td>
       <td><input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:6px 8px"></td>
       <td><input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:6px 8px"></td>
-      <td>${nbSites}</td>
+      <td><button class="link-btn" onclick="focusSiteScope('${c.id}')" title="Voir les sites de cette campagne">${nbSites}</button></td>
       <td><select id="cp_actif_${c.id}" style="padding:6px 8px">
         <option value="true"${c.actif?" selected":""}>Active</option>
         <option value="false"${!c.actif?" selected":""}>Terminée</option>
@@ -1400,12 +1339,15 @@ async function addCampagne(){
   const date_fin=$("cp_fin").value||null;
   if(!nom){ alertIn("campagnesAlert","err","Le nom de la campagne est requis."); return; }
   if(date_debut && date_fin && date_fin<date_debut){ alertIn("campagnesAlert","err","La date de fin ne peut pas précéder la date de début."); return; }
-  const {error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin});
+  const {data:inserted,error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin}).select();
   if(error){ alertIn("campagnesAlert","err","Échec : "+error.message); return; }
   $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
-  toast("Campagne créée");
+  // La section Sites du bas se positionne automatiquement sur la campagne qu'on vient de créer,
+  // prête à y ajouter des sites tout de suite, sans changer d'onglet.
+  if(inserted && inserted[0]) focusSiteScope(inserted[0].id);
+  toast("Campagne créée — ajoutez ses sites ci-dessous");
 }
 
 async function updateCampagne(id){
@@ -1433,8 +1375,88 @@ async function deleteCampagne(id){
   await reloadCampagnes();
   const {data:sitesData}=await sb.from("sites").select("*").order("nom"); SITES=sitesData||[];
   if(SELECTED_CAMPAGNE===id) SELECTED_CAMPAGNE="";
+  if(ACTIVE_SITE_SCOPE===id) ACTIVE_SITE_SCOPE="";
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne supprimée");
+}
+
+/* ---------- Sites, toujours affichés dans le contexte d'une campagne (ou "sites autonomes") ---------- */
+function focusSiteScope(campagneId){
+  ACTIVE_SITE_SCOPE=campagneId||"";
+  renderCampagneSites();
+  $("panel-campagnes").querySelector("fieldset:nth-of-type(2)")?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function onSiteScopeChange(){
+  ACTIVE_SITE_SCOPE=$("siteScopeSelect").value;
+  renderCampagneSites();
+}
+
+function renderCampagneSites(){
+  if(ACTIVE_SITE_SCOPE===null){ ACTIVE_SITE_SCOPE = CAMPAGNES.length ? CAMPAGNES[0].id : ""; }
+  // Sélecteur de contexte : chaque campagne + une entrée pour les sites sans campagne
+  $("siteScopeSelect").innerHTML =
+    CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===ACTIVE_SITE_SCOPE?" selected":""}>${esc(c.nom)}</option>`).join("") +
+    `<option value=""${ACTIVE_SITE_SCOPE===""?" selected":""}>— Sites autonomes (sans campagne) —</option>`;
+  // si aucune campagne n'existe encore, on force le contexte "autonome"
+  if(!CAMPAGNES.length){ ACTIVE_SITE_SCOPE=""; $("siteScopeSelect").value=""; }
+
+  const c=CAMPAGNES.find(x=>x.id===ACTIVE_SITE_SCOPE);
+  $("siteScopeHint").textContent = c
+    ? `Ces sites seront rattachés à la campagne « ${c.nom} »${c.lieu?" · "+c.lieu:""}.`
+    : "Ces sites ne sont rattachés à aucune campagne.";
+
+  const scoped=SITES.filter(s=>(s.campagne_id||"")===ACTIVE_SITE_SCOPE);
+  $("sitesBody").innerHTML=scoped.map(s=>`
+    <tr>
+      <td><input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="min-width:160px;padding:6px 8px"></td>
+      <td><select id="site_actif_${s.id}" style="padding:6px 8px">
+        <option value="true"${s.actif?" selected":""}>Actif</option>
+        <option value="false"${!s.actif?" selected":""}>Inactif</option>
+      </select></td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteSite('${s.id}')">Supprimer</button>
+      </td>
+    </tr>`).join("")
+    ||`<tr><td colspan="3" class="empty">Aucun site dans ce contexte pour l'instant.</td></tr>`;
+}
+
+async function addSite(){
+  const nom=$("s_nom").value.trim();
+  const campagne_id=ACTIVE_SITE_SCOPE||null;
+  if(!nom){ alertIn("sitesAlert","err","Le nom du site est requis."); return; }
+  const {error}=await sb.from("sites").insert({nom,campagne_id});
+  if(error){ alertIn("sitesAlert","err","Échec : "+error.message); return; }
+  $("s_nom").value="";
+  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  renderCampagnes(); renderCampagneSites(); buildTabsSiteFilter(); toast("Site ajouté");
+}
+
+async function updateSite(id){
+  const nom=$("site_nom_"+id).value.trim();
+  const actif=$("site_actif_"+id).value==="true";
+  if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
+  const {error}=await sb.from("sites").update({nom,actif}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  renderCampagneSites(); buildTabsSiteFilter(); toast("Site mis à jour");
+}
+
+async function deleteSite(id){
+  const s=SITES.find(x=>x.id===id);
+  const label=s?s.nom:"ce site";
+  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et agents déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
+  const {data,error}=await sb.from("sites").delete().eq("id",id).select();
+  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
+  const {data:fresh}=await sb.from("sites").select("*").order("nom"); SITES=fresh||[];
+  renderCampagnes(); renderCampagneSites(); buildTabsSiteFilter(); toast("Site supprimé");
+}
+
+function buildTabsSiteFilter(){
+  if(ME.role==="admin"){ $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
+    SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join(""); }
 }
 
 /* ---------- menu / événements réseau ---------- */

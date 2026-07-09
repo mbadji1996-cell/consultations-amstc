@@ -301,10 +301,9 @@
         <select id="c_site"><option value="">— Sélectionner un site —</option></select>
       </div>
       <div class="field row2">
-        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom" oninput="checkPatientHistory()"></div>
-        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom" oninput="checkPatientHistory()"></div>
+        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
+        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
       </div>
-      <div id="patientHistoryHint" class="hidden" style="margin-bottom:14px"></div>
       <div class="row2">
         <div class="field"><label>Sexe <span class="req">*</span></label>
           <select id="c_sexe"><option value="">— Sélectionner —</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
@@ -357,7 +356,7 @@
     <div class="panel" id="panel-list">
       <div class="stat-row" id="listStats"></div>
       <div class="toolbar">
-        <input type="text" id="search" placeholder="Rechercher (nom, diagnostic…)" oninput="renderList()">
+        <input type="text" id="search" placeholder="Rechercher (nom, numéro AMSTC-…, diagnostic…)" oninput="renderList()">
         <select id="siteFilter" class="hidden" onchange="renderList()"></select>
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Exporter CSV</button>
         <button class="btn btn-ghost btn-sm" onclick="refreshData()">Actualiser</button>
@@ -770,33 +769,6 @@ async function flushQueue(){
 function resetForm(){
   ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
-  $("patientHistoryHint")?.classList.add("hidden");
-}
-
-// Aide non-automatique : signale les consultations passées portant le même nom, pour vérification
-// manuelle par l'agent/l'admin. Comme il n'existe aucun identifiant patient fiable (pas de carte,
-// pas de numéro), on ne relie JAMAIS automatiquement deux dossiers — on se contente de prévenir.
-function normName(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
-function checkPatientHistory(){
-  const box=$("patientHistoryHint"); if(!box) return;
-  const prenom=normName($("c_prenom").value), nom=normName($("c_nom").value);
-  if(prenom.length<2 || nom.length<2){ box.classList.add("hidden"); box.innerHTML=""; return; }
-  const matches=[...LIST].filter(r=>normName(r.prenom)===prenom && normName(r.nom)===nom)
-    .sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3);
-  if(!matches.length){ box.classList.add("hidden"); box.innerHTML=""; return; }
-  box.classList.remove("hidden");
-  const n=matches.length;
-  box.innerHTML=`<div class="alert alert-info">
-    <b>${n>1?`${n} consultations précédentes possibles`:"Une consultation précédente possible"} pour ce nom</b>
-    <div style="font-size:12px;margin-top:2px;opacity:.85">
-      À vérifier vous-même — aucun identifiant patient fiable n'existe, ce rapprochement se fait uniquement sur le nom.
-      ${ME.role!=="admin"?" (parmi vos propres saisies uniquement)":""}
-    </div>
-    ${matches.map(m=>{
-      const d=new Date(m.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
-      return `<div style="margin-top:7px;font-size:13px">${d} — <b>${esc(m.diagnostic||"—")}</b></div>`;
-    }).join("")}
-  </div>`;
 }
 
 function currentRows(){

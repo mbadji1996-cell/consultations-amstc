@@ -437,6 +437,7 @@ async function doUpdatePassword(){
   $("resetBtn").disabled=false; $("resetBtn").textContent="Enregistrer le nouveau mot de passe";
   if(error){ alertIn("resetAlert","err","Échec : "+error.message); return; }
   IS_RECOVERY=false;
+  history.replaceState(null,"",window.location.pathname); // retire le jeton de récupération de l'URL
   toast("Mot de passe mis à jour");
   await enterApp();
 }
@@ -919,10 +920,14 @@ window.addEventListener("offline",updateSync);
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
 
 /* ---------- réinitialisation de mot de passe ----------
-   Quand la personne clique le lien reçu par e-mail, Supabase crée une
-   session temporaire et déclenche cet événement — on l'intercepte pour
-   afficher l'écran "nouveau mot de passe" avant tout accès à l'app. */
+   Deux signaux indépendants sont utilisés, car s'appuyer uniquement sur
+   l'événement Supabase peut arriver trop tard (course avec getSession) :
+   1) la présence de "type=recovery" dans l'URL, vérifiée immédiatement ;
+   2) l'événement PASSWORD_RECOVERY, en filet de sécurité. */
 let IS_RECOVERY=false;
+function isRecoveryUrl(){
+  return /type=recovery/.test(window.location.hash) || /type=recovery/.test(window.location.search);
+}
 sb.auth.onAuthStateChange((event)=>{
   if(event==="PASSWORD_RECOVERY"){ IS_RECOVERY=true; showResetPassword(); }
 });
@@ -930,7 +935,8 @@ sb.auth.onAuthStateChange((event)=>{
 /* ---------- démarrage ---------- */
 (async function(){
   updateSync();
-  await new Promise(r=>setTimeout(r,150)); // laisse le temps à un éventuel lien de récupération d'être détecté
+  if(isRecoveryUrl()){ IS_RECOVERY=true; showResetPassword(); }
+  await new Promise(r=>setTimeout(r,150)); // laisse une chance à l'événement Supabase de confirmer
   if(IS_RECOVERY) return;
   const {data:{session}}=await sb.auth.getSession();
   if(session) await enterApp();

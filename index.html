@@ -479,6 +479,8 @@
               <div class="field"><label>Nom du médicament <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol"></div>
               <div class="field"><label>Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
             </div>
+            <div class="field"><label>Unité</label>
+              <select id="stock_unite"><option value="Boîte(s)">Boîte(s)</option><option value="Tablette(s)">Tablette(s)</option></select></div>
             <button class="btn btn-primary btn-sm" onclick="addStockItem()">Ajouter au stock</button>
           </fieldset>
           <div id="stockBody"></div>
@@ -855,20 +857,26 @@ function addMedRow(scope){
       <input type="text" class="med-nom" placeholder="ex : Paracétamol"></div>
     <div style="flex:1;min-width:100px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
       <input type="text" class="med-poso" placeholder="1 cp x3/j"></div>
-    <div style="flex:1;min-width:90px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
-      <input type="text" class="med-qte" placeholder="10 cp"></div>
+    <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
+      <input type="number" min="0" step="0.5" class="med-qte-val" placeholder="1"></div>
+    <div style="flex:1;min-width:110px"><label style="font-size:11px;color:var(--muted)">Unité</label>
+      <select class="med-qte-unite"><option value="Boîte(s)">Boîte(s)</option><option value="Tablette(s)">Tablette(s)</option></select></div>
     <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.med-row').remove()">Retirer</button>`;
   container.appendChild(row);
 }
 
 function readMedRows(scope){
   const container=$("medsList_"+scope); if(!container) return [];
-  return [...container.querySelectorAll(".med-row")].map(row=>({
-    nom: row.querySelector(".med-nom").value.trim(),
-    posologie: row.querySelector(".med-poso").value.trim(),
-    quantite: row.querySelector(".med-qte").value.trim(),
-    delivre: false, delivre_par: null, delivre_le: null,
-  })).filter(m=>m.nom); // les lignes laissées vides ne comptent pas
+  return [...container.querySelectorAll(".med-row")].map(row=>{
+    const qval=row.querySelector(".med-qte-val").value.trim();
+    const qunite=row.querySelector(".med-qte-unite").value;
+    return {
+      nom: row.querySelector(".med-nom").value.trim(),
+      posologie: row.querySelector(".med-poso").value.trim(),
+      quantite: qval?`${qval} ${qunite}`:"",
+      delivre: false, delivre_par: null, delivre_le: null,
+    };
+  }).filter(m=>m.nom); // les lignes laissées vides ne comptent pas
 }
 
 function clearMedRows(scope){
@@ -1770,7 +1778,7 @@ async function loadPharmaAdminStock(){
   if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun médicament en stock pour ce site.</div>`; return; }
   $("pharmaAdminStockBody").innerHTML=`<div class="table-wrap"><table><thead><tr><th>Médicament</th><th>Quantité</th></tr></thead><tbody>
-    ${data.map(it=>`<tr><td><b>${esc(it.nom)}</b></td><td>${it.quantite}</td></tr>`).join("")}
+    ${data.map(it=>`<tr><td><b>${esc(it.nom)}</b></td><td>${it.quantite} ${esc(it.unite||"")}</td></tr>`).join("")}
   </tbody></table></div>`;
 }
 
@@ -1794,10 +1802,14 @@ async function loadStock(){
 
 function renderStock(items){
   if(!items.length){ $("stockBody").innerHTML=`<div class="empty">Aucun médicament en stock pour ce site.</div>`; return; }
-  $("stockBody").innerHTML=`<div class="table-wrap"><table><thead><tr><th>Médicament</th><th>Quantité</th><th>Actions</th></tr></thead><tbody>
+  $("stockBody").innerHTML=`<div class="table-wrap"><table><thead><tr><th>Médicament</th><th>Quantité</th><th>Unité</th><th>Actions</th></tr></thead><tbody>
     ${items.map(it=>`<tr>
       <td><b>${esc(it.nom)}</b></td>
-      <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" style="width:80px;padding:6px 8px"></td>
+      <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" style="width:70px;padding:6px 8px"></td>
+      <td><select id="stockunite_${it.id}" style="padding:6px 8px">
+        <option value="Boîte(s)"${it.unite==="Boîte(s)"?" selected":""}>Boîte(s)</option>
+        <option value="Tablette(s)"${it.unite==="Tablette(s)"||!it.unite?" selected":""}>Tablette(s)</option>
+      </select></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="updateStockQty('${it.id}')">Enregistrer</button>
         <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${it.id}')">Supprimer</button>
@@ -1811,9 +1823,10 @@ async function addStockItem(){
   if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
   const nom=$("stock_nom").value.trim();
   const qte=parseInt($("stock_qte").value)||0;
+  const unite=$("stock_unite").value;
   if(!nom){ toast("Le nom du médicament est requis",true); return; }
   const {error}=await sb.from("stock_medicaments").insert({
-    site_id:siteId, nom, quantite:qte,
+    site_id:siteId, nom, quantite:qte, unite,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   });
   if(error){ toast("Échec : "+error.message,true); return; }
@@ -1824,8 +1837,9 @@ async function addStockItem(){
 
 async function updateStockQty(id){
   const qte=parseInt($("stockqte_"+id).value)||0;
+  const unite=$("stockunite_"+id).value;
   const {error}=await sb.from("stock_medicaments").update({
-    quantite:qte, updated_at:new Date().toISOString(),
+    quantite:qte, unite, updated_at:new Date().toISOString(),
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   }).eq("id",id);
   if(error){ toast("Échec : "+error.message,true); return; }

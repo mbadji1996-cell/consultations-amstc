@@ -523,7 +523,10 @@ async function doSignup(){
 async function doGoogle(){
   const {error}=await sb.auth.signInWithOAuth({
     provider:"google",
-    options:{ redirectTo: window.location.origin + window.location.pathname }
+    options:{
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams:{ prompt:"select_account" } // force Google à toujours proposer le choix du compte
+    }
   });
   if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+error.message); }
   // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app

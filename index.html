@@ -772,7 +772,10 @@ function renderSites(){
         <option value="true"${s.actif?" selected":""}>Actif</option>
         <option value="false"${!s.actif?" selected":""}>Inactif</option>
       </select></td>
-      <td><button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button></td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteSite('${s.id}')">Supprimer</button>
+      </td>
     </tr>`).join("")
     ||`<tr><td colspan="4" class="empty">Aucun site enregistré.</td></tr>`;
 }
@@ -786,6 +789,17 @@ async function updateSite(id){
   if(error){ toast("Échec : "+error.message,true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderSites(); buildTabsSiteFilter(); toast("Site mis à jour");
+}
+
+async function deleteSite(id){
+  const s=SITES.find(x=>x.id===id);
+  const label=s?s.nom:"ce site";
+  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et agents déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
+  const {data,error}=await sb.from("sites").delete().eq("id",id).select();
+  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
+  const {data:fresh}=await sb.from("sites").select("*").order("nom"); SITES=fresh||[];
+  renderSites(); buildTabsSiteFilter(); toast("Site supprimé");
 }
 
 async function addSite(){

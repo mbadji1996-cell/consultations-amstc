@@ -340,7 +340,8 @@
 
     <!-- TABLEAU DE BORD (agent et admin) -->
     <div class="panel" id="panel-dashboard">
-      <div class="actions" style="margin-bottom:16px">
+      <div class="actions" style="margin-bottom:16px;align-items:center">
+        <select id="dashCampagneFilter" class="hidden" onchange="onCampagneFilterChange()" style="max-width:260px"></select>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
       </div>
@@ -375,10 +376,31 @@
           <div class="field"><label>Nom du site <span class="req">*</span></label><input type="text" id="s_nom" placeholder="Daara / structure"></div>
           <div class="field"><label>Ville</label><input type="text" id="s_ville" placeholder="Dakar"></div>
         </div>
+        <div class="field"><label>Campagne</label>
+          <select id="s_campagne"><option value="">— Aucune (site autonome) —</option></select></div>
         <button class="btn btn-primary btn-sm" onclick="addSite()">Ajouter le site</button>
       </fieldset>
-      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Statut</th><th>Actions</th></tr></thead>
+      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Ville</th><th>Campagne</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody id="sitesBody"></tbody></table></div>
+    </div>
+
+    <!-- ADMIN: campagnes -->
+    <div class="panel" id="panel-campagnes">
+      <div id="campagnesAlert"></div>
+      <fieldset><legend>Créer une campagne</legend>
+        <div class="field"><label>Nom de la campagne <span class="req">*</span></label>
+          <input type="text" id="cp_nom" placeholder="Ex : Campagne Ramadan 2026"></div>
+        <div class="field"><label>Lieu</label><input type="text" id="cp_lieu" placeholder="Ex : Dakar et environs"></div>
+        <div class="row2">
+          <div class="field"><label>Date de début</label><input type="date" id="cp_debut"></div>
+          <div class="field"><label>Date de fin</label><input type="date" id="cp_fin"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addCampagne()">Créer la campagne</button>
+      </fieldset>
+      <p class="rec-meta" style="margin-bottom:10px">Une fois la campagne créée, ouvre l'onglet <b>Sites</b> pour lui rattacher un ou plusieurs sites de consultation.</p>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Nom</th><th>Lieu</th><th>Début</th><th>Fin</th><th>Sites</th><th>Statut</th><th>Actions</th>
+      </tr></thead><tbody id="campagnesBody"></tbody></table></div>
     </div>
   </div>
 </div>
@@ -412,6 +434,8 @@ let SITES = [];           // liste des sites
 let LIST = [];            // consultations chargées depuis le serveur
 let CURRENT_TAB = null;
 let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
+let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
+let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
 
 /* ---------- utilitaires ---------- */
 const $ = id => document.getElementById(id);
@@ -524,6 +548,12 @@ async function enterApp(){
   const {data:sites}=await sb.from("sites").select("*").order("nom");
   SITES=sites||[];
 
+  // charge les campagnes (admin uniquement, non nécessaire pour un agent)
+  if(ME.role==="admin"){
+    const {data:campagnes}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
+    CAMPAGNES=campagnes||[];
+  }
+
   $("authScreen").classList.add("hidden");
   $("appScreen").classList.remove("hidden");
 
@@ -569,7 +599,7 @@ async function confirmSiteSelection(){
    ===================================================================== */
 function buildTabs(){
   const tabs = ME.role==="admin"
-    ? [["dashboard","Tableau de bord"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"]]
+    ? [["dashboard","Tableau de bord"],["list","Consultations"],["users","Utilisateurs"],["sites","Sites"],["campagnes","Campagnes"]]
     : [["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
     `<button class="tab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${l}</button>`).join("");
@@ -579,7 +609,18 @@ function buildTabs(){
     $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
       SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
   }
+  // filtre de campagne du tableau de bord — admin uniquement, s'il existe au moins une campagne
+  $("dashCampagneFilter").classList.toggle("hidden", !(ME.role==="admin" && CAMPAGNES.length));
+  if(ME.role==="admin" && CAMPAGNES.length){
+    $("dashCampagneFilter").innerHTML=`<option value="">Toutes les campagnes</option>`+
+      CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("");
+  }
   switchTab(tabs[0][0]);
+}
+
+function onCampagneFilterChange(){
+  SELECTED_CAMPAGNE=$("dashCampagneFilter").value;
+  renderDashboard();
 }
 
 function switchTab(tab){
@@ -591,6 +632,7 @@ function switchTab(tab){
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
   if(tab==="sites") renderSites();
+  if(tab==="campagnes") renderCampagnes();
 }
 
 /* =====================================================================
@@ -740,7 +782,19 @@ function countTop(list,field,n=5){
 
 // Calcul centralisé, utilisé à la fois par l'affichage du tableau de bord et par les exports PDF/Word
 function computeDashboardStats(){
-  const rows=[...getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString()})),...LIST];
+  let rows=[...getQueue().map(x=>({...x,_queued:true,created_at:new Date(x._local).toISOString()})),...LIST];
+
+  // Filtre par campagne (admin uniquement) : ne garder que les consultations
+  // dont le site est rattaché à la campagne sélectionnée.
+  let scopeSites=SITES;
+  let campagneInfo=null;
+  if(ME.role==="admin" && SELECTED_CAMPAGNE){
+    campagneInfo=CAMPAGNES.find(c=>c.id===SELECTED_CAMPAGNE)||null;
+    scopeSites=SITES.filter(s=>s.campagne_id===SELECTED_CAMPAGNE);
+    const scopeSiteIds=new Set(scopeSites.map(s=>s.id));
+    rows=rows.filter(r=>scopeSiteIds.has(r.site_id));
+  }
+
   const total=rows.length;
   const now=new Date();
   const isSameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
@@ -769,8 +823,8 @@ function computeDashboardStats(){
   const hasAgeData=ageF.some(v=>v>0)||ageM.some(v=>v>0);
 
   let siteStats=[];
-  if(ME.role==="admin" && SITES.length){
-    siteStats=SITES.map(s=>{
+  if(ME.role==="admin" && scopeSites.length){
+    siteStats=scopeSites.map(s=>{
       const rs=rows.filter(r=>r.site_id===s.id);
       const n=rs.length;
       const f=rs.filter(r=>r.sexe==="F").length, m=rs.filter(r=>r.sexe==="M").length;
@@ -781,8 +835,18 @@ function computeDashboardStats(){
     });
   }
 
+  // Détail jour par jour, sur tout l'historique disponible (pas seulement une fenêtre de 14 jours) — utilisé dans le rapport téléchargé
+  const dayMap={};
+  rows.forEach(r=>{
+    const key=new Date(r.created_at).toISOString().slice(0,10); // yyyy-mm-dd, pour un tri fiable
+    dayMap[key]=(dayMap[key]||0)+1;
+  });
+  const dailyCounts=Object.entries(dayMap)
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([key,count])=>({ date:new Date(key+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}), count }));
+
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats };
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo };
 }
 
 function renderDashboard(){
@@ -900,17 +964,26 @@ function renderDashboard(){
    (computeDashboardStats), pour qu'un rapport téléchargé corresponde
    toujours à ce que la personne voit à l'écran au même moment.
    ===================================================================== */
-function reportFileBaseName(){
+function reportFileBaseName(S){
   const scope=ME.role==="admin"?"admin":"agent";
-  return `rapport_amstc_${scope}_${new Date().toISOString().slice(0,10)}`;
+  const camp=S?.campagneInfo?("_"+S.campagneInfo.nom.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")):"";
+  return `rapport_amstc_${scope}${camp}_${new Date().toISOString().slice(0,10)}`;
 }
 
 function reportTitleLines(S){
-  return [
-    "Rapport statistique — Consultations AMSTC",
+  const title="Rapport statistique — Consultations AMSTC";
+  const meta=[
     ME.role==="admin" ? "Périmètre : toutes les consultations" : `Périmètre : consultations de ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(),
-    `Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`,
   ];
+  if(S.campagneInfo){
+    const c=S.campagneInfo;
+    const periode = (c.date_debut||c.date_fin) ? ` — du ${fmtDate(c.date_debut)} au ${fmtDate(c.date_fin)}` : "";
+    meta.push(`Campagne : ${c.nom}${c.lieu?" ("+c.lieu+")":""}${periode}`);
+  } else if(ME.role==="admin"){
+    meta.push("Campagne : toutes campagnes confondues");
+  }
+  meta.push(`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`);
+  return { title, meta };
 }
 
 // Capture l'image d'un graphique Chart.js actuellement affiché à l'écran (si disponible)
@@ -935,12 +1008,12 @@ async function downloadReportPDF(){
   let y=18;
 
   const green=[46,160,56], green900=[18,60,28];
-  const titles=reportTitleLines(S);
+  const { title, meta }=reportTitleLines(S);
   doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(...green900);
-  doc.text(titles[0], margin, y); y+=8;
+  doc.text(title, margin, y); y+=8;
   doc.setFont("helvetica","normal"); doc.setFontSize(10.5); doc.setTextColor(90,90,90);
-  doc.text(titles[1], margin, y); y+=5.5;
-  doc.text(titles[2], margin, y); y+=9;
+  meta.forEach(line=>{ doc.text(line, margin, y); y+=5.5; });
+  y+=3.5;
 
   // Tableau des chiffres clés
   doc.autoTable({
@@ -950,14 +1023,26 @@ async function downloadReportPDF(){
     head:[["Indicateur","Valeur"]],
     body:[
       [ME.role==="admin"?"Consultations au total":"Mes consultations", String(S.total)],
-      ["Aujourd'hui", String(S.today)],
-      ["7 derniers jours", String(S.semaine)],
       ["Âge moyen (ans)", S.ageMoyen??"—"],
       ["Explorations complémentaires demandées", String(S.explorations)],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
     ],
   });
   y=doc.lastAutoTable.finalY+10;
+
+  // Détail jour par jour — patients consultés par date
+  if(S.dailyCounts.length){
+    if(y>250){ doc.addPage(); y=18; }
+    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
+    doc.text("Consultations par jour", margin, y); y+=4;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Date","Patients consultés"]],
+      body:S.dailyCounts.map(d=>[d.date,String(d.count)]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
 
   // Graphiques (si actuellement affichés à l'écran)
   const addChartImage=(canvasId,label)=>{
@@ -970,7 +1055,6 @@ async function downloadReportPDF(){
     doc.addImage(img,"PNG",margin,y,w,h);
     y+=h+9;
   };
-  addChartImage("dashTrendChart","Évolution — 14 derniers jours");
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
@@ -1002,7 +1086,7 @@ async function downloadReportPDF(){
     });
   }
 
-  doc.save(reportFileBaseName()+".pdf");
+  doc.save(reportFileBaseName(S)+".pdf");
   toast("Rapport PDF téléchargé");
 }
 
@@ -1013,7 +1097,7 @@ async function downloadReportWord(){
   }
   const S=computeDashboardStats();
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, ImageRun, AlignmentType }=window.docx;
-  const titles=reportTitleLines(S);
+  const { title, meta }=reportTitleLines(S);
 
   const mkTable=(head,rows)=>new Table({
     width:{ size:100, type:WidthType.PERCENTAGE },
@@ -1024,20 +1108,23 @@ async function downloadReportWord(){
   });
 
   const children=[
-    new Paragraph({ text:titles[0], heading:HeadingLevel.HEADING_1 }),
-    new Paragraph({ text:titles[1], spacing:{after:80} }),
-    new Paragraph({ text:titles[2], spacing:{after:240} }),
+    new Paragraph({ text:title, heading:HeadingLevel.HEADING_1 }),
+    ...meta.map((line,i)=>new Paragraph({ text:line, spacing:{after:i===meta.length-1?240:80} })),
 
     new Paragraph({ text:"Chiffres clés", heading:HeadingLevel.HEADING_2, spacing:{before:160,after:120} }),
     mkTable(["Indicateur","Valeur"],[
       [ME.role==="admin"?"Consultations au total":"Mes consultations", S.total],
-      ["Aujourd'hui", S.today],
-      ["7 derniers jours", S.semaine],
       ["Âge moyen (ans)", S.ageMoyen??"—"],
       ["Explorations complémentaires demandées", S.explorations],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
     ]),
   ];
+
+  // Détail jour par jour — patients consultés par date
+  if(S.dailyCounts.length){
+    children.push(new Paragraph({ text:"Consultations par jour", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
+  }
 
   // Graphiques capturés en image, si actuellement affichés à l'écran
   const addChartImage=(canvasId,label)=>{
@@ -1050,7 +1137,6 @@ async function downloadReportWord(){
     children.push(new Paragraph({ text:label, heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
     children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:bytes, transformation:{ width:520, height:230 } })] }));
   };
-  addChartImage("dashTrendChart","Évolution — 14 derniers jours");
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
@@ -1071,7 +1157,7 @@ async function downloadReportWord(){
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
-    a.download=reportFileBaseName()+".docx";
+    a.download=reportFileBaseName(S)+".docx";
     a.click();
     toast("Rapport Word téléchargé");
   }catch(e){
@@ -1130,11 +1216,19 @@ async function deleteUser(id){
 /* =====================================================================
    ADMIN — SITES
    ===================================================================== */
+function campagneName(id){ const c=CAMPAGNES.find(x=>x.id===id); return c?c.nom:null; }
+function campagneOpts(selectedId){
+  return `<option value="">— Aucune —</option>`+
+    CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===selectedId?" selected":""}>${esc(c.nom)}</option>`).join("");
+}
+
 function renderSites(){
+  $("s_campagne").innerHTML=campagneOpts(null);
   $("sitesBody").innerHTML=SITES.map(s=>`
     <tr>
       <td><input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="min-width:140px;padding:6px 8px"></td>
       <td><input type="text" value="${esc(s.ville||"")}" id="site_ville_${s.id}" placeholder="Ville" style="min-width:110px;padding:6px 8px"></td>
+      <td><select id="site_campagne_${s.id}" style="padding:6px 8px">${campagneOpts(s.campagne_id)}</select></td>
       <td><select id="site_actif_${s.id}" style="padding:6px 8px">
         <option value="true"${s.actif?" selected":""}>Actif</option>
         <option value="false"${!s.actif?" selected":""}>Inactif</option>
@@ -1144,15 +1238,16 @@ function renderSites(){
         <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteSite('${s.id}')">Supprimer</button>
       </td>
     </tr>`).join("")
-    ||`<tr><td colspan="4" class="empty">Aucun site enregistré.</td></tr>`;
+    ||`<tr><td colspan="5" class="empty">Aucun site enregistré.</td></tr>`;
 }
 
 async function updateSite(id){
   const nom=$("site_nom_"+id).value.trim();
   const ville=$("site_ville_"+id).value.trim();
+  const campagne_id=$("site_campagne_"+id).value||null;
   const actif=$("site_actif_"+id).value==="true";
   if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
-  const {error}=await sb.from("sites").update({nom,ville:ville||null,actif}).eq("id",id);
+  const {error}=await sb.from("sites").update({nom,ville:ville||null,campagne_id,actif}).eq("id",id);
   if(error){ toast("Échec : "+error.message,true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderSites(); buildTabsSiteFilter(); toast("Site mis à jour");
@@ -1171,16 +1266,92 @@ async function deleteSite(id){
 
 async function addSite(){
   const nom=$("s_nom").value.trim(), ville=$("s_ville").value.trim();
+  const campagne_id=$("s_campagne").value||null;
   if(!nom){ alertIn("sitesAlert","err","Le nom du site est requis."); return; }
-  const {error}=await sb.from("sites").insert({nom,ville:ville||null});
+  const {error}=await sb.from("sites").insert({nom,ville:ville||null,campagne_id});
   if(error){ alertIn("sitesAlert","err","Échec : "+error.message); return; }
-  $("s_nom").value=""; $("s_ville").value="";
+  $("s_nom").value=""; $("s_ville").value=""; $("s_campagne").value="";
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderSites(); buildTabsSiteFilter(); toast("Site ajouté");
 }
 function buildTabsSiteFilter(){
   if(ME.role==="admin"){ $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
     SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join(""); }
+}
+
+/* =====================================================================
+   ADMIN — CAMPAGNES
+   ===================================================================== */
+function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
+
+function renderCampagnes(){
+  $("campagnesBody").innerHTML=CAMPAGNES.map(c=>{
+    const nbSites=SITES.filter(s=>s.campagne_id===c.id).length;
+    return `<tr>
+      <td><input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="min-width:150px;padding:6px 8px"></td>
+      <td><input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="min-width:110px;padding:6px 8px"></td>
+      <td><input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:6px 8px"></td>
+      <td><input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:6px 8px"></td>
+      <td>${nbSites}</td>
+      <td><select id="cp_actif_${c.id}" style="padding:6px 8px">
+        <option value="true"${c.actif?" selected":""}>Active</option>
+        <option value="false"${!c.actif?" selected":""}>Terminée</option>
+      </select></td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}')">Enregistrer</button>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteCampagne('${c.id}')">Supprimer</button>
+      </td>
+    </tr>`;
+  }).join("")||`<tr><td colspan="7" class="empty">Aucune campagne enregistrée.</td></tr>`;
+}
+
+async function reloadCampagnes(){
+  const {data}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
+  CAMPAGNES=data||[];
+}
+
+async function addCampagne(){
+  const nom=$("cp_nom").value.trim();
+  const lieu=$("cp_lieu").value.trim();
+  const date_debut=$("cp_debut").value||null;
+  const date_fin=$("cp_fin").value||null;
+  if(!nom){ alertIn("campagnesAlert","err","Le nom de la campagne est requis."); return; }
+  if(date_debut && date_fin && date_fin<date_debut){ alertIn("campagnesAlert","err","La date de fin ne peut pas précéder la date de début."); return; }
+  const {error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin});
+  if(error){ alertIn("campagnesAlert","err","Échec : "+error.message); return; }
+  $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
+  await reloadCampagnes();
+  renderCampagnes(); buildTabs(); switchTab("campagnes");
+  toast("Campagne créée");
+}
+
+async function updateCampagne(id){
+  const nom=$("cp_nom_"+id).value.trim();
+  const lieu=$("cp_lieu_"+id).value.trim();
+  const date_debut=$("cp_debut_"+id).value||null;
+  const date_fin=$("cp_fin_"+id).value||null;
+  const actif=$("cp_actif_"+id).value==="true";
+  if(!nom){ toast("Le nom de la campagne ne peut pas être vide",true); return; }
+  if(date_debut && date_fin && date_fin<date_debut){ toast("La date de fin ne peut pas précéder la date de début",true); return; }
+  const {error}=await sb.from("campagnes").update({nom,lieu:lieu||null,date_debut,date_fin,actif}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  await reloadCampagnes();
+  renderCampagnes(); buildTabs(); switchTab("campagnes");
+  toast("Campagne mise à jour");
+}
+
+async function deleteCampagne(id){
+  const c=CAMPAGNES.find(x=>x.id===id);
+  const label=c?c.nom:"cette campagne";
+  if(!confirm(`Supprimer définitivement la campagne "${label}" ?\n\nLes sites qui lui sont rattachés seront conservés, mais deviendront "sans campagne". Les consultations ne sont jamais affectées. Cette action est irréversible.`)) return;
+  const {data,error}=await sb.from("campagnes").delete().eq("id",id).select();
+  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
+  await reloadCampagnes();
+  const {data:sitesData}=await sb.from("sites").select("*").order("nom"); SITES=sitesData||[];
+  if(SELECTED_CAMPAGNE===id) SELECTED_CAMPAGNE="";
+  renderCampagnes(); buildTabs(); switchTab("campagnes");
+  toast("Campagne supprimée");
 }
 
 /* ---------- menu / événements réseau ---------- */

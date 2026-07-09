@@ -301,9 +301,10 @@
         <select id="c_site"><option value="">— Sélectionner un site —</option></select>
       </div>
       <div class="field row2">
-        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
-        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
+        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom" oninput="checkPatientHistory()"></div>
+        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom" oninput="checkPatientHistory()"></div>
       </div>
+      <div id="patientHistoryHint" class="hidden" style="margin-bottom:14px"></div>
       <div class="row2">
         <div class="field"><label>Sexe <span class="req">*</span></label>
           <select id="c_sexe"><option value="">— Sélectionner —</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
@@ -347,6 +348,7 @@
         <select id="dashCampagneFilter" class="hidden" onchange="onCampagneFilterChange()" style="max-width:260px"></select>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
+        <button class="btn btn-ghost btn-sm hidden" id="backupBtn" onclick="downloadFullBackup()">Sauvegarde complète (JSON)</button>
       </div>
       <div id="dashBody"></div>
     </div>
@@ -646,6 +648,7 @@ function buildTabs(){
   }
   // filtre de campagne du tableau de bord — admin uniquement, s'il existe au moins une campagne
   $("dashCampagneFilter").classList.toggle("hidden", !(ME.role==="admin" && CAMPAGNES.length));
+  $("backupBtn").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin" && CAMPAGNES.length){
     $("dashCampagneFilter").innerHTML=`<option value="">Toutes les campagnes</option>`+
       CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("");
@@ -746,18 +749,54 @@ async function saveConsultation(){
 async function flushQueue(){
   let q=getQueue(); if(!q.length||!navigator.onLine) return;
   const remaining=[];
+  let sentCount=0, recoveredCount=0;
   for(const item of q){
     const {_local,...rec}=item;
     const {error}=await sb.from("consultations").insert(rec);
-    if(error) remaining.push(item);
+    if(!error){ sentCount++; continue; }
+    // Une violation de clé unique sur l'id signifie que cette consultation a DÉJÀ été
+    // enregistrée lors d'une tentative précédente (l'envoi avait réussi, seule la
+    // confirmation s'était perdue en route) — sans ce test, elle resterait bloquée
+    // "en attente d'envoi" pour toujours, en échouant à chaque nouvelle tentative.
+    const isDuplicate = error.code==="23505" || /duplicate key/i.test(error.message||"");
+    if(isDuplicate){ recoveredCount++; continue; }
+    remaining.push(item); // échec réel (réseau, droits…) : on retentera au prochain passage
   }
   setQueue(remaining);
-  if(q.length && !remaining.length) toast("Synchronisation terminée");
+  const total=sentCount+recoveredCount;
+  if(total) toast(total>1?`${total} consultations synchronisées`:"Consultation synchronisée");
 }
 
 function resetForm(){
   ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
+  $("patientHistoryHint")?.classList.add("hidden");
+}
+
+// Aide non-automatique : signale les consultations passées portant le même nom, pour vérification
+// manuelle par l'agent/l'admin. Comme il n'existe aucun identifiant patient fiable (pas de carte,
+// pas de numéro), on ne relie JAMAIS automatiquement deux dossiers — on se contente de prévenir.
+function normName(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+function checkPatientHistory(){
+  const box=$("patientHistoryHint"); if(!box) return;
+  const prenom=normName($("c_prenom").value), nom=normName($("c_nom").value);
+  if(prenom.length<2 || nom.length<2){ box.classList.add("hidden"); box.innerHTML=""; return; }
+  const matches=[...LIST].filter(r=>normName(r.prenom)===prenom && normName(r.nom)===nom)
+    .sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,3);
+  if(!matches.length){ box.classList.add("hidden"); box.innerHTML=""; return; }
+  box.classList.remove("hidden");
+  const n=matches.length;
+  box.innerHTML=`<div class="alert alert-info">
+    <b>${n>1?`${n} consultations précédentes possibles`:"Une consultation précédente possible"} pour ce nom</b>
+    <div style="font-size:12px;margin-top:2px;opacity:.85">
+      À vérifier vous-même — aucun identifiant patient fiable n'existe, ce rapprochement se fait uniquement sur le nom.
+      ${ME.role!=="admin"?" (parmi vos propres saisies uniquement)":""}
+    </div>
+    ${matches.map(m=>{
+      const d=new Date(m.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+      return `<div style="margin-top:7px;font-size:13px">${d} — <b>${esc(m.diagnostic||"—")}</b></div>`;
+    }).join("")}
+  </div>`;
 }
 
 function currentRows(){
@@ -1216,6 +1255,24 @@ async function downloadReportWord(){
   }catch(e){
     toast("Échec de la génération du document Word : "+e.message,true);
   }
+}
+
+async function downloadFullBackup(){
+  if(ME.role!=="admin") return;
+  toast("Préparation de la sauvegarde…");
+  const tables=["profiles","sites","campagnes","consultations"];
+  const backup={ genere_le:new Date().toISOString(), tables:{} };
+  for(const t of tables){
+    const {data,error}=await sb.from(t).select("*");
+    if(error){ toast(`Échec sur la table "${t}" : `+error.message,true); return; }
+    backup.tables[t]=data||[];
+  }
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`amstc_sauvegarde_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast("Sauvegarde téléchargée");
 }
 
 function exportCSV(){

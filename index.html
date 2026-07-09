@@ -433,6 +433,9 @@
     <!-- ADMIN: utilisateurs -->
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
+      <div class="toolbar">
+        <input type="text" id="userSearch" placeholder="Rechercher un agent (nom, e-mail…)" oninput="renderUsers()">
+      </div>
       <div class="table-wrap"><table id="usersTable"><thead><tr>
         <th>Nom</th><th>Rôle</th><th>Spécialités</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
       </tr></thead><tbody id="usersBody"></tbody></table></div>
@@ -1472,12 +1475,20 @@ async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
   USERS_CACHE=data||[];
+  renderUsers();
+}
+
+function renderUsers(){
+  const q=($("userSearch")?.value||"").toLowerCase().trim();
+  const data=q
+    ? USERS_CACHE.filter(u=>`${u.prenom||""} ${u.nom||""} ${u.email||""}`.toLowerCase().includes(q))
+    : USERS_CACHE;
   // le site proposé pour un utilisateur est limité aux sites de SA campagne (ou aux sites sans campagne, si "Aucune")
   const siteOptsForCampagne=(campagneId,selectedSiteId)=>{
     const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
     return `<option value="">— Aucun —</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
   };
-  $("usersBody").innerHTML=(data||[]).map(u=>{
+  $("usersBody").innerHTML=data.map(u=>{
     const specs=u.specialites||[];
     const specPill=(key,label)=>`<button class="btn btn-sm ${specs.includes(key)?"btn-accent":"btn-ghost"}" style="padding:4px 8px;font-size:11px;margin:2px" onclick="toggleSpecialite('${u.id}','${key}')">${label}</button>`;
     return `
@@ -1494,7 +1505,7 @@ async function loadUsers(){
       <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
         `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
         <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
-    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">Aucun utilisateur.</td></tr>`;
+    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">${q?"Aucun agent ne correspond à cette recherche.":"Aucun utilisateur."}</td></tr>`;
 }
 async function toggleSpecialite(id,key){
   const u=USERS_CACHE.find(x=>x.id===id); if(!u) return;

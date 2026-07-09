@@ -110,6 +110,13 @@
     color:var(--muted);border-bottom:2.5px solid transparent;white-space:nowrap}
   .tab.active{color:var(--green-700);border-bottom-color:var(--green-700)}
 
+  /* ---------- Sous-sélecteur à deux positions (ex : Pharmacie > Délivrances / Stock) ---------- */
+  .subnav{display:flex;background:var(--green-50);border-radius:100px;padding:4px;margin-bottom:16px;gap:4px}
+  .subnav-btn{flex:1;border:none;background:transparent;padding:10px 14px;border-radius:100px;font-size:14px;font-weight:600;
+    color:var(--muted);cursor:pointer;transition:background .25s ease,color .25s ease,box-shadow .25s ease,transform .15s ease}
+  .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(18,60,28,.14)}
+  .subnav-btn:active{transform:scale(.97)}
+
   .content{padding:18px 16px 40px;max-width:760px;width:100%;margin:0 auto;flex:1}
   .panel{display:none} .panel.active{display:block}
   fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:16px}
@@ -449,9 +456,9 @@
 
     <!-- PHARMACIEN (et admin) : suivi des délivrances + stock -->
     <div class="panel" id="panel-dispensation">
-      <div class="tabs" style="position:static;margin-bottom:16px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)">
-        <button class="tab active" id="pharmaSubTab-delivrances" onclick="switchPharmaSubTab('delivrances')">Délivrances</button>
-        <button class="tab" id="pharmaSubTab-stock" onclick="switchPharmaSubTab('stock')">Stock</button>
+      <div class="subnav">
+        <button class="subnav-btn active" id="pharmaSubTab-delivrances" onclick="switchPharmaSubTab('delivrances')">Délivrances</button>
+        <button class="subnav-btn" id="pharmaSubTab-stock" onclick="switchPharmaSubTab('stock')">Stock</button>
       </div>
 
       <div id="pharmaPanel-delivrances">

@@ -354,6 +354,7 @@ let ME = null;            // profil courant {id,prenom,nom,role,site_id,actif}
 let SITES = [];           // liste des sites
 let LIST = [];            // consultations chargées depuis le serveur
 let CURRENT_TAB = null;
+let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
 
 /* ---------- utilitaires ---------- */
 const $ = id => document.getElementById(id);
@@ -631,8 +632,13 @@ async function deleteConsultation(id, isQueued){
     setQueue(getQueue().filter(x=>String(x._local)!==localTs));
     renderList(); toast("Consultation en attente supprimée"); return;
   }
-  const {error}=await sb.from("consultations").delete().eq("id",id);
+  const {data,error}=await sb.from("consultations").delete().eq("id",id).select();
   if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(!data||!data.length){
+    toast("Suppression refusée par la base (droits insuffisants ou déjà supprimée)",true);
+    await refreshData();
+    return;
+  }
   toast("Consultation supprimée");
   await refreshData();
 }
@@ -721,6 +727,7 @@ function exportCSV(){
 async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
+  USERS_CACHE=data||[];
   const siteOpts=id=>`<option value="">— Aucun —</option>`+SITES.map(s=>`<option value="${s.id}"${s.id===id?" selected":""}>${esc(s.nom)}</option>`).join("");
   $("usersBody").innerHTML=(data||[]).map(u=>`
     <tr>
@@ -732,7 +739,8 @@ async function loadUsers(){
       <td><select class="btn-sm" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOpts(u.site_id)}</select></td>
       <td>${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td>
       <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
-        `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>`}</td>
+        `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
+        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
     </tr>`).join("")||`<tr><td colspan="5" class="empty">Aucun utilisateur.</td></tr>`;
 }
 async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
@@ -741,6 +749,16 @@ async function setRole(id,role){ const {error}=await sb.from("profiles").update(
   if(error) toast("Échec : "+error.message,true); else toast("Rôle mis à jour"); }
 async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
   if(error) toast("Échec : "+error.message,true); else toast("Site attribué"); }
+async function deleteUser(id){
+  const u=USERS_CACHE.find(x=>x.id===id);
+  const label=u?(`${u.prenom||""} ${u.nom||""}`.trim()||u.email||"cet utilisateur"):"cet utilisateur";
+  if(!confirm(`Supprimer définitivement le profil de "${label}" ?\n\nCette personne perdra tout accès à l'application. Ses consultations déjà enregistrées seront conservées. Cette action est irréversible.`)) return;
+  const {data,error}=await sb.from("profiles").delete().eq("id",id).select();
+  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(!data||!data.length){ toast("Suppression refusée par la base",true); loadUsers(); return; }
+  toast("Utilisateur supprimé");
+  loadUsers();
+}
 
 /* =====================================================================
    ADMIN — SITES

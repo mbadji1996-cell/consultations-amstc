@@ -474,15 +474,20 @@
         </div>
 
         <div id="pharmaPanel-stock" class="hidden">
-          <fieldset><legend>Ajouter un médicament au stock</legend>
+          <fieldset><legend>Ajouter un article au stock</legend>
             <div class="row2">
-              <div class="field"><label>Nom du médicament <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol"></div>
-              <div class="field"><label>Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
+              <div class="field"><label>Nom de l'article <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
+              <div class="field"><label>Type d'article</label><select id="stock_type"></select></div>
             </div>
-            <div class="field"><label>Unité</label>
-              <select id="stock_unite"><option value="Boîte">Boîte</option><option value="Tablette">Tablette</option></select></div>
+            <div class="field"><label>Catégorie</label><select id="stock_categorie"></select></div>
+            <div class="row2">
+              <div class="field"><label>Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
+              <div class="field"><label>Unité</label><select id="stock_unite"></select></div>
+            </div>
+            <div class="field"><label>Seuil d'alerte (stock bas)</label><input type="number" id="stock_seuil" min="0" placeholder="ex : 5"></div>
             <button class="btn btn-primary btn-sm" onclick="addStockItem()">Ajouter au stock</button>
           </fieldset>
+          <p class="rec-meta" style="margin-bottom:12px">Quand vous délivrez un médicament dans l'onglet Délivrances, le stock est ajusté automatiquement si un article du même nom est trouvé — vérifiez toujours vos chiffres, ce rapprochement se fait par nom.</p>
           <div id="stockBody"></div>
         </div>
       </div>
@@ -766,6 +771,23 @@ function specialtySelectOptions(currentValue){
     `<option value="__autre__"${(!known&&currentValue)?" selected":""}>Autre…</option>`;
 }
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
+
+// Listes de référence pour le stock pharmacie — inspirées d'un devis réel de campagne médicale AMSTC
+const STOCK_CATEGORIES=["Injectables","Soins infirmiers","Antalgiques / AINS","Antibiotiques","IPP / Antiacides",
+  "Antiparasitaires","Antihistaminiques","Antihypertenseurs","Fer / Acide folique / Vitamines","Antitussifs",
+  "Nébulisations","Gynécologie","Ophtalmologie","Pommades / Gel","Gastro-entérologie",
+  "Anti-inflammatoires (usage externe)","Dentaire","Autres"];
+const STOCK_UNITS=["Boîte","Flacon","Ampoule","Sachet","Tube","Rouleau","Plaquette","Paire","Unité","Litre","Kilogramme"];
+const STOCK_TYPES={medicament:"Médicament",consommable:"Consommable",materiel:"Matériel"};
+function stockCategorySelect(id,current){
+  return `<select id="${id}">${STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}"${c===current?" selected":""}>${esc(c)}</option>`).join("")}</select>`;
+}
+function stockUnitSelect(id,current){
+  return `<select id="${id}">${STOCK_UNITS.map(u=>`<option value="${esc(u)}"${u===current?" selected":""}>${esc(u)}</option>`).join("")}</select>`;
+}
+function stockTypeSelect(id,current){
+  return `<select id="${id}">${Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
+}
 function isPharmacien(){ return ME.role!=="admin" && ME.specialite==="pharmacien"; }
 
 function buildTabs(){
@@ -860,7 +882,7 @@ function addMedRow(scope){
     <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
       <input type="number" min="0" step="0.5" class="med-qte-val" placeholder="1"></div>
     <div style="flex:1;min-width:110px"><label style="font-size:11px;color:var(--muted)">Unité</label>
-      <select class="med-qte-unite"><option value="Boîte">Boîte</option><option value="Tablette">Tablette</option></select></div>
+      <select class="med-qte-unite">${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
     <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.med-row').remove()">Retirer</button>`;
   container.appendChild(row);
 }
@@ -1738,7 +1760,30 @@ function renderDispensation(){
 async function toggleMedDelivered(consultId,idx,delivered){
   const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered});
   if(error){ toast("Échec : "+error.message,true); return; }
-  toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
+
+  // Répercussion automatique sur le stock, par correspondance de nom — une bonne estimation,
+  // pas une garantie : le nom du médicament est saisi librement des deux côtés.
+  const consult=DISPENSATION_LIST.find(r=>r.id===consultId);
+  const med=consult?.medicaments?.[idx];
+  const qty=med?parseFloat(med.quantite):0;
+  if(med && med.nom && qty>0 && ME.site_id){
+    const {data:stockMatch}=await sb.from("stock_medicaments").select("id,quantite,nom")
+      .eq("site_id",ME.site_id).ilike("nom",med.nom.trim()).limit(1);
+    if(stockMatch && stockMatch.length){
+      const item=stockMatch[0];
+      const delta=delivered?-qty:qty;
+      const newQty=Math.max(0,Math.round(item.quantite+delta));
+      await sb.from("stock_medicaments").update({
+        quantite:newQty, updated_at:new Date().toISOString(),
+        updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
+      }).eq("id",item.id);
+      toast(delivered?`Délivré — stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée — stock restauré");
+    } else {
+      toast(delivered?"Médicament marqué comme délivré (aucun article de stock correspondant — pensez à l'ajuster vous-même)":"Délivrance annulée");
+    }
+  } else {
+    toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
+  }
   loadDispensation();
 }
 
@@ -1753,6 +1798,11 @@ function loadPharmacieTab(){
   } else {
     $("pharmaAgentView").classList.remove("hidden");
     $("pharmaAdminOverview").classList.add("hidden");
+    if(!$("stock_categorie").innerHTML){
+      $("stock_categorie").innerHTML=STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      $("stock_type").innerHTML=Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
+      $("stock_unite").innerHTML=STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+    }
     loadDispensation();
   }
 }
@@ -1776,10 +1826,24 @@ async function loadPharmaAdminStock(){
   if(!siteId){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun site.</div>`; return; }
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
   if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
-  if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun médicament en stock pour ce site.</div>`; return; }
-  $("pharmaAdminStockBody").innerHTML=`<div class="table-wrap"><table><thead><tr><th>Médicament</th><th>Quantité</th></tr></thead><tbody>
-    ${data.map(it=>`<tr><td><b>${esc(it.nom)}</b></td><td>${it.quantite} ${esc(it.unite||"")}</td></tr>`).join("")}
-  </tbody></table></div>`;
+  if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
+  const groups={};
+  data.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
+  const cats=Object.keys(groups).sort();
+  $("pharmaAdminStockBody").innerHTML=cats.map(cat=>`
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--green-900);margin-bottom:6px">${esc(cat)}</div>
+      <div class="table-wrap"><table><thead><tr><th>Article</th><th>Type</th><th>Quantité</th></tr></thead><tbody>
+        ${groups[cat].map(it=>{
+          const low=it.quantite<=(it.seuil_alerte||0);
+          return `<tr${low?' style="background:#fdecea"':''}>
+            <td><b>${esc(it.nom)}</b>${low?' <span class="tag tag-queue">Bas</span>':''}</td>
+            <td>${esc(STOCK_TYPES[it.type_article]||"Médicament")}</td>
+            <td>${it.quantite} ${esc(it.unite||"")}</td>
+          </tr>`;
+        }).join("")}
+      </tbody></table></div>
+    </div>`).join("");
 }
 
 function switchPharmaSubTab(sub){
@@ -1801,21 +1865,32 @@ async function loadStock(){
 }
 
 function renderStock(items){
-  if(!items.length){ $("stockBody").innerHTML=`<div class="empty">Aucun médicament en stock pour ce site.</div>`; return; }
-  $("stockBody").innerHTML=`<div class="table-wrap"><table><thead><tr><th>Médicament</th><th>Quantité</th><th>Unité</th><th>Actions</th></tr></thead><tbody>
-    ${items.map(it=>`<tr>
-      <td><b>${esc(it.nom)}</b></td>
-      <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" style="width:70px;padding:6px 8px"></td>
-      <td><select id="stockunite_${it.id}" style="padding:6px 8px">
-        <option value="Boîte"${it.unite==="Boîte"?" selected":""}>Boîte</option>
-        <option value="Tablette"${it.unite==="Tablette"||!it.unite?" selected":""}>Tablette</option>
-      </select></td>
-      <td>
-        <button class="btn btn-primary btn-sm" onclick="updateStockQty('${it.id}')">Enregistrer</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${it.id}')">Supprimer</button>
-      </td>
-    </tr>`).join("")}
-  </tbody></table></div>`;
+  if(!items.length){ $("stockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
+  const groups={};
+  items.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
+  const cats=Object.keys(groups).sort();
+  $("stockBody").innerHTML=cats.map(cat=>`
+    <div style="margin-bottom:18px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--green-900);margin-bottom:8px">${esc(cat)}</div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Article</th><th>Type</th><th>Quantité</th><th>Unité</th><th>Seuil</th><th>Actions</th>
+      </tr></thead><tbody>
+        ${groups[cat].map(it=>{
+          const low=it.quantite<=(it.seuil_alerte||0);
+          return `<tr${low?' style="background:#fdecea"':''}>
+            <td><b>${esc(it.nom)}</b>${low?'<div class="tag tag-queue" style="margin-top:4px">Stock bas</div>':''}</td>
+            <td>${esc(STOCK_TYPES[it.type_article]||"Médicament")}</td>
+            <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" style="width:65px;padding:6px 8px"></td>
+            <td>${stockUnitSelect("stockunite_"+it.id, it.unite)}</td>
+            <td><input type="number" min="0" value="${it.seuil_alerte||0}" id="stockseuil_${it.id}" style="width:55px;padding:6px 8px"></td>
+            <td>
+              <button class="btn btn-primary btn-sm" onclick="updateStockQty('${it.id}')">Enregistrer</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${it.id}')">Supprimer</button>
+            </td>
+          </tr>`;
+        }).join("")}
+      </tbody></table></div>
+    </div>`).join("");
 }
 
 async function addStockItem(){
@@ -1824,22 +1899,26 @@ async function addStockItem(){
   const nom=$("stock_nom").value.trim();
   const qte=parseInt($("stock_qte").value)||0;
   const unite=$("stock_unite").value;
-  if(!nom){ toast("Le nom du médicament est requis",true); return; }
+  const categorie=$("stock_categorie").value;
+  const type_article=$("stock_type").value;
+  const seuil_alerte=parseInt($("stock_seuil").value)||0;
+  if(!nom){ toast("Le nom de l'article est requis",true); return; }
   const {error}=await sb.from("stock_medicaments").insert({
-    site_id:siteId, nom, quantite:qte, unite,
+    site_id:siteId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   });
   if(error){ toast("Échec : "+error.message,true); return; }
-  $("stock_nom").value=""; $("stock_qte").value="";
-  toast("Médicament ajouté au stock");
+  $("stock_nom").value=""; $("stock_qte").value=""; $("stock_seuil").value="";
+  toast("Article ajouté au stock");
   loadStock();
 }
 
 async function updateStockQty(id){
   const qte=parseInt($("stockqte_"+id).value)||0;
   const unite=$("stockunite_"+id).value;
+  const seuil_alerte=parseInt($("stockseuil_"+id).value)||0;
   const {error}=await sb.from("stock_medicaments").update({
-    quantite:qte, unite, updated_at:new Date().toISOString(),
+    quantite:qte, unite, seuil_alerte, updated_at:new Date().toISOString(),
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   }).eq("id",id);
   if(error){ toast("Échec : "+error.message,true); return; }

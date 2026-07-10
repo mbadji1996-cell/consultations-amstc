@@ -140,8 +140,8 @@
   .tabs {
     display: flex;
     background: var(--gradient-brand-rich); /* Fond vert dégradé */
-    border-top: none;
-    position: fixed;
+    border-top: auto;
+    position: sticky;
     left: 0;
     right: 0;
     bottom: 0; /* Reste en bas de l'écran */
@@ -149,6 +149,7 @@
     min-height: 62px;
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
     box-shadow: 0 -4px 14px rgba(18, 60, 28, 0.15);
+    margin-top: auto;
   }
   .navtab {
     flex: 1;
@@ -181,7 +182,7 @@
   .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(18,60,28,.14)}
   .subnav-btn:active{transform:scale(.97)}
 
-  .content{padding:18px 16px 96px;max-width:760px;width:100%;margin:0 auto;flex:1}
+  .content{padding:18px 16px 82px;max-width:760px;width:100%;margin:0 auto;flex:1}
   .panel{display:none} .panel.active{display:block}
   fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:16px}
   legend{font-weight:700;font-size:13px;color:var(--green-900);padding:0 6px}
@@ -246,7 +247,7 @@
   @media(min-width:900px){
     .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
       border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(18,60,28,.05);
-      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
+      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto;margin-top:0;}
     .navtab{padding:10px 4px}
     .navtab span{display:block;font-size:11px;font-weight:600}
     .navtab svg{width:21px;height:21px}

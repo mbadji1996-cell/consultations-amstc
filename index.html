@@ -250,6 +250,82 @@
     #usersBody{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start}
     #dashBody .dash-greeting,#dashBody .stat-row,#dashBody .empty{grid-column:1 / -1}
   }
+
+  /* ============================================================
+     PATCH UI/UX
+     ============================================================ */
+
+  /* 1 · Tokens ajoutés (échelle de rayons, non destructif) */
+  :root{
+    --radius-lg:16px;
+    --radius-full:100px;
+  }
+
+  /* 2 · Bug zoom iOS : Safari zoome au focus si un champ < 16px.
+     On force 16px sur mobile uniquement (desktop reste à 15px). */
+  @media (max-width:899px){
+    input, select, textarea{ font-size:16px; }
+  }
+
+  /* 3 · Anneau de focus clavier (absent sur les boutons aujourd'hui).
+     Or = visible aussi bien sur fond blanc que sur le vert de la topbar. */
+  .btn:focus-visible,
+  .navtab:focus-visible,
+  .link-btn:focus-visible,
+  .subnav-btn:focus-visible,
+  .pwd-toggle:focus-visible,
+  .avatar:focus-visible,
+  .menu-pop button:focus-visible{
+    outline:2px solid var(--gold);
+    outline-offset:2px;
+  }
+
+  /* 4 · Respect de prefers-reduced-motion (carrousel, pulse, transforms) */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+      animation-duration:.001ms!important;
+      animation-iteration-count:1!important;
+      transition-duration:.001ms!important;
+      scroll-behavior:auto!important;
+    }
+  }
+
+  /* 5 · Unification de .stat (résout le conflit des deux définitions plus haut).
+     Une seule définition cohérente ; le liseré gauche est conservé pour que
+     l'override inline orange (compteur « en attente ») continue de fonctionner. */
+  .stat{
+    background:var(--white);
+    border:1px solid var(--line);
+    border-left:3px solid var(--green-500);
+    border-radius:var(--radius-lg);
+    padding:15px 16px;
+    box-shadow:var(--shadow);
+    display:flex;
+    flex-direction:column;
+    gap:9px;
+  }
+  .stat b{ font-size:24px; font-weight:800; color:var(--green-900); line-height:1; }
+  .stat span{ font-size:12px; color:var(--muted); font-weight:600; }
+
+  /* 6 · Barre d'enregistrement collante sur le formulaire (mobile).
+     Se cale juste au-dessus de la barre d'onglets fixe ; sur desktop, flux normal. */
+  @media (max-width:899px){
+    #panel-form .actions{
+      position:sticky;
+      bottom:calc(80px + env(safe-area-inset-bottom,0px));
+      z-index:15;
+      margin:20px -16px 0;          /* pleine largeur : annule le padding latéral 16px du .content */
+      padding:12px 16px;
+      background:var(--white);
+      border-top:1px solid var(--line);
+      box-shadow:0 -6px 16px rgba(18,60,28,.07);
+    }
+    #panel-form .actions .btn{ flex:1; }   /* les deux boutons se partagent la largeur */
+  }
+
+  /* 7 · Badge de type de consultation : couleur neutre, distincte du vert
+     « synchronisé » (tag-sent), pour ne pas brouiller le sens des couleurs d'état. */
+  .tag-type{ background:#eceff0; color:var(--green-900); }
 </style>
 </head>
 <body>
@@ -1238,7 +1314,7 @@ function renderList(){
     const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
     return `<div class="rec">
       <div class="rec-top">
-        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-sent" style="margin-left:4px">${typeLabel}</span></div>
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-type" style="margin-left:4px">${typeLabel}</span></div>
           <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site}${medecin} · ${d}</div>
           ${numero}</div>
         ${tag}

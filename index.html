@@ -192,6 +192,7 @@
     #panel-list .content, .table-wrap table{font-size:14px}
     fieldset .row2, .constants{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
     #dashBody{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+    #usersBody{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start}
     #dashBody .dash-greeting,#dashBody .stat-row,#dashBody .empty{grid-column:1 / -1}
   }
 </style>
@@ -451,9 +452,7 @@
       <div class="toolbar">
         <input type="text" id="userSearch" placeholder="Rechercher un praticien (nom, e-mail…)" oninput="renderUsers()">
       </div>
-      <div class="table-wrap"><table id="usersTable"><thead><tr>
-        <th>Nom</th><th>Rôle</th><th>Spécialités</th><th>Campagne</th><th>Site</th><th>Statut</th><th>Actions</th>
-      </tr></thead><tbody id="usersBody"></tbody></table></div>
+      <div id="usersBody"></div>
     </div>
 
     <!-- ADMIN: sites -->
@@ -1803,34 +1802,68 @@ function renderUsers(){
     const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
     return `<option value="">— Aucun —</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
   };
+  if(!data.length){
+    $("usersBody").innerHTML=`<div class="empty">${q?"Aucun praticien ne correspond à cette recherche.":"Aucun utilisateur."}</div>`;
+    return;
+  }
   $("usersBody").innerHTML=data.map(u=>{
     const spec=u.specialite||"generaliste";
+    const nomAffiche=(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>';
     return `
-    <tr>
-      <td><b>${(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>'}</b>
-        <div class="rec-meta">${esc(u.email||"")}</div></td>
-      <td><select class="btn-sm" onchange="setRole('${u.id}',this.value)" style="padding:5px">
-        <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
-        <option value="admin"${u.role==="admin"?" selected":""}>Admin</option></select></td>
-      <td style="min-width:170px">
-        <select class="btn-sm" onchange="setSpecialite('${u.id}',this.value)" style="padding:5px">
-          <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
-          <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
-          <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
-          <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>
-        </select>
-        ${spec==="specialiste"?`
-          <select onchange="onUserSpecialtySelectChange('${u.id}',this.value)" style="margin-top:4px;padding:5px;font-size:12px">${specialtySelectOptions(u.specialite_detail)}</select>
-          <input type="text" id="specautre_${u.id}" value="${SPECIALTY_LIST.includes(u.specialite_detail)?"":esc(u.specialite_detail||"")}" placeholder="Précisez la spécialité" style="margin-top:4px;padding:5px;font-size:12px" class="${SPECIALTY_LIST.includes(u.specialite_detail)||!u.specialite_detail?"hidden":""}" onchange="setSpecialiteDetail('${u.id}',this.value)">
-        `:""}
-      </td>
-      <td><select class="btn-sm" id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')" style="padding:5px">${campagneOpts(u.campagne_id)}</select></td>
-      <td><select class="btn-sm" id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)" style="padding:5px">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select></td>
-      <td>${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}</td>
-      <td>${u.id===ME.id?'<span class="rec-meta">vous</span>':
-        `<button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
-        <button class="btn btn-danger btn-sm" style="margin-top:6px" onclick="deleteUser('${u.id}')">Supprimer</button>`}</td>
-    </tr>`;}).join("")||`<tr><td colspan="7" class="empty">${q?"Aucun praticien ne correspond à cette recherche.":"Aucun utilisateur."}</td></tr>`;
+    <div class="rec">
+      <div class="rec-top">
+        <div>
+          <div class="rec-name">${nomAffiche}</div>
+          <div class="rec-meta">${esc(u.email||"")}</div>
+        </div>
+        ${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}
+      </div>
+
+      <div class="row2" style="margin-top:12px;gap:10px">
+        <div class="field" style="margin-bottom:0">
+          <label style="font-size:12px">Rôle</label>
+          <select onchange="setRole('${u.id}',this.value)" style="font-weight:700">
+            <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
+            <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label style="font-size:12px">Spécialité</label>
+          <select onchange="setSpecialite('${u.id}',this.value)" style="font-weight:700">
+            <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
+            <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
+            <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
+            <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>
+          </select>
+        </div>
+      </div>
+
+      ${spec==="specialiste"?`
+        <div class="field" style="margin-top:10px;margin-bottom:0">
+          <label style="font-size:12px">Sous-spécialité</label>
+          <select onchange="onUserSpecialtySelectChange('${u.id}',this.value)">${specialtySelectOptions(u.specialite_detail)}</select>
+          <input type="text" id="specautre_${u.id}" value="${SPECIALTY_LIST.includes(u.specialite_detail)?"":esc(u.specialite_detail||"")}" placeholder="Précisez la spécialité" style="margin-top:6px" class="${SPECIALTY_LIST.includes(u.specialite_detail)||!u.specialite_detail?"hidden":""}" onchange="setSpecialiteDetail('${u.id}',this.value)">
+        </div>`:""}
+
+      <div class="row2" style="margin-top:10px;gap:10px">
+        <div class="field" style="margin-bottom:0">
+          <label style="font-size:12px">Campagne</label>
+          <select id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')">${campagneOpts(u.campagne_id)}</select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label style="font-size:12px">Site</label>
+          <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)" style="font-weight:700">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
+        </div>
+      </div>
+
+      ${u.id===ME.id
+        ? '<div class="rec-meta" style="margin-top:12px">C\'est votre compte</div>'
+        : `<div class="rec-foot" style="margin-top:12px">
+            <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
+          </div>`}
+    </div>`;
+  }).join("");
 }
 async function setSpecialite(id,value){
   const payload={ specialite:value };

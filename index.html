@@ -10,11 +10,14 @@
 <style>
   :root{
     --green-900:#123c1c; --green-700:#1a5a2a; --green-500:#2ea038; --green-50:#eef6f0;
-    --orange:#f39c12; --orange-dark:#cf850a;
+    --orange:#f39c12; --orange-dark:#cf850a; --gold:#f6c453;
     --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
     --danger:#c0392b; --danger-bg:#fdecea;
     --radius:12px; --radius-sm:8px;
     --shadow:0 1px 3px rgba(20,50,25,.08),0 1px 2px rgba(20,50,25,.04);
+    --gradient-brand:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 100%);
+    --gradient-brand-rich:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 65%,#0c2e15 100%);
+    --gradient-gold:linear-gradient(135deg,var(--gold) 0%,var(--orange) 55%,var(--orange-dark) 100%);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -25,8 +28,29 @@
 
   /* ---------- AUTH ---------- */
   #authScreen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
+  .auth-wrap{width:100%;max-width:1020px;display:flex;flex-direction:column;gap:24px}
+  .auth-hero{background:var(--gradient-brand-rich);border-radius:22px;padding:34px 28px;color:#fff;
+    position:relative;overflow:hidden}
+  .auth-hero::before{content:"";position:absolute;top:-32%;right:-12%;width:260px;height:260px;border-radius:50%;
+    background:var(--gradient-gold);opacity:.18;pointer-events:none}
+  .auth-hero::after{content:"";position:absolute;bottom:-28%;left:-10%;width:220px;height:220px;border-radius:50%;
+    background:var(--gradient-gold);opacity:.12;pointer-events:none}
+  .auth-hero-badge{position:relative;width:56px;height:56px;background:#fff;border-radius:16px;
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+  .auth-hero h1{position:relative;font-size:23px;font-weight:800;line-height:1.28;margin-bottom:10px;max-width:480px;letter-spacing:-.3px}
+  .auth-hero p{position:relative;font-size:14px;opacity:.92;line-height:1.65;max-width:460px;margin-bottom:20px}
+  .auth-hero-features{position:relative;display:flex;flex-wrap:wrap;gap:9px}
+  .auth-hero-feature{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.15);padding:8px 13px;
+    border-radius:100px;font-size:12.5px;font-weight:600}
+  .auth-hero-feature svg{width:15px;height:15px;flex-shrink:0}
   .auth-card{background:var(--white);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
-    width:100%;max-width:400px;padding:32px 28px}
+    width:100%;max-width:400px;margin:0 auto;padding:32px 28px}
+  @media(min-width:860px){
+    .auth-wrap{flex-direction:row;align-items:stretch;gap:32px}
+    .auth-hero{flex:1.15;display:flex;flex-direction:column;justify-content:center;padding:44px 40px}
+    .auth-hero h1{font-size:27px}
+    .auth-card{flex:1;max-width:420px;align-self:center;margin:0}
+  }
   .brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
   .brand-mark{width:44px;height:44px;border-radius:12px;background:var(--green-700);color:#fff;
     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;letter-spacing:.5px}
@@ -48,13 +72,14 @@
 
   /* ---------- BUTTONS ---------- */
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border:none;
-    border-radius:var(--radius-sm);font-size:15px;font-weight:600;transition:background .15s,opacity .15s}
+    border-radius:var(--radius-sm);font-size:15px;font-weight:600;transition:background .15s,opacity .15s,transform .1s}
   .btn-block{width:100%}
-  .btn-primary{background:var(--green-700);color:#fff}
+  .btn-primary{background:var(--gradient-brand);color:#fff}
   .btn-primary:hover{background:var(--green-900)}
   .btn-primary:disabled{opacity:.55;cursor:not-allowed}
-  .btn-accent{background:var(--orange);color:#3a2600}
-  .btn-accent:hover{background:var(--orange-dark);color:#fff}
+  .btn-primary:active{transform:scale(.98)}
+  .btn-accent{background:var(--gradient-gold);color:#3a2600;box-shadow:0 2px 6px rgba(243,156,18,.3)}
+  .btn-accent:hover{filter:brightness(.95);color:#3a2600}
   .btn-ghost{background:transparent;color:var(--green-700);border:1px solid var(--line)}
   .btn-ghost:hover{background:var(--green-50)}
   .btn-danger{background:transparent;color:var(--danger);border:1px solid #f0c9c4}
@@ -79,7 +104,7 @@
 
   /* ---------- APP SHELL ---------- */
   #appScreen{min-height:100dvh;display:flex;flex-direction:column}
-  .topbar{background:var(--green-700);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;
+  .topbar{background:var(--gradient-brand-rich);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;
     position:sticky;top:0;z-index:20}
   .topbar .brand-mark{background:rgba(255,255,255,.16);width:34px;height:34px;font-size:13px;border-radius:9px}
   .topbar-title{font-size:15px;font-weight:700;flex:1;line-height:1.15}
@@ -105,13 +130,19 @@
   .menu-pop button:hover{background:var(--green-50)}
 
   /* ---------- NAVIGATION PAR ICÔNES ---------- */
-  /* Mobile (par défaut) : barre fixe en bas de l'écran, façon app mobile */
+  /* Mobile (par défaut) : barre fixe en bas de l'écran, icônes seules — plus de chevauchement de texte */
   .tabs{display:flex;background:#fff;border-top:1px solid var(--line);position:fixed;left:0;right:0;bottom:0;
-    z-index:25;overflow-x:auto;padding-bottom:env(safe-area-inset-bottom,0);box-shadow:0 -2px 10px rgba(18,60,28,.06)}
-  .navtab{flex:1;min-width:60px;display:flex;flex-direction:column;align-items:center;gap:3px;
-    padding:9px 4px 8px;border:none;background:none;color:var(--muted);font-size:10.5px;font-weight:600}
-  .navtab svg{width:22px;height:22px;flex-shrink:0}
+    z-index:25;padding-bottom:env(safe-area-inset-bottom,0);box-shadow:0 -2px 14px rgba(18,60,28,.08)}
+  .navtab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:10px 2px;border:none;background:none;color:var(--muted)}
+  .navtab-icon{width:38px;height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    transition:background .2s ease,transform .15s ease}
+  .navtab svg{width:21px;height:21px;flex-shrink:0}
+  .navtab span{display:none} /* libellé masqué sur mobile : lisible via l'icône + badge actif */
   .navtab.active{color:var(--green-700)}
+  .navtab.active .navtab-icon{background:var(--gradient-gold);box-shadow:0 3px 8px rgba(243,156,18,.35)}
+  .navtab.active .navtab-icon svg{color:#fff;stroke:#fff}
+  .navtab:active .navtab-icon{transform:scale(.9)}
 
   /* ---------- Sous-sélecteur à deux positions (ex : Pharmacie > Délivrances / Stock) ---------- */
   .subnav{display:flex;background:var(--green-50);border-radius:100px;padding:4px;margin-bottom:16px;gap:4px}
@@ -129,10 +160,12 @@
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
 
   /* ---------- TABLEAU DE BORD : bandeau, cartes de stats, cartes de contenu ---------- */
-  .dash-greeting{background:linear-gradient(135deg,var(--green-700),var(--green-900));border-radius:18px;
+  .dash-greeting{background:var(--gradient-brand-rich);border-radius:18px;position:relative;overflow:hidden;
     padding:20px 22px;margin-bottom:16px;color:#fff;box-shadow:0 4px 14px rgba(18,60,28,.18)}
-  .dash-greeting-title{font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px}
-  .dash-greeting-date{font-size:13px;opacity:.85;font-weight:500;text-transform:capitalize}
+  .dash-greeting::after{content:"";position:absolute;top:-40%;right:-15%;width:180px;height:180px;border-radius:50%;
+    background:var(--gradient-gold);opacity:.16;pointer-events:none}
+  .dash-greeting-title{position:relative;font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px}
+  .dash-greeting-date{position:relative;font-size:13px;opacity:.85;font-weight:500;text-transform:capitalize}
   .dash-card{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(18,60,28,.07),0 1px 3px rgba(18,60,28,.05);
     padding:18px;margin-bottom:16px;border:1px solid rgba(18,60,28,.05)}
   .dash-card-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
@@ -181,12 +214,14 @@
 
   /* ---------- GRAND ÉCRAN : barre latérale au lieu de la barre du bas, mise en page élargie ---------- */
   @media(min-width:900px){
-    .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:104px;flex-direction:column;
+    .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
       border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(18,60,28,.05);
-      padding:14px 0 16px;justify-content:flex-start;gap:6px;overflow-y:auto}
-    .navtab{padding:11px 4px;font-size:11px}
-    .navtab svg{width:23px;height:23px}
-    .content{margin-left:104px;padding:24px 32px 32px;max-width:1180px}
+      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
+    .navtab{padding:10px 4px}
+    .navtab span{display:block;font-size:11px;font-weight:600}
+    .navtab svg{width:21px;height:21px}
+    .navtab-icon{width:34px;height:34px;border-radius:11px}
+    .content{margin-left:120px;padding:24px 32px 32px;max-width:1180px}
     .stat-row{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
     .dash-card canvas{max-height:340px}
     #panel-list .content, .table-wrap table{font-size:14px}
@@ -201,10 +236,20 @@
 
 <!-- ============ AUTH ============ -->
 <div id="authScreen">
+  <div class="auth-wrap">
+    <div class="auth-hero">
+      <div class="auth-hero-badge"><img src="./icon.png" alt="AMSTC" style="width:34px;height:34px"></div>
+      <h1>Bienvenue sur la plateforme de gestion des consultations</h1>
+      <p>Association Médico-Sociale des Talibés Cheikh — un outil pensé pour le terrain, conçu pour accompagner nos équipes médicales au plus près des daaras, sur tous nos sites et campagnes.</p>
+      <div class="auth-hero-features">
+        <span class="auth-hero-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Multi-sites &amp; multi-campagnes</span>
+        <span class="auth-hero-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg> Suivi pharmacie intégré</span>
+        <span class="auth-hero-feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"></path><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"></path></svg> Fonctionne hors connexion</span>
+      </div>
+    </div>
   <div class="auth-card">
     <div class="brand" style="flex-direction:column;text-align:center;gap:10px">
-      <img src="./logo.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:160px;height:auto">
-      <p style="font-size:13px;color:var(--muted);font-weight:600">Plateforme de consultations</p>
+      <img src="./logo.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:140px;height:auto">
     </div>
 
     <div id="loginBox">
@@ -296,6 +341,7 @@
         </div></div>
       <button class="btn btn-primary btn-block" id="resetBtn" onclick="doUpdatePassword()">Enregistrer le nouveau mot de passe</button>
     </div>
+  </div>
   </div>
 </div>
 
@@ -469,6 +515,10 @@
         </div>
         <button class="btn btn-primary btn-sm" onclick="addCampagne()">Créer la campagne</button>
       </fieldset>
+      <div class="subnav">
+        <button class="subnav-btn active" id="campSubTab-actives" onclick="switchCampagnesSubTab('actives')">Campagnes actives</button>
+        <button class="subnav-btn" id="campSubTab-archivees" onclick="switchCampagnesSubTab('archivees')">Archives</button>
+      </div>
       <div id="campagnesBody"></div>
     </div>
 
@@ -835,7 +885,7 @@ function buildTabs(){
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
-    `<button class="navtab${i===0?" active":""}" data-tab="${k}" onclick="switchTab('${k}')">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}<span>${l}</span></button>`).join("");
+    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}</span><span>${l}</span></button>`).join("");
   // le filtre par site n'a de sens que pour l'admin
   $("siteFilter").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
@@ -847,7 +897,7 @@ function buildTabs(){
   $("backupBtn").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin" && CAMPAGNES.length){
     $("dashCampagneFilter").innerHTML=`<option value="">Toutes les campagnes</option>`+
-      CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("");
+      CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}${c.archivee?" (archivée)":""}</option>`).join("");
   }
   // l'admin n'a pas de site fixe (contrairement à l'agent) : il choisit à chaque consultation
   $("c_site_wrap").classList.toggle("hidden", ME.role!=="admin");
@@ -1294,16 +1344,26 @@ function computeDashboardStats(){
     .sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([key,count])=>({ date:new Date(key+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}), count }));
 
+  // Aperçu de toutes les campagnes actives d'un coup d'œil — uniquement en vue globale (admin, sans filtre)
+  let campagneApercu=[];
+  if(ME.role==="admin" && !SELECTED_CAMPAGNE){
+    campagneApercu = CAMPAGNES.filter(c=>!c.archivee).map(c=>{
+      const campSiteIds=new Set(SITES.filter(s=>s.campagne_id===c.id).map(s=>s.id));
+      const n = rows.filter(r=>campSiteIds.has(r.site_id)).length;
+      return { id:c.id, nom:c.nom, nbSites:campSiteIds.size, n };
+    });
+  }
+
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
-    typeCounts, specialiteBreakdown, medDeliveredBreakdown };
+    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu };
 }
 
 function renderDashboard(){
   if(isPharmacien()){ renderPharmacienDashboard(); return; }
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown } = S;
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu } = S;
 
   // Icônes (traits fins, cohérentes avec le reste de l'app — même style que l'icône de compte)
   const ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
@@ -1358,6 +1418,14 @@ function renderDashboard(){
 
   $("dashBody").innerHTML=`
     ${greetingHtml}
+    ${campagneApercu.length?`${cardOpen(NAV_ICON_FLAG,"Aperçu par campagne")}
+      <div class="table-wrap"><table><thead><tr><th>Campagne</th><th>Sites</th><th>Consultations</th><th></th></tr></thead><tbody>
+        ${campagneApercu.map(c=>`<tr>
+          <td><b>${esc(c.nom)}</b></td><td>${c.nbSites}</td><td>${c.n}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir</button></td>
+        </tr>`).join("")}
+      </tbody></table></div>
+    </div>`:""}
     ${statsHtml}
 
     ${total?`${cardOpen(ICON_TREND,"Évolution — 14 derniers jours")}<div style="height:220px"><canvas id="dashTrendChart"></canvas></div></div>`:""}
@@ -2267,8 +2335,24 @@ function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR"
 
 /* Rendu unique : chaque campagne est une fiche, avec ses sites juste en dessous,
    directement modifiables — plus besoin de sélectionner un contexte séparément. */
+let CAMPAGNES_SUBTAB="actives";
+function switchCampagnesSubTab(sub){
+  CAMPAGNES_SUBTAB=sub;
+  $("campSubTab-actives").classList.toggle("active",sub==="actives");
+  $("campSubTab-archivees").classList.toggle("active",sub==="archivees");
+  renderCampagnes();
+}
+
 function renderCampagnes(){
-  const groups=CAMPAGNES.map(c=>campagneCardHtml(c)).join("");
+  const visibles=CAMPAGNES.filter(c=>CAMPAGNES_SUBTAB==="archivees" ? c.archivee : !c.archivee);
+  const groups=visibles.map(c=>campagneCardHtml(c)).join("");
+
+  if(CAMPAGNES_SUBTAB==="archivees"){
+    $("campagnesBody").innerHTML = groups ||
+      `<div class="empty">Aucune campagne archivée pour l'instant.</div>`;
+    return;
+  }
+
   const autonomes=SITES.filter(s=>!s.campagne_id);
   const autonomesHtml=`
     <div class="rec" id="campcard_autonomes" style="margin-bottom:16px">
@@ -2278,7 +2362,7 @@ function renderCampagnes(){
       ${addSiteFormHtml(null)}
     </div>`;
   $("campagnesBody").innerHTML = groups + autonomesHtml ||
-    `<div class="empty">Aucune campagne enregistrée. Créez-en une ci-dessus.</div>`;
+    `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`+autonomesHtml;
 }
 
 function siteListHtml(sites){
@@ -2318,31 +2402,75 @@ function addSiteFormHtml(campagneId){
 
 function campagneCardHtml(c){
   const sites=SITES.filter(s=>s.campagne_id===c.id);
-  return `<div class="rec" id="campcard_${c.id}" style="margin-bottom:16px">
-    <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
-    <div class="row2" style="gap:8px;margin-bottom:8px">
-      <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="padding:7px 9px;font-size:13.5px">
-      <select id="cp_actif_${c.id}" style="padding:7px 9px;font-size:13.5px">
-        <option value="true"${c.actif?" selected":""}>Active</option>
-        <option value="false"${!c.actif?" selected":""}>Terminée</option>
-      </select>
+  const statusBadge = c.archivee
+    ? '<span class="tag" style="background:#eee;color:#666">Archivée</span>'
+    : (c.actif ? '<span class="tag tag-sent">Active</span>' : '<span class="tag tag-queue">Terminée</span>');
+  const periode = (c.date_debut||c.date_fin) ? `${fmtDate(c.date_debut)} → ${fmtDate(c.date_fin)}` : "Dates non renseignées";
+  return `<div class="rec" id="campcard_${c.id}" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" onclick="toggleCampagneDetails('${c.id}')">
+      <div>
+        <div class="rec-name">${esc(c.nom)}</div>
+        <div class="rec-meta">${esc(c.lieu||"Lieu non renseigné")} · ${periode}</div>
+        <div class="rec-meta">${sites.length} site${sites.length>1?"s":""}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+        ${statusBadge}
+        <button class="btn btn-ghost btn-sm" id="campToggleBtn_${c.id}" onclick="event.stopPropagation();toggleCampagneDetails('${c.id}')">Détails</button>
+      </div>
     </div>
-    <div class="row2" style="gap:8px;margin-bottom:6px">
-      <div><label style="font-size:11px;color:var(--muted)">Début</label>
-        <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:7px 9px;font-size:13px"></div>
-      <div><label style="font-size:11px;color:var(--muted)">Fin</label>
-        <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
-    </div>
-    <div class="actions" style="margin:8px 0 14px">
-      <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}')">Enregistrer</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteCampagne('${c.id}')">Supprimer la campagne</button>
-    </div>
-    <div style="border-top:1px solid var(--line);padding-top:12px">
-      <div style="font-size:12.5px;font-weight:700;color:var(--green-900);margin-bottom:8px">Sites (${sites.length})</div>
-      ${siteListHtml(sites)}
-      ${addSiteFormHtml(c.id)}
+
+    <div id="campDetails_${c.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+      <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
+      <div class="row2" style="gap:8px;margin-bottom:8px">
+        <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="padding:7px 9px;font-size:13.5px">
+        <select id="cp_actif_${c.id}" style="padding:7px 9px;font-size:13.5px">
+          <option value="true"${c.actif?" selected":""}>Active</option>
+          <option value="false"${!c.actif?" selected":""}>Terminée</option>
+        </select>
+      </div>
+      <div class="row2" style="gap:8px;margin-bottom:6px">
+        <div><label style="font-size:11px;color:var(--muted)">Début</label>
+          <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--muted)">Fin</label>
+          <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+      </div>
+      <div class="actions" style="margin:8px 0 14px">
+        <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}')">Enregistrer</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
+        ${c.archivee
+          ? `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',false)">Désarchiver</button>
+             <button class="btn btn-danger btn-sm" onclick="deleteCampagne('${c.id}')">Supprimer définitivement</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',true)">Archiver</button>`}
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:12px">
+        <div style="font-size:12.5px;font-weight:700;color:var(--green-900);margin-bottom:8px">Sites (${sites.length})</div>
+        ${siteListHtml(sites)}
+        ${addSiteFormHtml(c.id)}
+      </div>
     </div>
   </div>`;
+}
+
+function toggleCampagneDetails(id){
+  const el=$("campDetails_"+id); if(!el) return;
+  const showing=!el.classList.contains("hidden");
+  el.classList.toggle("hidden");
+  const btn=$("campToggleBtn_"+id);
+  if(btn) btn.textContent = showing ? "Détails" : "Masquer";
+}
+
+async function archiveCampagne(id,archivee){
+  const {error}=await sb.from("campagnes").update({archivee}).eq("id",id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  await reloadCampagnes();
+  toast(archivee?"Campagne archivée":"Campagne réactivée");
+  renderCampagnes();
+}
+
+function viewCampagneStats(id){
+  SELECTED_CAMPAGNE=id;
+  if($("dashCampagneFilter")) $("dashCampagneFilter").value=id;
+  switchTab("dashboard");
 }
 
 async function reloadCampagnes(){

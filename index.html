@@ -137,46 +137,27 @@
 
   /* ---------- NAVIGATION PAR ICÔNES ---------- */
   /* Mobile (par défaut) : barre fixe en bas de l'écran, icônes seules — plus de chevauchement de texte */
-.tabs {
-  display: flex;
-  background: var(--gradient-brand-rich) !important; /* Force le dégradé vert */
-  border-top: none;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 999;
-  min-height: 62px;
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
-  box-shadow: 0 -4px 14px rgba(18, 60, 28, 0.2);
-}
-
-.navtab {
-  flex: 1;
-  min-height: 52px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 10px 2px;
-  border: none;
-  background: none;
-  color: rgba(255, 255, 255, 0.7) !important; /* Force les icônes en gris clair */
-}
-
-.navtab.active {
-  color: #fff !important; /* Force l'icône active en blanc pur */
-}
+  .tabs{display:flex;background:#fff;border-top:1px solid var(--line);position:fixed;left:0;right:0;bottom:0;
+    z-index:999;min-height:62px;padding-bottom:max(env(safe-area-inset-bottom,0px),10px);box-shadow:0 -2px 14px rgba(18,60,28,.08)}
+  .navtab{flex:1;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:10px 2px;border:none;background:none;color:var(--muted)}
+  .navtab-icon{width:38px;height:38px;min-width:38px;min-height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    transition:background .2s ease,transform .15s ease}
+  .navtab svg{width:21px;height:21px;min-width:21px;min-height:21px;flex-shrink:0;display:block}
+  .navtab span{display:none} /* libellé masqué sur mobile : lisible via l'icône + badge actif */
+  .navtab.active{color:var(--green-700)}
+  .navtab.active .navtab-icon{background:var(--gradient-gold);box-shadow:0 3px 8px rgba(243,156,18,.35)}
+  .navtab.active .navtab-icon svg{color:#fff;stroke:#fff}
+  .navtab:active .navtab-icon{transform:scale(.9)}
 
   /* ---------- Sous-sélecteur à deux positions (ex : Pharmacie > Délivrances / Stock) ---------- */
   .subnav{display:flex;background:var(--green-50);border-radius:100px;padding:4px;margin-bottom:16px;gap:4px}
   .subnav-btn{flex:1;border:none;background:transparent;padding:10px 14px;border-radius:100px;font-size:14px;font-weight:600;
     color:var(--muted);cursor:pointer;transition:background .25s ease,color .25s ease,box-shadow .25s ease,transform .15s ease}
-  .subnav-btn.active{background:#99dfb2;color:var(--green-700);box-shadow:0 2px 8px rgba(18,60,28,.14)}
+  .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(18,60,28,.14)}
   .subnav-btn:active{transform:scale(.97)}
 
-  .content{padding:18px 16px 82px;max-width:760px;width:100%;margin:0 auto;flex:1}
+  .content{padding:18px 16px 96px;max-width:760px;width:100%;margin:0 auto;flex:1}
   .panel{display:none} .panel.active{display:block}
   fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:16px}
   legend{font-weight:700;font-size:13px;color:var(--green-900);padding:0 6px}
@@ -241,7 +222,7 @@
   @media(min-width:900px){
     .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
       border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(18,60,28,.05);
-      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto;margin-top:0;}
+      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
     .navtab{padding:10px 4px}
     .navtab span{display:block;font-size:11px;font-weight:600}
     .navtab svg{width:21px;height:21px}
@@ -381,6 +362,7 @@
 </div>
 
 <!-- ============ APP ============ -->
+<div id="appScreen" class="hidden">
   <div class="topbar">
     <div class="brand-mark" style="background:#fff;padding:5px;display:flex;align-items:center;justify-content:center">
       <img src="./icon.png" alt="AMSTC" style="width:100%;height:100%;object-fit:contain">
@@ -404,7 +386,6 @@
   </div>
 
   <div class="tabs" id="tabs"></div>
-  <div id="appScreen" class="hidden"></div>
 
   <!-- Sélection du site par l'agent — une seule fois, avant de démarrer -->
   <div class="content hidden" id="siteSelectScreen" style="max-width:460px">

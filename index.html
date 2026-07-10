@@ -323,7 +323,7 @@
       <div id="formAlert"></div>
       <div class="field hidden" id="c_site_wrap">
         <label>Site de consultation <span class="req">*</span></label>
-        <select id="c_site"><option value="">— Sélectionner un site —</option></select>
+        <select id="c_site" onchange="refreshStockForForm(this.value)"><option value="">— Sélectionner un site —</option></select>
       </div>
       <div class="field hidden" id="typePickerWrap">
         <label>Type de consultation</label>
@@ -498,7 +498,11 @@
           <div class="stat"><b id="pharmaAdminDeliveredCount">—</b><span>Médicaments délivrés au total</span></div>
         </div>
         <fieldset>
-          <legend>Stock — vue d'ensemble</legend>
+          <legend>Stock total — toute la campagne</legend>
+          <div id="pharmaAdminGlobalStockBody"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Stock par site</legend>
           <div class="field"><label>Site</label>
             <select id="pharmaAdminStockSite" onchange="loadPharmaAdminStock()"></select></div>
           <div id="pharmaAdminStockBody"></div>
@@ -538,6 +542,7 @@ let SITES = [];           // liste des sites
 let LIST = [];            // consultations chargées depuis le serveur
 let CURRENT_TAB = null;
 let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
+let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien en chef" par site
 let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
 let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
@@ -795,8 +800,9 @@ function buildTabs(){
   if(ME.role==="admin"){
     tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Pharmacie"]];
   } else if(isPharmacien()){
-    // Un pharmacien n'a accès qu'à la pharmacie — ni consultations, ni tableau de bord.
-    tabs=[["dispensation","Pharmacie"]];
+    // Le pharmacien a son propre tableau de bord (pharmacie), distinct de celui des consultations,
+    // plus l'onglet Pharmacie pour les délivrances et le stock.
+    tabs=[["dashboard","Tableau de bord"],["dispensation","Pharmacie"]];
   } else {
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   }
@@ -850,6 +856,9 @@ function buildTabs(){
       $("c_specialite_med").placeholder="Non renseignée — demandez à un administrateur";
     }
     onConsultTypeChange();
+    refreshStockForForm(ME.site_id); // le stock disponible pour prescrire dépend du site fixe de l'agent
+  } else if(ME.role==="admin"){
+    refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
   }
   switchTab(tabs[0][0]);
 }
@@ -869,14 +878,32 @@ function onCSpecialiteMedSelectChange(){
 }
 
 // Liste de médicaments saisis un par un — utilisée par les formulaires généraliste et spécialiste.
+let STOCK_FOR_FORM=[]; // médicaments disponibles en stock pour le site courant du formulaire de prescription
+
+async function refreshStockForForm(siteId){
+  if(!siteId){ STOCK_FOR_FORM=[]; return; }
+  const {data}=await sb.from("stock_medicaments").select("id,nom,quantite,unite")
+    .eq("site_id",siteId).eq("type_article","medicament").gt("quantite",0).order("nom");
+  STOCK_FOR_FORM=data||[];
+}
+
+function stockPickerOptions(){
+  return `<option value="">— Choisir dans le stock du site —</option>`+
+    STOCK_FOR_FORM.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
+    `<option value="__hors_stock__">Médicament non trouvé dans la liste…</option>`;
+}
+
 function addMedRow(scope){
   const container=$("medsList_"+scope); if(!container) return;
   const row=document.createElement("div");
   row.className="med-row";
   row.style.cssText="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-end";
   row.innerHTML=`
-    <div style="flex:2;min-width:130px"><label style="font-size:11px;color:var(--muted)">Médicament</label>
-      <input type="text" class="med-nom" placeholder="ex : Paracétamol"></div>
+    <div style="flex:2;min-width:180px">
+      <label style="font-size:11px;color:var(--muted)">Médicament</label>
+      <select class="med-stock-select" onchange="onMedStockSelectChange(this)">${stockPickerOptions()}</select>
+      <input type="text" class="med-nom-libre hidden" placeholder="Nom du médicament (hors stock)" style="margin-top:6px">
+    </div>
     <div style="flex:1;min-width:100px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
       <input type="text" class="med-poso" placeholder="1 cp x3/j"></div>
     <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
@@ -887,13 +914,32 @@ function addMedRow(scope){
   container.appendChild(row);
 }
 
+function onMedStockSelectChange(sel){
+  const row=sel.closest(".med-row");
+  const libre=row.querySelector(".med-nom-libre");
+  const isHorsStock=sel.value==="__hors_stock__";
+  libre.classList.toggle("hidden", !isHorsStock);
+  if(isHorsStock) libre.focus();
+}
+
 function readMedRows(scope){
   const container=$("medsList_"+scope); if(!container) return [];
   return [...container.querySelectorAll(".med-row")].map(row=>{
+    const sel=row.querySelector(".med-stock-select");
+    const selVal=sel.value;
+    let nom="", en_stock=false, stock_id=null;
+    if(selVal && selVal!=="__hors_stock__"){
+      const opt=sel.querySelector(`option[value="${CSS.escape(selVal)}"]`);
+      nom=opt?opt.dataset.nom:"";
+      en_stock=true; stock_id=selVal;
+    } else if(selVal==="__hors_stock__"){
+      nom=row.querySelector(".med-nom-libre").value.trim();
+      en_stock=false; stock_id=null;
+    }
     const qval=row.querySelector(".med-qte-val").value.trim();
     const qunite=row.querySelector(".med-qte-unite").value;
     return {
-      nom: row.querySelector(".med-nom").value.trim(),
+      nom, en_stock, stock_id,
       posologie: row.querySelector(".med-poso").value.trim(),
       quantite: qval?`${qval} ${qunite}`:"",
       delivre: false, delivre_par: null, delivre_le: null,
@@ -922,7 +968,7 @@ function switchTab(tab){
   if(tab==="dashboard") renderDashboard();
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
-  if(tab==="campagnes") renderCampagnes();
+  if(tab==="campagnes"){ refreshPharmaciensCache().then(renderCampagnes); renderCampagnes(); }
   if(tab==="dispensation") loadPharmacieTab();
 }
 
@@ -1197,6 +1243,19 @@ function computeDashboardStats(){
   });
   const specialiteBreakdown=Object.entries(specialiteCounts).sort((a,b)=>b[1]-a[1]);
 
+  // Médicaments les plus délivrés, dans le même périmètre que le reste du tableau de bord
+  // (respecte le filtre de campagne déjà appliqué à "rows") — uniquement ceux liés au stock.
+  const medDeliveredMap={};
+  rows.forEach(r=>{
+    (r.medicaments||[]).forEach(m=>{
+      if(m.delivre && m.en_stock){
+        const qty=parseFloat(m.quantite)||0;
+        medDeliveredMap[m.nom]=(medDeliveredMap[m.nom]||0)+qty;
+      }
+    });
+  });
+  const medDeliveredBreakdown=Object.entries(medDeliveredMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
   // Détail jour par jour, sur tout l'historique disponible (pas seulement une fenêtre de 14 jours) — utilisé dans le rapport téléchargé
   const dayMap={};
   rows.forEach(r=>{
@@ -1209,13 +1268,14 @@ function computeDashboardStats(){
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
-    typeCounts, specialiteBreakdown };
+    typeCounts, specialiteBreakdown, medDeliveredBreakdown };
 }
 
 function renderDashboard(){
+  if(isPharmacien()){ renderPharmacienDashboard(); return; }
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown } = S;
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown } = S;
 
   // Icônes (traits fins, cohérentes avec le reste de l'app — même style que l'icône de compte)
   const ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
@@ -1284,6 +1344,8 @@ function renderDashboard(){
 
     ${topDiag.length?`${cardOpen(ICON_FLASK,"Pathologies les plus fréquentes")}<div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></div>`:""}
 
+    ${(ME.role==="admin"&&medDeliveredBreakdown.length)?`${cardOpen(ICON_FLASK,"Pharmacie — médicaments les plus délivrés")}<div style="height:${Math.max(140,medDeliveredBreakdown.length*40)}px"><canvas id="dashMedDeliveredChart"></canvas></div></div>`:""}
+
     ${siteTableHtml}
 
     ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
@@ -1326,6 +1388,17 @@ function renderDashboard(){
     CHARTS.specialite=new Chart($("dashSpecialiteChart"),{
       type:"bar",
       data:{ labels:specialiteBreakdown.map(([l])=>l), datasets:[{ data:specialiteBreakdown.map(([,c])=>c), backgroundColor:orange, borderRadius:4 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
+    });
+  }
+
+  if(ME.role==="admin" && medDeliveredBreakdown.length){
+    killChart("medDelivered");
+    CHARTS.medDelivered=new Chart($("dashMedDeliveredChart"),{
+      type:"bar",
+      data:{ labels:medDeliveredBreakdown.map(([l])=>l), datasets:[{ data:medDeliveredBreakdown.map(([,c])=>c), backgroundColor:green900, borderRadius:4 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -1476,6 +1549,7 @@ async function downloadReportPDF(){
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
+  addChartImage("dashMedDeliveredChart","Pharmacie — médicaments les plus délivrés");
 
   // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
   if(S.topDiag.length){
@@ -1560,6 +1634,7 @@ async function downloadReportWord(){
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
+  addChartImage("dashMedDeliveredChart","Pharmacie — médicaments les plus délivrés");
 
   if(S.topDiag.length){
     children.push(new Paragraph({ text:"Détail — Pathologies les plus fréquentes", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
@@ -1624,7 +1699,21 @@ async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
   USERS_CACHE=data||[];
+  PHARMACIENS_CACHE=USERS_CACHE.filter(u=>u.specialite==="pharmacien" && u.actif);
   renderUsers();
+}
+
+async function refreshPharmaciensCache(){
+  const {data}=await sb.from("profiles").select("id,prenom,nom,email,site_id").eq("specialite","pharmacien").eq("actif",true);
+  PHARMACIENS_CACHE=data||[];
+}
+
+async function setPharmacienChef(siteId,pharmacienId){
+  const {error}=await sb.from("sites").update({pharmacien_chef_id:pharmacienId||null}).eq("id",siteId);
+  if(error){ toast("Échec : "+error.message,true); return; }
+  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  toast(pharmacienId?"Pharmacien en chef désigné":"Pharmacien en chef retiré");
+  renderCampagnes();
 }
 
 function renderUsers(){
@@ -1723,29 +1812,31 @@ async function loadDispensation(){
     .order("created_at",{ascending:false})
     .limit(300);
   if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
-  DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.length);
+  // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici — jamais une prescription
+  // hors stock saisie manuellement par le médecin faute de correspondance dans le stock.
+  DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.some(m=>m.en_stock));
   renderDispensation();
 }
 
 function renderDispensation(){
   const showAll=$("dispShowDelivered")?.checked;
-  const rows=DISPENSATION_LIST.filter(r=>showAll || r.medicaments.some(m=>!m.delivre));
-  if(!rows.length){ $("dispensationBody").innerHTML=`<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`; return; }
-  $("dispensationBody").innerHTML=rows.map(r=>{
+  const cards=DISPENSATION_LIST.map(r=>{
+    // On garde toujours l'indice ORIGINAL de chaque médicament dans le tableau complet — indispensable
+    // pour que le bouton "Délivré" agisse sur le bon médicament après filtrage à l'affichage.
+    const indexed=r.medicaments.map((m,i)=>({m,i})).filter(({m})=>m.en_stock);
+    const visible=indexed.filter(({m})=>showAll || !m.delivre);
+    if(!visible.length) return "";
     const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
-    const medsHtml=r.medicaments.map((m,i)=>{
-      if(m.delivre && !showAll) return ""; // masqué si déjà délivré et qu'on ne veut voir que le reste
-      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+    const medsHtml=visible.map(({m,i})=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
         <div>
           <b>${esc(m.nom)}</b>
           ${m.posologie?` · ${esc(m.posologie)}`:""}${m.quantite?` · ${esc(m.quantite)}`:""}
           ${m.delivre?`<div class="rec-meta">Délivré par ${esc(m.delivre_par||"—")}</div>`:""}
         </div>
         <button class="btn ${m.delivre?"btn-ghost":"btn-accent"} btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},${!m.delivre})">${m.delivre?"Annuler":"Délivré"}</button>
-      </div>`;
-    }).join("");
-    if(!medsHtml) return ""; // tout est déjà délivré et masqué
+      </div>`).join("");
     return `<div class="rec">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
@@ -1754,37 +1845,127 @@ function renderDispensation(){
       </div>
       ${medsHtml}
     </div>`;
-  }).join("");
+  }).filter(Boolean);
+  $("dispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
 }
 
 async function toggleMedDelivered(consultId,idx,delivered){
   const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered});
   if(error){ toast("Échec : "+error.message,true); return; }
 
-  // Répercussion automatique sur le stock, par correspondance de nom — une bonne estimation,
-  // pas une garantie : le nom du médicament est saisi librement des deux côtés.
+  // Répercussion sur le stock : fiable via l'identifiant lié (stock_id) quand disponible,
+  // sinon repli par correspondance de nom pour les anciennes prescriptions.
   const consult=DISPENSATION_LIST.find(r=>r.id===consultId);
   const med=consult?.medicaments?.[idx];
   const qty=med?parseFloat(med.quantite):0;
-  if(med && med.nom && qty>0 && ME.site_id){
-    const {data:stockMatch}=await sb.from("stock_medicaments").select("id,quantite,nom")
-      .eq("site_id",ME.site_id).ilike("nom",med.nom.trim()).limit(1);
-    if(stockMatch && stockMatch.length){
-      const item=stockMatch[0];
-      const delta=delivered?-qty:qty;
-      const newQty=Math.max(0,Math.round(item.quantite+delta));
-      await sb.from("stock_medicaments").update({
-        quantite:newQty, updated_at:new Date().toISOString(),
-        updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
-      }).eq("id",item.id);
-      toast(delivered?`Délivré — stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée — stock restauré");
-    } else {
-      toast(delivered?"Médicament marqué comme délivré (aucun article de stock correspondant — pensez à l'ajuster vous-même)":"Délivrance annulée");
+  let item=null;
+  if(med && qty>0){
+    if(med.stock_id){
+      const {data}=await sb.from("stock_medicaments").select("id,quantite,nom").eq("id",med.stock_id).maybeSingle();
+      item=data||null;
+    } else if(med.nom && ME.site_id){
+      const {data}=await sb.from("stock_medicaments").select("id,quantite,nom")
+        .eq("site_id",ME.site_id).ilike("nom",med.nom.trim()).limit(1);
+      item=(data&&data[0])||null;
     }
+  }
+  if(item){
+    const delta=delivered?-qty:qty;
+    const newQty=Math.max(0,Math.round(item.quantite+delta));
+    await sb.from("stock_medicaments").update({
+      quantite:newQty, updated_at:new Date().toISOString(),
+      updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
+    }).eq("id",item.id);
+    toast(delivered?`Délivré — stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée — stock restauré");
+  } else if(med && qty>0){
+    toast(delivered?"Médicament marqué comme délivré (article de stock introuvable — vérifiez le stock manuellement)":"Délivrance annulée");
   } else {
     toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
   }
   loadDispensation();
+}
+
+/* =====================================================================
+   TABLEAU DE BORD PHARMACIEN — indicateurs de pharmacie uniquement,
+   aucune donnée de consultation (diagnostics, âges, sexes...).
+   ===================================================================== */
+async function renderPharmacienDashboard(){
+  const siteId=ME.site_id;
+  $("dashBody").innerHTML=`<div class="empty">Chargement…</div>`;
+  if(!siteId){ $("dashBody").innerHTML=`<div class="empty">Aucun site attribué pour l'instant.</div>`; return; }
+
+  const [{data:stock},{data:consults}] = await Promise.all([
+    sb.from("stock_medicaments").select("*").eq("site_id",siteId),
+    sb.from("consultations").select("medicaments").eq("site_id",siteId).limit(2000),
+  ]);
+  const stockItems=stock||[];
+  const lowStock=stockItems.filter(it=>it.quantite<=(it.seuil_alerte||0));
+
+  // Agrégation des quantités délivrées / en attente, uniquement pour les médicaments liés au stock
+  const deliveredMap={}, pendingMap={};
+  (consults||[]).forEach(c=>{
+    (c.medicaments||[]).forEach(m=>{
+      if(!m.en_stock) return;
+      const qty=parseFloat(m.quantite)||0;
+      if(m.delivre) deliveredMap[m.nom]=(deliveredMap[m.nom]||0)+qty;
+      else pendingMap[m.nom]=(pendingMap[m.nom]||0)+qty;
+    });
+  });
+  const totalDelivered=Object.values(deliveredMap).reduce((a,b)=>a+b,0);
+  const totalPending=Object.values(pendingMap).reduce((a,b)=>a+b,0);
+  const topDelivered=Object.entries(deliveredMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // Stock total par catégorie thérapeutique
+  const byCat={};
+  stockItems.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; byCat[cat]=(byCat[cat]||0)+it.quantite; });
+  const catEntries=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+
+  const now2=new Date();
+  const heureSalut = now2.getHours()<12?"Bonjour":(now2.getHours()<18?"Bon après-midi":"Bonsoir");
+  let dateLong = now2.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  dateLong = dateLong.charAt(0).toUpperCase()+dateLong.slice(1);
+
+  $("dashBody").innerHTML=`
+    <div class="dash-greeting">
+      <div class="dash-greeting-title">${heureSalut}${ME.prenom?", "+esc(ME.prenom):""} 👋</div>
+      <div class="dash-greeting-date">${dateLong} · Pharmacie de ${esc(siteName(siteId))}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><b>${stockItems.length}</b><span>Articles en stock</span></div>
+      <div class="stat"><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div>
+      <div class="stat"><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div>
+      <div class="stat"><b>${lowStock.length}</b><span>Alertes stock bas</span></div>
+    </div>
+    ${catEntries.length?`<div class="dash-card"><div class="dash-card-head"><span>Stock par catégorie</span></div>
+      <div style="height:${Math.max(140,catEntries.length*36)}px"><canvas id="dashPharmaCatChart"></canvas></div></div>`:""}
+    ${topDelivered.length?`<div class="dash-card"><div class="dash-card-head"><span>Médicaments les plus délivrés</span></div>
+      <div style="height:${Math.max(140,topDelivered.length*38)}px"><canvas id="dashPharmaDelivChart"></canvas></div></div>`:""}
+    ${lowStock.length?`<div class="dash-card"><div class="dash-card-head"><span>Articles en stock bas</span></div>
+      ${lowStock.map(it=>`<div class="rec-meta" style="margin-bottom:6px">${esc(it.nom)} — <b>${it.quantite} ${esc(it.unite||"")}</b> (seuil : ${it.seuil_alerte||0})</div>`).join("")}
+      </div>`:""}
+    ${!stockItems.length?`<div class="empty">Aucun article en stock pour l'instant — allez dans l'onglet Pharmacie pour en ajouter.</div>`:""}
+  `;
+
+  if(typeof Chart==="undefined") return;
+  const green="#2ea038", green900="#123c1c", orange="#f39c12", grid="#e3e9e5";
+  if(catEntries.length){
+    killChart("pharmaCat");
+    CHARTS.pharmaCat=new Chart($("dashPharmaCatChart"),{
+      type:"bar",
+      data:{ labels:catEntries.map(([l])=>l), datasets:[{ data:catEntries.map(([,c])=>c), backgroundColor:green, borderRadius:4 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    });
+  }
+  if(topDelivered.length){
+    killChart("pharmaDeliv");
+    CHARTS.pharmaDeliv=new Chart($("dashPharmaDelivChart"),{
+      type:"bar",
+      data:{ labels:topDelivered.map(([l])=>l), datasets:[{ data:topDelivered.map(([,c])=>c), backgroundColor:orange, borderRadius:4 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    });
+  }
 }
 
 /* ---------- Stock de médicaments (sous-onglet de Pharmacie) ---------- */
@@ -1818,7 +1999,34 @@ async function loadPharmaAdminOverview(){
   if(!$("pharmaAdminStockSite").innerHTML){
     $("pharmaAdminStockSite").innerHTML=SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
   }
+  loadPharmaAdminGlobalStock();
   loadPharmaAdminStock();
+}
+
+async function loadPharmaAdminGlobalStock(){
+  const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,site_id");
+  if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucun site.</div>`; return; }
+  // Regroupement par nom (insensible à la casse) — additionne les quantités, quelle que soit l'unité
+  // déclarée site par site (à interpréter avec prudence si les unités diffèrent d'un site à l'autre).
+  const map={};
+  data.forEach(it=>{
+    const key=it.nom.trim().toLowerCase();
+    if(!map[key]) map[key]={nom:it.nom, quantite:0, unite:it.unite, categorie:it.categorie, sites:new Set()};
+    map[key].quantite+=it.quantite;
+    map[key].sites.add(it.site_id);
+  });
+  const rows=Object.values(map).sort((a,b)=>a.nom.localeCompare(b.nom));
+  $("pharmaAdminGlobalStockBody").innerHTML=`<div class="table-wrap"><table><thead><tr>
+    <th>Article</th><th>Catégorie</th><th>Quantité totale</th><th>Sites</th>
+  </tr></thead><tbody>
+    ${rows.map(r=>`<tr>
+      <td><b>${esc(r.nom)}</b></td>
+      <td>${esc(r.categorie||"—")}</td>
+      <td>${r.quantite} ${esc(r.unite||"")}</td>
+      <td>${r.sites.size}</td>
+    </tr>`).join("")}
+  </tbody></table></div>`;
 }
 
 async function loadPharmaAdminStock(){
@@ -1965,16 +2173,29 @@ function renderCampagnes(){
 
 function siteListHtml(sites){
   if(!sites.length) return `<div class="rec-meta" style="margin-bottom:8px">Aucun site pour l'instant.</div>`;
-  return sites.map(s=>`
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:7px;flex-wrap:wrap">
-      <input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="flex:1;min-width:120px;padding:7px 9px;font-size:13.5px">
-      <select id="site_actif_${s.id}" style="padding:7px 8px;font-size:12.5px">
-        <option value="true"${s.actif?" selected":""}>Actif</option>
-        <option value="false"${!s.actif?" selected":""}>Inactif</option>
-      </select>
-      <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
-    </div>`).join("");
+  return sites.map(s=>{
+    const candidats=PHARMACIENS_CACHE.filter(p=>p.site_id===s.id);
+    return `
+    <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="flex:1;min-width:120px;padding:7px 9px;font-size:13.5px">
+        <select id="site_actif_${s.id}" style="padding:7px 8px;font-size:12.5px">
+          <option value="true"${s.actif?" selected":""}>Actif</option>
+          <option value="false"${!s.actif?" selected":""}>Inactif</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (seul habilité à gérer le stock de ce site)</label>
+        <select onchange="setPharmacienChef('${s.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
+          <option value="">— Aucun —</option>
+          ${candidats.map(p=>`<option value="${p.id}"${s.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
+        </select>
+        ${!candidats.length?'<span class="rec-meta">Aucun pharmacien affecté à ce site pour l\'instant.</span>':""}
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function addSiteFormHtml(campagneId){

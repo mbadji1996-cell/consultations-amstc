@@ -326,6 +326,16 @@
   /* 7 · Badge de type de consultation : couleur neutre, distincte du vert
      « synchronisé » (tag-sent), pour ne pas brouiller le sens des couleurs d'état. */
   .tag-type{ background:#eceff0; color:var(--green-900); }
+
+  /* 8 · Liens légaux (Confidentialité / CGU) en bas de la carte de connexion */
+  .auth-legal{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin-top:22px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:12.5px;
+  }
+  .auth-legal a{ color:var(--muted); text-decoration:none; font-weight:600; }
+  .auth-legal a:hover{ color:var(--green-700); text-decoration:underline; }
+  .auth-legal span{ color:var(--line); }
 </style>
 </head>
 <body>
@@ -446,6 +456,12 @@
           </button>
         </div></div>
       <button class="btn btn-primary btn-block" id="resetBtn" onclick="doUpdatePassword()">Enregistrer le nouveau mot de passe</button>
+    </div>
+
+    <div class="auth-legal">
+      <a href="./confidentialite">Confidentialité</a>
+      <span>·</span>
+      <a href="./cgu">Conditions d'utilisation</a>
     </div>
   </div>
   </div>

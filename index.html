@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v40</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v41</div>
         </div>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
@@ -2008,14 +2008,14 @@ function renderUsers(){
       <div class="row2" style="margin-top:12px;gap:10px">
         <div class="field" style="margin-bottom:0">
           <label style="font-size:12px">Rôle</label>
-          <select onchange="setRole('${u.id}',this.value)" style="font-weight:700">
+          <select onchange="setRole('${u.id}',this.value)">
             <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
             <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
           </select>
         </div>
         <div class="field" style="margin-bottom:0">
           <label style="font-size:12px">Spécialité</label>
-          <select onchange="setSpecialite('${u.id}',this.value)" style="font-weight:700">
+          <select onchange="setSpecialite('${u.id}',this.value)">
             <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
             <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
             <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
@@ -2038,7 +2038,7 @@ function renderUsers(){
         </div>
         <div class="field" style="margin-bottom:0">
           <label style="font-size:12px">Site</label>
-          <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)" style="font-weight:700">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
+          <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
         </div>
       </div>
 

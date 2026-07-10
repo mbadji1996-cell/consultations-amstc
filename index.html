@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v39</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v40</div>
         </div>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
@@ -1106,12 +1106,8 @@ function addMedRow(scope){
       <select class="med-stock-select" onchange="onMedStockSelectChange(this)">${stockPickerOptions()}</select>
       <input type="text" class="med-nom-libre hidden" placeholder="Nom du médicament (hors stock)" style="margin-top:6px">
     </div>
-    <div style="flex:1;min-width:100px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
+    <div style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
       <input type="text" class="med-poso" placeholder="1 cp x3/j"></div>
-    <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
-      <input type="number" min="0" step="0.5" class="med-qte-val" placeholder="1"></div>
-    <div style="flex:1;min-width:110px"><label style="font-size:11px;color:var(--muted)">Unité</label>
-      <select class="med-qte-unite">${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
     <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.med-row').remove()">Retirer</button>`;
   container.appendChild(row);
 }
@@ -1138,12 +1134,10 @@ function readMedRows(scope){
       nom=row.querySelector(".med-nom-libre").value.trim();
       en_stock=false; stock_id=null;
     }
-    const qval=row.querySelector(".med-qte-val").value.trim();
-    const qunite=row.querySelector(".med-qte-unite").value;
     return {
       nom, en_stock, stock_id,
       posologie: row.querySelector(".med-poso").value.trim(),
-      quantite: qval?`${qval} ${qunite}`:"",
+      quantite:"", // choisie par le pharmacien au moment de la délivrance, plus par le médecin
       delivre: false, delivre_par: null, delivre_le: null,
     };
   }).filter(m=>m.nom); // les lignes laissées vides ne comptent pas
@@ -1154,7 +1148,7 @@ function clearMedRows(scope){
 }
 
 function medsToText(meds){
-  return meds.map(m=>`${m.nom}${m.posologie?" — "+m.posologie:""}${m.quantite?" ("+m.quantite+")":""}`).join("; ");
+  return meds.map(m=>`${m.nom}${m.posologie?" — "+m.posologie:""}`).join("; ");
 }
 
 function onCampagneFilterChange(){
@@ -2130,15 +2124,30 @@ function renderDispensation(){
     if(!visible.length) return "";
     const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
-    const medsHtml=visible.map(({m,i})=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
-        <div>
-          <b>${esc(m.nom)}</b>
-          ${m.posologie?` · ${esc(m.posologie)}`:""}${m.quantite?` · ${esc(m.quantite)}`:""}
-          ${m.delivre?`<div class="rec-meta">Délivré par ${esc(m.delivre_par||"—")}</div>`:""}
+    const medsHtml=visible.map(({m,i})=>{
+      if(m.delivre){
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+          <div>
+            <b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}
+            <div class="rec-meta">Délivré : ${esc(m.quantite||"—")} · par ${esc(m.delivre_par||"—")}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},false)">Annuler</button>
+        </div>`;
+      }
+      const qId=`dispqte_${r.id}_${i}`, uId=`dispunite_${r.id}_${i}`;
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <b>${esc(m.nom)}</b>${m.posologie?`<span class="rec-meta"> · ${esc(m.posologie)}</span>`:""}
         </div>
-        <button class="btn ${m.delivre?"btn-ghost":"btn-accent"} btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},${!m.delivre})">${m.delivre?"Annuler":"Délivré"}</button>
-      </div>`).join("");
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end">
+          <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
+            <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
+          <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
+            <select id="${uId}">${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
+          <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
+        </div>
+      </div>`;
+    }).join("");
     return `<div class="rec">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
@@ -2151,15 +2160,23 @@ function renderDispensation(){
   $("dispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
 }
 
-async function toggleMedDelivered(consultId,idx,delivered){
-  const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered});
+function confirmDelivery(consultId,idx){
+  const qval=$(`dispqte_${consultId}_${idx}`).value.trim();
+  const qunite=$(`dispunite_${consultId}_${idx}`).value;
+  if(!qval){ toast("Indiquez une quantité avant de confirmer",true); return; }
+  toggleMedDelivered(consultId, idx, true, `${qval} ${qunite}`);
+}
+
+async function toggleMedDelivered(consultId,idx,delivered,quantite){
+  const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered,p_quantite:quantite||null});
   if(error){ toast("Échec : "+error.message,true); return; }
 
   // Répercussion sur le stock : fiable via l'identifiant lié (stock_id) quand disponible,
   // sinon repli par correspondance de nom pour les anciennes prescriptions.
+  // Pour une annulation, on utilise la quantité déjà enregistrée (avant l'annulation) pour restituer le stock.
   const consult=DISPENSATION_LIST.find(r=>r.id===consultId);
   const med=consult?.medicaments?.[idx];
-  const qty=med?parseFloat(med.quantite):0;
+  const qty=delivered ? (parseFloat(quantite)||0) : (med?parseFloat(med.quantite):0);
   let item=null;
   if(med && qty>0){
     if(med.stock_id){

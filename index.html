@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v45</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v46</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -504,6 +504,37 @@
       </div>
       <div class="field"><label>Prénom</label><input type="text" id="profile_prenom"></div>
       <div class="field"><label>Nom</label><input type="text" id="profile_nom"></div>
+      <div class="field"><label>Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
+      <div class="field"><label>Profession</label>
+        <select id="profile_profession" onchange="onProfileProfessionChange()">
+          <option value="">— Choisir —</option>
+          <option value="medecin">Médecin</option>
+          <option value="pharmacien">Pharmacien</option>
+          <option value="dentiste">Dentiste</option>
+          <option value="infirmier">Infirmier</option>
+          <option value="specialiste">Spécialiste</option>
+        </select>
+      </div>
+      <div class="field hidden" id="profileProfessionDetailWrap">
+        <label>Spécialité</label>
+        <select id="profile_profession_detail"></select>
+      </div>
+      <div class="field"><label>Niveau d'étude</label>
+        <select id="profile_niveau">
+          <option value="">— Choisir —</option>
+          <option value="Licence 1">Licence 1</option>
+          <option value="Licence 2">Licence 2</option>
+          <option value="Licence 3">Licence 3</option>
+          <option value="Master 1">Master 1</option>
+          <option value="Master 2">Master 2</option>
+          <option value="Doctorat 1">Doctorat 1</option>
+          <option value="Doctorat 2">Doctorat 2</option>
+          <option value="Doctorat 3">Doctorat 3</option>
+          <option value="Docteur">Docteur</option>
+          <option value="D.E.S">D.E.S</option>
+          <option value="Professeur">Professeur</option>
+        </select>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
         <button class="btn btn-ghost" onclick="closeProfileModal()">Fermer</button>
@@ -876,12 +907,24 @@ let PROFILE_AVATAR_BLOB=null; // photo compressée en attente d'envoi, tant que 
 function openProfileModal(){
   $("profile_prenom").value=ME.prenom||"";
   $("profile_nom").value=ME.nom||"";
+  $("profile_telephone").value=ME.telephone||"";
+  $("profile_niveau").value=ME.niveau_etude||"";
+  $("profile_profession").value=ME.profession_declaree||"";
+  onProfileProfessionChange(ME.profession_declaree_detail);
   PROFILE_AVATAR_BLOB=null;
   renderProfileAvatarPreview(ME.avatar_url);
   $("profileModalOverlay").classList.remove("hidden");
   $("menuPop")?.classList.add("hidden");
 }
 function closeProfileModal(){ $("profileModalOverlay").classList.add("hidden"); }
+
+function onProfileProfessionChange(currentDetail){
+  const isSpecialiste=$("profile_profession").value==="specialiste";
+  $("profileProfessionDetailWrap").classList.toggle("hidden", !isSpecialiste);
+  if(isSpecialiste){
+    $("profile_profession_detail").innerHTML=specialtySelectOptions(currentDetail||"");
+  }
+}
 
 function renderProfileAvatarPreview(url){
   const box=$("profileAvatarPreview");
@@ -917,6 +960,14 @@ function onProfileAvatarSelected(evt){
 async function saveProfile(){
   const prenom=$("profile_prenom").value.trim();
   const nom=$("profile_nom").value.trim();
+  const telephone=$("profile_telephone").value.trim()||null;
+  const niveau_etude=$("profile_niveau").value||null;
+  const profession_declaree=$("profile_profession").value||null;
+  let profession_declaree_detail=null;
+  if(profession_declaree==="specialiste"){
+    const sel=$("profile_profession_detail").value;
+    profession_declaree_detail = sel==="__autre__" ? null : (sel||null);
+  }
   let avatar_url=ME.avatar_url||null;
 
   if(PROFILE_AVATAR_BLOB){
@@ -927,10 +978,12 @@ async function saveProfile(){
     avatar_url=pub.publicUrl+"?t="+Date.now(); // évite que le navigateur affiche l'ancienne photo en cache
   }
 
-  const {error}=await sb.from("profiles").update({prenom,nom,avatar_url}).eq("id",ME.id);
+  const {error}=await sb.from("profiles").update({
+    prenom, nom, avatar_url, telephone, niveau_etude, profession_declaree, profession_declaree_detail,
+  }).eq("id",ME.id);
   if(error){ toast("Échec : "+error.message,true); return; }
 
-  ME.prenom=prenom; ME.nom=nom; ME.avatar_url=avatar_url;
+  Object.assign(ME,{prenom,nom,avatar_url,telephone,niveau_etude,profession_declaree,profession_declaree_detail});
   $("menuName").textContent=`${prenom} ${nom}`.trim()||ME.email;
   closeProfileModal();
   toast("Profil mis à jour");
@@ -1622,23 +1675,29 @@ function computeDashboardStats(){
 
 async function loadCollegues(){
   if(!ME.site_id) return [];
-  const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url")
+  const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url,telephone,profession_declaree,profession_declaree_detail")
     .eq("site_id",ME.site_id).eq("actif",true).neq("id",ME.id);
   return data||[];
 }
 
 function collegueCardHtml(collegues){
   if(!collegues.length) return "";
+  const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
   return `<div class="dash-card"><div class="dash-card-head"><span>Collègues de ce site</span></div>
     ${collegues.map(p=>{
       const nom=(esc(p.prenom||"")+" "+esc(p.nom||"")).trim()||"(sans nom)";
       const specLabel = p.role==="admin" ? "Administrateur" : (SPEC_LABELS[p.specialite||"generaliste"]||"Praticien")+(p.specialite==="specialiste"&&p.specialite_detail?" — "+esc(p.specialite_detail):"");
+      const profession = p.profession_declaree ? (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" — "+esc(p.profession_declaree_detail):"") : "";
       const avatar = p.avatar_url
         ? `<img src="${esc(p.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
         : `<div style="width:36px;height:36px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc((p.prenom||"?")[0].toUpperCase())}</div>`;
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
         ${avatar}
-        <div><div style="font-weight:600;font-size:13.5px">${nom}</div><div class="rec-meta">${specLabel}</div></div>
+        <div>
+          <div style="font-weight:600;font-size:13.5px">${nom}</div>
+          <div class="rec-meta">${specLabel}${profession?" · "+profession:""}</div>
+          ${p.telephone?`<div class="rec-meta">📞 ${esc(p.telephone)}</div>`:""}
+        </div>
       </div>`;
     }).join("")}
   </div>`;

@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v52</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v53</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -2312,13 +2312,16 @@ function renderUsers(){
 
       <div id="userEdit_${u.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
+        ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px">🔒 Compte protégé — le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
         <div class="row2" style="gap:10px">
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Rôle</label>
-            <select onchange="setRole('${u.id}',this.value)">
-              <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
-              <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
-            </select>
+            ${u.super_admin
+              ? `<div style="padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--green-50);font-weight:600">Admin (protégé)</div>`
+              : `<select onchange="setRole('${u.id}',this.value)">
+                  <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
+                  <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
+                </select>`}
           </div>
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Spécialité</label>
@@ -2351,10 +2354,12 @@ function renderUsers(){
 
         ${u.id===ME.id
           ? '<div class="rec-meta" style="margin-top:12px">C\'est votre compte</div>'
-          : `<div class="rec-foot" style="margin-top:12px">
-              <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
-            </div>`}
+          : u.super_admin
+            ? '<div class="rec-meta" style="margin-top:12px">Aucune action possible sur ce compte protégé.</div>'
+            : `<div class="rec-foot" style="margin-top:12px">
+                <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
+              </div>`}
       </div>
     </div>`;
   }).join("");

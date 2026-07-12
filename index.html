@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v44</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v45</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1694,30 +1694,26 @@ async function renderDashboard(){
 
   let siteTableHtml="";
   if(siteStats.length){
-    const siteRows=siteStats.map(s=>`<tr>
-        <td><b>${esc(s.nom)}</b></td>
-        <td>${s.n}</td>
-        <td>${s.pctF!=null?s.pctF+"%":"—"}</td>
-        <td>${s.pctM!=null?s.pctM+"%":"—"}</td>
-        <td>${s.moy??"—"}</td>
-        <td>${s.topPath?esc(s.topPath):"—"}</td>
-      </tr>`).join("");
     siteTableHtml=`${cardOpen(ICON_USERS,"Statistiques par site")}
-      <div class="table-wrap"><table><thead><tr>
-        <th>Site</th><th>Consult.</th><th>% F</th><th>% M</th><th>Âge moyen</th><th>Pathologie la + fréquente</th>
-      </tr></thead><tbody>${siteRows}</tbody></table></div>
+      ${siteStats.map(s=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <b>${esc(s.nom)}</b><span class="rec-meta">${s.n} consultation${s.n>1?"s":""}</span>
+        </div>
+        <div class="rec-meta" style="margin-top:2px">
+          ${s.pctF!=null?s.pctF+"% F · ":""}${s.pctM!=null?s.pctM+"% M · ":""}Âge moyen : ${s.moy??"—"}
+          ${s.topPath?" · "+esc(s.topPath):""}
+        </div>
+      </div>`).join("")}
     </div>`;
   }
 
   $("dashBody").innerHTML=`
     ${greetingHtml}
     ${campagneApercu.length?`${cardOpen(NAV_ICON_FLAG,"Aperçu par campagne")}
-      <div class="table-wrap"><table><thead><tr><th>Campagne</th><th>Sites</th><th>Consultations</th><th></th></tr></thead><tbody>
-        ${campagneApercu.map(c=>`<tr>
-          <td><b>${esc(c.nom)}</b></td><td>${c.nbSites}</td><td>${c.n}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir</button></td>
-        </tr>`).join("")}
-      </tbody></table></div>
+      ${campagneApercu.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)">
+        <div><b>${esc(c.nom)}</b><div class="rec-meta">${c.nbSites} site${c.nbSites>1?"s":""} · ${c.n} consultation${c.n>1?"s":""}</div></div>
+        <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="viewCampagneStats('${c.id}')">Voir</button>
+      </div>`).join("")}
     </div>`:""}
     ${statsHtml}
 
@@ -2196,65 +2192,83 @@ function renderUsers(){
     const avatar = u.avatar_url
       ? `<img src="${esc(u.avatar_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
       : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${esc((u.prenom||"?")[0].toUpperCase())}</div>`;
+    const roleLabel = u.role==="admin"?"Admin":"Praticien";
+    const specLabel = SPEC_LABELS[spec]||"Généraliste";
+    const siteLabel = siteName(u.site_id)||"— Aucun site —";
     return `
-    <div class="rec">
-      <div class="rec-top">
+    <div class="rec" id="usercard_${u.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" onclick="toggleUserEdit('${u.id}')">
         <div style="display:flex;align-items:center;gap:10px">
           ${avatar}
           <div>
             <div class="rec-name">${nomAffiche}</div>
-            <div class="rec-meta">${esc(u.email||"")}</div>
+            <div class="rec-meta">${roleLabel} · ${specLabel} · ${esc(siteLabel)}</div>
           </div>
         </div>
-        ${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}
-      </div>
-
-      <div class="row2" style="margin-top:12px;gap:10px">
-        <div class="field" style="margin-bottom:0">
-          <label style="font-size:12px">Rôle</label>
-          <select onchange="setRole('${u.id}',this.value)">
-            <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
-            <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
-          </select>
-        </div>
-        <div class="field" style="margin-bottom:0">
-          <label style="font-size:12px">Spécialité</label>
-          <select onchange="setSpecialite('${u.id}',this.value)">
-            <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
-            <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
-            <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
-            <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>
-          </select>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
+          ${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}
+          <button class="btn btn-ghost btn-sm" id="userToggleBtn_${u.id}" onclick="event.stopPropagation();toggleUserEdit('${u.id}')">Modifier</button>
         </div>
       </div>
 
-      ${spec==="specialiste"?`
-        <div class="field" style="margin-top:10px;margin-bottom:0">
-          <label style="font-size:12px">Sous-spécialité</label>
-          <select onchange="onUserSpecialtySelectChange('${u.id}',this.value)">${specialtySelectOptions(u.specialite_detail)}</select>
-          <input type="text" id="specautre_${u.id}" value="${SPECIALTY_LIST.includes(u.specialite_detail)?"":esc(u.specialite_detail||"")}" placeholder="Précisez la spécialité" style="margin-top:6px" class="${SPECIALTY_LIST.includes(u.specialite_detail)||!u.specialite_detail?"hidden":""}" onchange="setSpecialiteDetail('${u.id}',this.value)">
-        </div>`:""}
+      <div id="userEdit_${u.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+        <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
+        <div class="row2" style="gap:10px">
+          <div class="field" style="margin-bottom:0">
+            <label style="font-size:12px">Rôle</label>
+            <select onchange="setRole('${u.id}',this.value)">
+              <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
+              <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label style="font-size:12px">Spécialité</label>
+            <select onchange="setSpecialite('${u.id}',this.value)">
+              <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
+              <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
+              <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
+              <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>
+            </select>
+          </div>
+        </div>
 
-      <div class="row2" style="margin-top:10px;gap:10px">
-        <div class="field" style="margin-bottom:0">
-          <label style="font-size:12px">Campagne</label>
-          <select id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')">${campagneOpts(u.campagne_id)}</select>
+        ${spec==="specialiste"?`
+          <div class="field" style="margin-top:10px;margin-bottom:0">
+            <label style="font-size:12px">Sous-spécialité</label>
+            <select onchange="onUserSpecialtySelectChange('${u.id}',this.value)">${specialtySelectOptions(u.specialite_detail)}</select>
+            <input type="text" id="specautre_${u.id}" value="${SPECIALTY_LIST.includes(u.specialite_detail)?"":esc(u.specialite_detail||"")}" placeholder="Précisez la spécialité" style="margin-top:6px" class="${SPECIALTY_LIST.includes(u.specialite_detail)||!u.specialite_detail?"hidden":""}" onchange="setSpecialiteDetail('${u.id}',this.value)">
+          </div>`:""}
+
+        <div class="row2" style="margin-top:10px;gap:10px">
+          <div class="field" style="margin-bottom:0">
+            <label style="font-size:12px">Campagne</label>
+            <select id="user_campagne_${u.id}" onchange="onUserCampagneChange('${u.id}')">${campagneOpts(u.campagne_id)}</select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label style="font-size:12px">Site</label>
+            <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
+          </div>
         </div>
-        <div class="field" style="margin-bottom:0">
-          <label style="font-size:12px">Site</label>
-          <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
-        </div>
+
+        ${u.id===ME.id
+          ? '<div class="rec-meta" style="margin-top:12px">C\'est votre compte</div>'
+          : `<div class="rec-foot" style="margin-top:12px">
+              <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
+            </div>`}
       </div>
-
-      ${u.id===ME.id
-        ? '<div class="rec-meta" style="margin-top:12px">C\'est votre compte</div>'
-        : `<div class="rec-foot" style="margin-top:12px">
-            <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
-          </div>`}
     </div>`;
   }).join("");
 }
+
+function toggleUserEdit(id){
+  const el=$("userEdit_"+id); if(!el) return;
+  const showing=!el.classList.contains("hidden");
+  el.classList.toggle("hidden");
+  const btn=$("userToggleBtn_"+id);
+  if(btn) btn.textContent = showing ? "Modifier" : "Fermer";
+}
+
 async function setSpecialite(id,value){
   const payload={ specialite:value };
   if(value!=="specialiste") payload.specialite_detail=null; // le détail n'a de sens que pour un spécialiste
@@ -2543,16 +2557,14 @@ async function loadPharmaAdminGlobalStock(){
     map[key].sites.add(it.site_id);
   });
   const rows=Object.values(map).sort((a,b)=>a.nom.localeCompare(b.nom));
-  $("pharmaAdminGlobalStockBody").innerHTML=`<div class="table-wrap"><table><thead><tr>
-    <th>Article</th><th>Catégorie</th><th>Quantité totale</th><th>Sites</th>
-  </tr></thead><tbody>
-    ${rows.map(r=>`<tr>
-      <td><b>${esc(r.nom)}</b></td>
-      <td>${esc(r.categorie||"—")}</td>
-      <td>${r.quantite} ${esc(r.unite||"")}</td>
-      <td>${r.sites.size}</td>
-    </tr>`).join("")}
-  </tbody></table></div>`;
+  $("pharmaAdminGlobalStockBody").innerHTML=rows.map(r=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div>
+        <b>${esc(r.nom)}</b>
+        <div class="rec-meta">${esc(r.categorie||"Sans catégorie")} · ${r.sites.size} site${r.sites.size>1?"s":""}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0"><b>${r.quantite}</b> <span class="rec-meta">${esc(r.unite||"")}</span></div>
+    </div>`).join("");
 }
 
 async function loadPharmaAdminStock(){
@@ -2567,16 +2579,16 @@ async function loadPharmaAdminStock(){
   $("pharmaAdminStockBody").innerHTML=cats.map(cat=>`
     <div style="margin-bottom:14px">
       <div style="font-size:12px;font-weight:700;color:var(--green-900);margin-bottom:6px">${esc(cat)}</div>
-      <div class="table-wrap"><table><thead><tr><th>Article</th><th>Type</th><th>Quantité</th></tr></thead><tbody>
-        ${groups[cat].map(it=>{
-          const low=it.quantite<=(it.seuil_alerte||0);
-          return `<tr${low?' style="background:#fdecea"':''}>
-            <td><b>${esc(it.nom)}</b>${low?' <span class="tag tag-queue">Bas</span>':''}</td>
-            <td>${esc(STOCK_TYPES[it.type_article]||"Médicament")}</td>
-            <td>${it.quantite} ${esc(it.unite||"")}</td>
-          </tr>`;
-        }).join("")}
-      </tbody></table></div>
+      ${groups[cat].map(it=>{
+        const low=it.quantite<=(it.seuil_alerte||0);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)${low?';background:#fdecea':''}">
+          <div>
+            <b>${esc(it.nom)}</b>${low?' <span class="tag tag-queue">Bas</span>':''}
+            <div class="rec-meta">${esc(STOCK_TYPES[it.type_article]||"Médicament")}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0"><b>${it.quantite}</b> <span class="rec-meta">${esc(it.unite||"")}</span></div>
+        </div>`;
+      }).join("")}
     </div>`).join("");
 }
 

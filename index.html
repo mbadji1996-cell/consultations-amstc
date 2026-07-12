@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v50</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v51</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1724,8 +1724,8 @@ function collegueCardHtml(collegues){
   return `<div class="dash-card"><div class="dash-card-head"><span>Collègues de ce site</span></div>
     ${collegues.map(p=>{
       const nom=(esc(p.prenom||"")+" "+esc(p.nom||"")).trim()||"(sans nom)";
-      const specLabel = p.role==="admin" ? "Administrateur" : (SPEC_LABELS[p.specialite||"generaliste"]||"Praticien")+(p.specialite==="specialiste"&&p.specialite_detail?" — "+esc(p.specialite_detail):"");
-      const profession = professionLabel(p);
+      const prof=professionLabel(p);
+      const roleLabel = p.role==="admin" ? "Administrateur"+(prof?" · "+prof:"") : (prof||"Praticien");
       const avatar = p.avatar_url
         ? `<img src="${esc(p.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
         : `<div style="width:36px;height:36px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc((p.prenom||"?")[0].toUpperCase())}</div>`;
@@ -1733,7 +1733,7 @@ function collegueCardHtml(collegues){
         ${avatar}
         <div>
           <div style="font-weight:600;font-size:13.5px">${nom}</div>
-          <div class="rec-meta">${specLabel}${profession?" · "+profession:""}</div>
+          <div class="rec-meta">${roleLabel}</div>
           ${p.telephone?`<div class="rec-meta">📞 ${esc(p.telephone)}</div>`:""}
         </div>
       </div>`;
@@ -2289,8 +2289,8 @@ function renderUsers(){
     const avatar = u.avatar_url
       ? `<img src="${esc(u.avatar_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
       : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${esc((u.prenom||"?")[0].toUpperCase())}</div>`;
-    const roleLabel = u.role==="admin"?"Admin":"Praticien";
-    const specLabel = SPEC_LABELS[spec]||"Généraliste";
+    const prof=professionLabel(u);
+    const roleLabel = u.role==="admin" ? "Admin"+(prof?" · "+prof:"") : (prof||"Praticien");
     const siteLabel = siteName(u.site_id)||"— Aucun site —";
     return `
     <div class="rec" id="usercard_${u.id}">
@@ -2299,7 +2299,7 @@ function renderUsers(){
           ${avatar}
           <div>
             <div class="rec-name">${nomAffiche}</div>
-            <div class="rec-meta">${roleLabel} · ${specLabel} · ${esc(siteLabel)}</div>
+            <div class="rec-meta">${roleLabel} · ${esc(siteLabel)}</div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">

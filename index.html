@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v41</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v42</div>
         </div>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
@@ -666,6 +666,12 @@
         </div>
 
         <div id="pharmaPanel-stock" class="hidden">
+          <fieldset id="importStockFieldset" class="hidden"><legend>Importer depuis Excel</legend>
+            <p class="rec-meta" style="margin-bottom:10px">Colonnes attendues : Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte. Les lignes correspondant à un article déjà en stock vous seront présentées une par une pour choisir quoi en faire.</p>
+            <button class="btn btn-ghost btn-sm" onclick="downloadStockTemplate()">Télécharger le modèle</button>
+            <input type="file" id="stockImportFile" accept=".xlsx,.xls,.csv" style="margin-top:10px;display:block" onchange="handleStockImportFile(event)">
+            <div id="stockImportPreview" class="hidden" style="margin-top:14px"></div>
+          </fieldset>
           <fieldset><legend>Ajouter un article au stock</legend>
             <div class="row2">
               <div class="field"><label>Nom de l'article <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
@@ -712,6 +718,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 /* =====================================================================
    CONFIGURATION — À REMPLIR (une seule fois)
@@ -2383,8 +2390,14 @@ function switchPharmaSubTab(sub){
 
 function currentStockSiteId(){ return ME.site_id||null; } // ce panneau n'est plus accessible qu'au pharmacien, sur son propre site
 
+function isChiefPharmacien(){
+  const site=SITES.find(s=>s.id===ME.site_id);
+  return !!(site && site.pharmacien_chef_id===ME.id);
+}
+
 async function loadStock(){
   const siteId=currentStockSiteId();
+  $("importStockFieldset")?.classList.toggle("hidden", !isChiefPharmacien());
   if(!siteId){ $("stockBody").innerHTML=`<div class="empty">Aucun site attribué.</div>`; return; }
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
   if(error){ $("stockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
@@ -2418,6 +2431,117 @@ function renderStock(items){
         }).join("")}
       </tbody></table></div>
     </div>`).join("");
+}
+
+/* ---------- Import du stock depuis un fichier Excel (pharmacien en chef uniquement) ---------- */
+function downloadStockTemplate(){
+  const rows=[
+    ["Nom","Catégorie","Type","Quantité","Unité","Seuil d'alerte"],
+    ["Paracétamol 500mg cp","Antalgiques / AINS","Médicament",50,"Boîte",5],
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Stock");
+  XLSX.writeFile(wb,"modele_import_stock_amstc.xlsx");
+}
+
+let STOCK_IMPORT_ROWS=[]; // lignes en attente de décision (nouvelles + conflits), construites après lecture du fichier
+
+async function handleStockImportFile(evt){
+  const file=evt.target.files[0]; if(!file) return;
+  const siteId=currentStockSiteId();
+  if(!siteId){ toast("Aucun site attribué",true); return; }
+
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:"array"});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+
+  // Colonnes tolérantes aux variations de casse/accents dans les en-têtes
+  const norm=s=>(s||"").toString().trim().toLowerCase();
+  const getVal=(row,names)=>{
+    for(const key of Object.keys(row)){ if(names.includes(norm(key))) return row[key]; }
+    return "";
+  };
+
+  const {data:existing}=await sb.from("stock_medicaments").select("id,nom,quantite").eq("site_id",siteId);
+  const existingByName={}; (existing||[]).forEach(it=>{ existingByName[norm(it.nom)]=it; });
+
+  STOCK_IMPORT_ROWS = rows.map(row=>{
+    const nom=(getVal(row,["nom","médicament","medicament","article"])||"").toString().trim();
+    const categorie=(getVal(row,["catégorie","categorie"])||"").toString().trim();
+    const typeRaw=norm(getVal(row,["type","type d'article","type d article"]));
+    const type_article = typeRaw.includes("consommable")?"consommable" : typeRaw.includes("matériel")||typeRaw.includes("materiel")?"materiel" : "medicament";
+    const quantite=parseFloat(getVal(row,["quantité","quantite"]))||0;
+    const unite=(getVal(row,["unité","unite"])||"Boîte").toString().trim();
+    const seuil_alerte=parseInt(getVal(row,["seuil d'alerte","seuil","seuil alerte"]))||0;
+    const match=existingByName[norm(nom)];
+    return { nom, categorie, type_article, quantite, unite, seuil_alerte,
+      conflict: !!match, existingId: match?match.id:null, existingQty: match?match.quantite:null,
+      decision: match?"ajouter":"nouveau" }; // "ajouter" par défaut sur un conflit, modifiable ligne par ligne
+  }).filter(r=>r.nom);
+
+  evt.target.value=""; // permet de resélectionner le même fichier si besoin
+  renderStockImportPreview();
+}
+
+function renderStockImportPreview(){
+  const box=$("stockImportPreview");
+  if(!STOCK_IMPORT_ROWS.length){ box.classList.add("hidden"); box.innerHTML=""; return; }
+  box.classList.remove("hidden");
+  const nbConflits=STOCK_IMPORT_ROWS.filter(r=>r.conflict).length;
+  box.innerHTML=`
+    <div class="rec-meta" style="margin-bottom:10px">${STOCK_IMPORT_ROWS.length} ligne(s) détectée(s)${nbConflits?`, dont ${nbConflits} déjà en stock — à trancher ci-dessous`:""}.</div>
+    ${STOCK_IMPORT_ROWS.map((r,i)=>`
+      <div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <b>${esc(r.nom)}</b>
+          <span class="rec-meta">${r.quantite} ${esc(r.unite)}</span>
+        </div>
+        ${r.conflict?`
+          <div class="rec-meta" style="margin:6px 0">Déjà en stock : ${r.existingQty} — que faire ?</div>
+          <select onchange="STOCK_IMPORT_ROWS[${i}].decision=this.value" style="padding:6px 8px">
+            <option value="ajouter"${r.decision==="ajouter"?" selected":""}>Ajouter à l'existant (${r.existingQty} + ${r.quantite} = ${r.existingQty+r.quantite})</option>
+            <option value="remplacer"${r.decision==="remplacer"?" selected":""}>Remplacer par ${r.quantite}</option>
+            <option value="ignorer"${r.decision==="ignorer"?" selected":""}>Ignorer cette ligne</option>
+          </select>`
+          :`<div class="rec-meta" style="margin-top:6px">Nouvel article</div>`}
+      </div>`).join("")}
+    <div class="actions" style="margin-top:10px">
+      <button class="btn btn-primary btn-sm" onclick="confirmStockImport()">Confirmer l'import</button>
+      <button class="btn btn-ghost btn-sm" onclick="STOCK_IMPORT_ROWS=[];renderStockImportPreview()">Annuler</button>
+    </div>`;
+}
+
+async function confirmStockImport(){
+  const siteId=currentStockSiteId(); if(!siteId) return;
+  const updatedPar=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email;
+  let inserted=0, updated=0, ignored=0;
+
+  for(const r of STOCK_IMPORT_ROWS){
+    if(r.conflict){
+      if(r.decision==="ignorer"){ ignored++; continue; }
+      const newQty = r.decision==="remplacer" ? r.quantite : (r.existingQty + r.quantite);
+      await sb.from("stock_medicaments").update({
+        quantite:Math.max(0,Math.round(newQty)), unite:r.unite, categorie:r.categorie||null,
+        type_article:r.type_article, seuil_alerte:r.seuil_alerte,
+        updated_at:new Date().toISOString(), updated_par:updatedPar,
+      }).eq("id",r.existingId);
+      updated++;
+    } else {
+      await sb.from("stock_medicaments").insert({
+        site_id:siteId, nom:r.nom, quantite:Math.max(0,Math.round(r.quantite)), unite:r.unite,
+        categorie:r.categorie||null, type_article:r.type_article, seuil_alerte:r.seuil_alerte,
+        updated_par:updatedPar,
+      });
+      inserted++;
+    }
+  }
+
+  STOCK_IMPORT_ROWS=[];
+  renderStockImportPreview();
+  toast(`Import terminé : ${inserted} ajouté(s), ${updated} mis à jour, ${ignored} ignoré(s)`);
+  loadStock();
 }
 
 async function addStockItem(){

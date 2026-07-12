@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v46</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v47</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -611,7 +611,10 @@
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
           <div id="medsList_generaliste"></div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="addMedRow('generaliste')">+ Ajouter un médicament</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="addMedBtn_generaliste" onclick="addMedRow('generaliste')">+ Ajouter un médicament</button>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:400;font-size:14px">
+            <input type="checkbox" id="c_pas_traitement" onchange="onPasTraitementChange('generaliste')"> Pas de traitement nécessaire
+          </label>
           <textarea id="c_conduite_notes" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
       </div>
@@ -633,7 +636,10 @@
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
           <div id="medsList_specialiste"></div>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="addMedRow('specialiste')">+ Ajouter un médicament</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="addMedBtn_specialiste" onclick="addMedRow('specialiste')">+ Ajouter un médicament</button>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:400;font-size:14px">
+            <input type="checkbox" id="c_pas_traitement_spec" onchange="onPasTraitementChange('specialiste')"> Pas de traitement nécessaire
+          </label>
           <textarea id="c_conduite_notes_spec" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
       </div>
@@ -1336,6 +1342,15 @@ function clearMedRows(scope){
   const container=$("medsList_"+scope); if(container) container.innerHTML="";
 }
 
+function onPasTraitementChange(scope){
+  const checked=$(scope==="generaliste"?"c_pas_traitement":"c_pas_traitement_spec").checked;
+  const notesId=scope==="generaliste"?"c_conduite_notes":"c_conduite_notes_spec";
+  if(checked){ clearMedRows(scope); $(notesId).value=""; }
+  $("addMedBtn_"+scope).disabled=checked;
+  $(notesId).disabled=checked;
+  $(notesId).placeholder = checked ? "—" : "Autres recommandations, suivi… (facultatif si des médicaments sont listés)";
+}
+
 function medsToText(meds){
   return meds.map(m=>`${m.nom}${m.posologie?" — "+m.posologie:""}`).join("; ");
 }
@@ -1414,11 +1429,13 @@ async function saveConsultation(){
     rec.explorations=$("c_explorations_spec").value.trim()||null;
     rec.medicaments=readMedRows("specialiste");
     { const notes=$("c_conduite_notes_spec").value.trim();
-      rec.conduite=[notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+      const pasTraitement=$("c_pas_traitement_spec").checked;
+      rec.conduite = pasTraitement ? "Pas de traitement nécessaire"
+        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
     if(!rec.specialite_medicale) missing.push("spécialité médicale");
     if(!rec.signes) missing.push("signes cliniques");
     if(!rec.diagnostic) missing.push("diagnostic");
-    if(!rec.conduite) missing.push("conduite à tenir (médicament ou note)");
+    if(!rec.conduite) missing.push("conduite à tenir (médicament, note, ou \"pas de traitement\")");
   } else { // généraliste ET dentiste : même formulaire, seul le type enregistré diffère
     rec.ta=$("c_ta").value.trim()||null;
     rec.temperature=$("c_temperature").value?parseFloat($("c_temperature").value):null;
@@ -1431,10 +1448,12 @@ async function saveConsultation(){
     rec.explorations=$("c_explorations").value.trim()||null;
     rec.medicaments=readMedRows("generaliste");
     { const notes=$("c_conduite_notes").value.trim();
-      rec.conduite=[notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+      const pasTraitement=$("c_pas_traitement").checked;
+      rec.conduite = pasTraitement ? "Pas de traitement nécessaire"
+        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
     if(!rec.signes) missing.push("signes cliniques");
     if(!rec.diagnostic) missing.push("diagnostic");
-    if(!rec.conduite) missing.push("conduite à tenir (médicament ou note)");
+    if(!rec.conduite) missing.push("conduite à tenir (médicament, note, ou \"pas de traitement\")");
   }
 
   if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
@@ -1487,6 +1506,12 @@ function resetForm(){
   if($("c_specialite_med_autre")){ $("c_specialite_med_autre").value=""; $("c_specialite_med_autre").classList.add("hidden"); }
   clearMedRows("generaliste");
   clearMedRows("specialiste");
+  if($("c_pas_traitement")){ $("c_pas_traitement").checked=false; }
+  if($("c_pas_traitement_spec")){ $("c_pas_traitement_spec").checked=false; }
+  if($("addMedBtn_generaliste")) $("addMedBtn_generaliste").disabled=false;
+  if($("addMedBtn_specialiste")) $("addMedBtn_specialiste").disabled=false;
+  if($("c_conduite_notes")){ $("c_conduite_notes").disabled=false; $("c_conduite_notes").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
+  if($("c_conduite_notes_spec")){ $("c_conduite_notes_spec").disabled=false; $("c_conduite_notes_spec").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
   if($("c_refere_vers")){ $("c_refere_vers").value=""; $("referMotifWrap")?.classList.add("hidden"); }
   if($("c_refere_motif")) $("c_refere_motif").value="";
 }

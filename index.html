@@ -484,9 +484,29 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v42</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v43</div>
         </div>
+        <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale "Mon profil" : prénom, nom, photo — accessible à tout compte connecté -->
+  <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(18,60,28,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:18px;margin-bottom:16px">Mon profil</h2>
+      <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
+        <div id="profileAvatarPreview" style="width:80px;height:80px;border-radius:50%;background:var(--green-50);color:var(--green-700);
+          display:flex;align-items:center;justify-content:center;font-weight:700;font-size:26px;overflow:hidden;margin-bottom:10px"></div>
+        <input type="file" id="profileAvatarInput" accept="image/*" onchange="onProfileAvatarSelected(event)">
+        <p class="rec-meta" style="margin-top:6px;text-align:center">Photo visible par l'administrateur et vos collègues du même site.</p>
+      </div>
+      <div class="field"><label>Prénom</label><input type="text" id="profile_prenom"></div>
+      <div class="field"><label>Nom</label><input type="text" id="profile_nom"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
+        <button class="btn btn-ghost" onclick="closeProfileModal()">Fermer</button>
       </div>
     </div>
   </div>
@@ -586,6 +606,13 @@
           <textarea id="c_conduite_notes_spec" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
       </div>
+
+      <fieldset id="referFieldset" class="hidden"><legend>Référer ce patient à un confrère (facultatif)</legend>
+        <div class="field"><label>Référer vers</label>
+          <select id="c_refere_vers" onchange="onRefereVersChange()"><option value="">— Ne pas référer —</option></select></div>
+        <div class="field hidden" id="referMotifWrap"><label>Motif de la référence</label>
+          <textarea id="c_refere_motif" placeholder="Pourquoi orienter ce patient vers ce confrère ?"></textarea></div>
+      </fieldset>
 
       <div class="actions">
         <button class="btn btn-primary" id="saveBtn" onclick="saveConsultation()">Enregistrer la consultation</button>
@@ -843,6 +870,74 @@ async function doGoogle(){
 
 async function doLogout(){ await sb.auth.signOut(); location.reload(); }
 
+/* ---------- Modale "Mon profil" (prénom, nom, photo) ---------- */
+let PROFILE_AVATAR_BLOB=null; // photo compressée en attente d'envoi, tant que "Enregistrer" n'a pas été cliqué
+
+function openProfileModal(){
+  $("profile_prenom").value=ME.prenom||"";
+  $("profile_nom").value=ME.nom||"";
+  PROFILE_AVATAR_BLOB=null;
+  renderProfileAvatarPreview(ME.avatar_url);
+  $("profileModalOverlay").classList.remove("hidden");
+  $("menuPop")?.classList.add("hidden");
+}
+function closeProfileModal(){ $("profileModalOverlay").classList.add("hidden"); }
+
+function renderProfileAvatarPreview(url){
+  const box=$("profileAvatarPreview");
+  box.innerHTML = url
+    ? `<img src="${esc(url)}" style="width:100%;height:100%;object-fit:cover">`
+    : esc((ME.prenom||"?")[0].toUpperCase());
+}
+
+function onProfileAvatarSelected(evt){
+  const file=evt.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      // recadrage centré carré + réduction à 300x300, pour rester léger sur une connexion lente
+      const size=300;
+      const canvas=document.createElement("canvas");
+      canvas.width=size; canvas.height=size;
+      const ctx=canvas.getContext("2d");
+      const min=Math.min(img.width,img.height);
+      const sx=(img.width-min)/2, sy=(img.height-min)/2;
+      ctx.drawImage(img,sx,sy,min,min,0,0,size,size);
+      canvas.toBlob(blob=>{
+        PROFILE_AVATAR_BLOB=blob;
+        $("profileAvatarPreview").innerHTML=`<img src="${URL.createObjectURL(blob)}" style="width:100%;height:100%;object-fit:cover">`;
+      },"image/jpeg",0.82);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveProfile(){
+  const prenom=$("profile_prenom").value.trim();
+  const nom=$("profile_nom").value.trim();
+  let avatar_url=ME.avatar_url||null;
+
+  if(PROFILE_AVATAR_BLOB){
+    const path=`${ME.id}/avatar.jpg`;
+    const {error:upErr}=await sb.storage.from("avatars").upload(path,PROFILE_AVATAR_BLOB,{upsert:true,contentType:"image/jpeg"});
+    if(upErr){ toast("Échec de l'envoi de la photo : "+upErr.message,true); return; }
+    const {data:pub}=sb.storage.from("avatars").getPublicUrl(path);
+    avatar_url=pub.publicUrl+"?t="+Date.now(); // évite que le navigateur affiche l'ancienne photo en cache
+  }
+
+  const {error}=await sb.from("profiles").update({prenom,nom,avatar_url}).eq("id",ME.id);
+  if(error){ toast("Échec : "+error.message,true); return; }
+
+  ME.prenom=prenom; ME.nom=nom; ME.avatar_url=avatar_url;
+  $("menuName").textContent=`${prenom} ${nom}`.trim()||ME.email;
+  closeProfileModal();
+  toast("Profil mis à jour");
+  if(CURRENT_TAB==="dashboard") renderDashboard();
+}
+
+
 async function loadProfile(){
   const {data:{user}}=await sb.auth.getUser();
   if(!user) return null;
@@ -996,8 +1091,8 @@ const STOCK_TYPES={medicament:"Médicament",consommable:"Consommable",materiel:"
 function stockCategorySelect(id,current){
   return `<select id="${id}">${STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}"${c===current?" selected":""}>${esc(c)}</option>`).join("")}</select>`;
 }
-function stockUnitSelect(id,current){
-  return `<select id="${id}">${STOCK_UNITS.map(u=>`<option value="${esc(u)}"${u===current?" selected":""}>${esc(u)}</option>`).join("")}</select>`;
+function stockUnitSelect(id,current,disabled){
+  return `<select id="${id}"${disabled?" disabled":""}>${STOCK_UNITS.map(u=>`<option value="${esc(u)}"${u===current?" selected":""}>${esc(u)}</option>`).join("")}</select>`;
 }
 function stockTypeSelect(id,current){
   return `<select id="${id}">${Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
@@ -1066,10 +1161,44 @@ function buildTabs(){
     }
     onConsultTypeChange();
     refreshStockForForm(ME.site_id); // le stock disponible pour prescrire dépend du site fixe de l'agent
+    setupReferField();
   } else if(ME.role==="admin"){
     refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
   }
   switchTab(tabs[0][0]);
+}
+
+async function setupReferField(){
+  const collegues=await loadCollegues();
+  const fs=$("referFieldset"); if(!fs) return;
+  if(!collegues.length){ fs.classList.add("hidden"); return; }
+  fs.classList.remove("hidden");
+  $("c_refere_vers").innerHTML=`<option value="">— Ne pas référer —</option>`+
+    collegues.map(p=>{
+      const nom=(p.prenom||"")+" "+(p.nom||"");
+      const spec=SPEC_LABELS[p.specialite||"generaliste"]||"Praticien";
+      return `<option value="${p.id}">${esc(nom.trim()||"(sans nom)")} — ${esc(spec)}${p.specialite==="specialiste"&&p.specialite_detail?" ("+esc(p.specialite_detail)+")":""}</option>`;
+    }).join("");
+}
+
+function onRefereVersChange(){
+  $("referMotifWrap").classList.toggle("hidden", !$("c_refere_vers").value);
+}
+
+function commencerConsultationReferee(consultId,prenom,nom,sexe,age){
+  switchTab("form");
+  resetForm();
+  $("c_prenom").value=prenom; $("c_nom").value=nom;
+  if(sexe) $("c_sexe").value=sexe;
+  if(age!=null) $("c_age").value=age;
+  toast("Identité du patient reprise — complétez la consultation");
+  marquerReferenceTraitee(consultId,true);
+}
+
+async function marquerReferenceTraitee(consultId,silencieux){
+  const {error}=await sb.rpc("marquer_reference_traitee",{p_consultation_id:consultId});
+  if(error){ if(!silencieux) toast("Échec : "+error.message,true); return; }
+  if(!silencieux){ toast("Marqué comme traité"); if(CURRENT_TAB==="dashboard") renderDashboard(); }
 }
 
 function onConsultTypeChange(){
@@ -1210,6 +1339,8 @@ async function saveConsultation(){
     ta:null, temperature:null, fc:null, taille:null, poids:null, antecedents:"",
     signes:"", diagnostic:"", explorations:null, conduite:"", medicaments:[],
     dent_concernee:null, acte_dentaire:null, specialite_medicale:null,
+    refere_vers_id: $("c_refere_vers")?.value||null,
+    refere_motif: $("c_refere_vers")?.value ? ($("c_refere_motif").value.trim()||null) : null,
   };
 
   const missing=[];
@@ -1300,6 +1431,8 @@ function resetForm(){
   if($("c_specialite_med_autre")){ $("c_specialite_med_autre").value=""; $("c_specialite_med_autre").classList.add("hidden"); }
   clearMedRows("generaliste");
   clearMedRows("specialiste");
+  if($("c_refere_vers")){ $("c_refere_vers").value=""; $("referMotifWrap")?.classList.add("hidden"); }
+  if($("c_refere_motif")) $("c_refere_motif").value="";
 }
 
 function currentRows(){
@@ -1484,11 +1617,43 @@ function computeDashboardStats(){
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu };
 }
 
-function renderDashboard(){
+async function loadCollegues(){
+  if(!ME.site_id) return [];
+  const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url")
+    .eq("site_id",ME.site_id).eq("actif",true).neq("id",ME.id);
+  return data||[];
+}
+
+function collegueCardHtml(collegues){
+  if(!collegues.length) return "";
+  return `<div class="dash-card"><div class="dash-card-head"><span>Collègues de ce site</span></div>
+    ${collegues.map(p=>{
+      const nom=(esc(p.prenom||"")+" "+esc(p.nom||"")).trim()||"(sans nom)";
+      const specLabel = p.role==="admin" ? "Administrateur" : (SPEC_LABELS[p.specialite||"generaliste"]||"Praticien")+(p.specialite==="specialiste"&&p.specialite_detail?" — "+esc(p.specialite_detail):"");
+      const avatar = p.avatar_url
+        ? `<img src="${esc(p.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc((p.prenom||"?")[0].toUpperCase())}</div>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
+        ${avatar}
+        <div><div style="font-weight:600;font-size:13.5px">${nom}</div><div class="rec-meta">${specLabel}</div></div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+async function renderDashboard(){
   if(isPharmacien()){ renderPharmacienDashboard(); return; }
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu } = S;
+  const collegues = ME.role==="admin" ? [] : await loadCollegues();
+  let referencesRecues=[];
+  if(ME.role!=="admin"){
+    const {data}=await sb.from("consultations")
+      .select("id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at")
+      .eq("refere_vers_id",ME.id).eq("refere_traite",false).order("created_at",{ascending:false});
+    referencesRecues=data||[];
+  }
 
   // Icônes (traits fins, cohérentes avec le reste de l'app — même style que l'icône de compte)
   const ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
@@ -1552,6 +1717,28 @@ function renderDashboard(){
       </tbody></table></div>
     </div>`:""}
     ${statsHtml}
+
+    ${referencesRecues.length?`<div class="dash-card" style="border:1.5px solid var(--orange)">
+      <div class="dash-card-head"><span>Patients qui vous sont référés (${referencesRecues.length})</span></div>
+      ${referencesRecues.map(r=>{
+        const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+        return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div>
+              <b>${esc(r.prenom)} ${esc(r.nom)}</b> <span class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans</span>
+              <div class="rec-meta">${d} · Référé par ${esc(r.medecin_nom||"—")}</div>
+              ${r.refere_motif?`<div class="rec-meta"><b>Motif :</b> ${esc(r.refere_motif)}</div>`:""}
+            </div>
+          </div>
+          <div class="rec-foot" style="margin-top:6px">
+            <button class="btn btn-accent btn-sm" onclick="commencerConsultationReferee('${r.id}','${esc(r.prenom).replace(/'/g,"\\'")}','${esc(r.nom).replace(/'/g,"\\'")}','${r.sexe||""}',${r.age??"null"})">Commencer la consultation</button>
+            <button class="btn btn-ghost btn-sm" onclick="marquerReferenceTraitee('${r.id}')">Marquer comme traité</button>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`:""}
+
+    ${collegueCardHtml(collegues)}
 
     ${total?`${cardOpen(ICON_TREND,"Évolution — 14 derniers jours")}<div style="height:220px"><canvas id="dashTrendChart"></canvas></div></div>`:""}
 
@@ -2002,12 +2189,18 @@ function renderUsers(){
   $("usersBody").innerHTML=data.map(u=>{
     const spec=u.specialite||"generaliste";
     const nomAffiche=(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>';
+    const avatar = u.avatar_url
+      ? `<img src="${esc(u.avatar_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+      : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${esc((u.prenom||"?")[0].toUpperCase())}</div>`;
     return `
     <div class="rec">
       <div class="rec-top">
-        <div>
-          <div class="rec-name">${nomAffiche}</div>
-          <div class="rec-meta">${esc(u.email||"")}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${avatar}
+          <div>
+            <div class="rec-name">${nomAffiche}</div>
+            <div class="rec-meta">${esc(u.email||"")}</div>
+          </div>
         </div>
         ${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}
       </div>
@@ -2150,7 +2343,7 @@ function renderDispensation(){
           <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
             <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
           <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
-            <select id="${uId}">${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
+            <select id="${uId}"><option value="">— Choisir —</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
           <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
         </div>
       </div>`;
@@ -2171,6 +2364,7 @@ function confirmDelivery(consultId,idx){
   const qval=$(`dispqte_${consultId}_${idx}`).value.trim();
   const qunite=$(`dispunite_${consultId}_${idx}`).value;
   if(!qval){ toast("Indiquez une quantité avant de confirmer",true); return; }
+  if(!qunite){ toast("Choisissez une unité avant de confirmer",true); return; }
   toggleMedDelivered(consultId, idx, true, `${qval} ${qunite}`);
 }
 
@@ -2220,9 +2414,10 @@ async function renderPharmacienDashboard(){
   $("dashBody").innerHTML=`<div class="empty">Chargement…</div>`;
   if(!siteId){ $("dashBody").innerHTML=`<div class="empty">Aucun site attribué pour l'instant.</div>`; return; }
 
-  const [{data:stock},{data:consults}] = await Promise.all([
+  const [{data:stock},{data:consults},collegues] = await Promise.all([
     sb.from("stock_medicaments").select("*").eq("site_id",siteId),
     sb.from("consultations").select("medicaments").eq("site_id",siteId).limit(2000),
+    loadCollegues(),
   ]);
   const stockItems=stock||[];
   const lowStock=stockItems.filter(it=>it.quantite<=(it.seuil_alerte||0));
@@ -2262,6 +2457,7 @@ async function renderPharmacienDashboard(){
       <div class="stat"><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div>
       <div class="stat"><b>${lowStock.length}</b><span>Alertes stock bas</span></div>
     </div>
+    ${collegueCardHtml(collegues)}
     ${catEntries.length?`<div class="dash-card"><div class="dash-card-head"><span>Stock par catégorie</span></div>
       <div style="height:${Math.max(140,catEntries.length*36)}px"><canvas id="dashPharmaCatChart"></canvas></div></div>`:""}
     ${topDelivered.length?`<div class="dash-card"><div class="dash-card-head"><span>Médicaments les plus délivrés</span></div>
@@ -2306,9 +2502,9 @@ function loadPharmacieTab(){
     $("pharmaAgentView").classList.remove("hidden");
     $("pharmaAdminOverview").classList.add("hidden");
     if(!$("stock_categorie").innerHTML){
-      $("stock_categorie").innerHTML=STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
-      $("stock_type").innerHTML=Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
-      $("stock_unite").innerHTML=STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+      $("stock_categorie").innerHTML=`<option value="">— Choisir —</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      $("stock_type").innerHTML=`<option value="">— Choisir —</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
+      $("stock_unite").innerHTML=`<option value="">— Choisir —</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
     }
     loadDispensation();
   }
@@ -2417,20 +2613,29 @@ function renderStock(items){
       </tr></thead><tbody>
         ${groups[cat].map(it=>{
           const low=it.quantite<=(it.seuil_alerte||0);
-          return `<tr${low?' style="background:#fdecea"':''}>
+          return `<tr${low?' style="background:#fdecea"':''} id="stockrow_${it.id}">
             <td><b>${esc(it.nom)}</b>${low?'<div class="tag tag-queue" style="margin-top:4px">Stock bas</div>':''}</td>
             <td>${esc(STOCK_TYPES[it.type_article]||"Médicament")}</td>
-            <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" style="width:65px;padding:6px 8px"></td>
-            <td>${stockUnitSelect("stockunite_"+it.id, it.unite)}</td>
-            <td><input type="number" min="0" value="${it.seuil_alerte||0}" id="stockseuil_${it.id}" style="width:55px;padding:6px 8px"></td>
-            <td>
-              <button class="btn btn-primary btn-sm" onclick="updateStockQty('${it.id}')">Enregistrer</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${it.id}')">Supprimer</button>
+            <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" disabled style="width:65px;padding:6px 8px"></td>
+            <td>${stockUnitSelect("stockunite_"+it.id, it.unite, true)}</td>
+            <td><input type="number" min="0" value="${it.seuil_alerte||0}" id="stockseuil_${it.id}" disabled style="width:55px;padding:6px 8px"></td>
+            <td id="stockactions_${it.id}">
+              <button class="btn btn-ghost btn-sm" onclick="toggleStockEdit('${it.id}')">Modifier</button>
             </td>
           </tr>`;
         }).join("")}
       </tbody></table></div>
     </div>`).join("");
+}
+
+function toggleStockEdit(id){
+  const disable=v=>{ const el=$("stockqte_"+id); if(el) el.disabled=v; const el2=$("stockseuil_"+id); if(el2) el2.disabled=v; const el3=$("stockunite_"+id); if(el3) el3.disabled=v; };
+  disable(false);
+  $("stockqte_"+id)?.focus();
+  $("stockactions_"+id).innerHTML=`
+    <button class="btn btn-primary btn-sm" onclick="updateStockQty('${id}')">Enregistrer</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${id}')">Supprimer</button>
+    <button class="btn btn-ghost btn-sm" onclick="loadStock()">Annuler</button>`;
 }
 
 /* ---------- Import du stock depuis un fichier Excel (pharmacien en chef uniquement) ---------- */
@@ -2554,6 +2759,8 @@ async function addStockItem(){
   const type_article=$("stock_type").value;
   const seuil_alerte=parseInt($("stock_seuil").value)||0;
   if(!nom){ toast("Le nom de l'article est requis",true); return; }
+  if(!type_article){ toast("Choisissez un type d'article",true); return; }
+  if(!unite){ toast("Choisissez une unité",true); return; }
   const {error}=await sb.from("stock_medicaments").insert({
     site_id:siteId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
@@ -2623,8 +2830,13 @@ function renderCampagnes(){
     <div class="rec" id="campcard_autonomes" style="margin-bottom:16px">
       <div class="rec-name" style="margin-bottom:2px">Sites autonomes</div>
       <div class="rec-meta" style="margin-bottom:10px">Sites qui ne sont rattachés à aucune campagne.</div>
-      ${siteListHtml(autonomes)}
-      ${addSiteFormHtml(null)}
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('autonomes')" id="campSitesToggleBtn_autonomes">
+        <span>Sites (${autonomes.length})</span><span id="campSitesChevron_autonomes">▾</span>
+      </button>
+      <div id="campSitesBody_autonomes" class="hidden">
+        ${siteListHtml(autonomes)}
+        ${addSiteFormHtml(null)}
+      </div>
     </div>`;
   $("campagnesBody").innerHTML = groups + autonomesHtml ||
     `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`+autonomesHtml;
@@ -2708,12 +2920,22 @@ function campagneCardHtml(c){
           : `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',true)">Archiver</button>`}
       </div>
       <div style="border-top:1px solid var(--line);padding-top:12px">
-        <div style="font-size:12.5px;font-weight:700;color:var(--green-900);margin-bottom:8px">Sites (${sites.length})</div>
-        ${siteListHtml(sites)}
-        ${addSiteFormHtml(c.id)}
+        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('${c.id}')" id="campSitesToggleBtn_${c.id}">
+          <span>Sites (${sites.length})</span><span id="campSitesChevron_${c.id}">▾</span>
+        </button>
+        <div id="campSitesBody_${c.id}" class="hidden">
+          ${siteListHtml(sites)}
+          ${addSiteFormHtml(c.id)}
+        </div>
       </div>
     </div>
   </div>`;
+}
+
+function toggleCampagneSites(id){
+  const el=$("campSitesBody_"+id); if(!el) return;
+  el.classList.toggle("hidden");
+  $("campSitesChevron_"+id).textContent = el.classList.contains("hidden") ? "▾" : "▴";
 }
 
 function toggleCampagneDetails(id){

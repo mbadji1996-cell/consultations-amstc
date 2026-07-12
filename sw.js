@@ -1,7 +1,7 @@
 /* Service worker AMSTC — cache l'app shell pour un fonctionnement hors ligne.
    Incrémente CACHE_VERSION à chaque mise à jour de index.html pour forcer
    le rafraîchissement du cache chez les utilisateurs. */
-const CACHE_VERSION = "amstc-v51";
+const CACHE_VERSION = "amstc-v52";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v51</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v52</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1555,6 +1555,7 @@ function renderList(){
     const medecin=ME.role==="admin"&&r.medecin_nom?` · Dr/Agent : ${esc(r.medecin_nom)}`:"";
     const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
     const typeLabel=SPEC_LABELS[r.type_consultation]||"Généraliste";
     const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
     return `<div class="rec">
@@ -1566,6 +1567,7 @@ function renderList(){
       </div>
       <div class="rec-diag"><b>${diagLabel} :</b> ${esc(r.diagnostic)}</div>
       <div class="rec-meta">${esc((r.motifs||"").slice(0,120))}${(r.motifs||"").length>120?"…":""}</div>
+      ${traitement}
       ${explo}
       <div class="rec-foot">
         <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>

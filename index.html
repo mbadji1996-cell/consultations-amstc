@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v43</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v44</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1310,7 +1310,10 @@ function switchTab(tab){
 async function refreshData(){
   if(navigator.onLine){
     await flushQueue();
-    const q = sb.from("consultations").select("*").order("created_at",{ascending:false});
+    // Garde-fou : au-delà de 1500 lignes, on ne charge que les plus récentes plutôt que
+    // de laisser la requête grossir indéfiniment avec l'historique. Voir la discussion sur
+    // la montée en charge — une vraie pagination reste à construire au-delà de ce seuil.
+    const q = sb.from("consultations").select("*").order("created_at",{ascending:false}).limit(1500);
     const {data,error}=await q;
     if(!error){ LIST=data||[]; setCache(LIST); }
   } else {
@@ -1757,6 +1760,7 @@ async function renderDashboard(){
     ${siteTableHtml}
 
     ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
+    ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark)">⚠ Affichage limité aux 1500 consultations les plus récentes — au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
     <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
   `;
 

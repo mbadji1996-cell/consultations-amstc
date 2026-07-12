@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v49</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v50</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1030,8 +1030,13 @@ async function enterApp(){
   // l'icône de compte reste fixe ; le nom complet est affiché dans le menu déroulant ci-dessous
   $("menuName").textContent=`${ME.prenom||""} ${ME.nom||""}`.trim();
   $("menuEmail").textContent=ME.email||"";
-  $("menuRole").textContent=ME.role==="admin"?"Administrateur":"Praticien";
-  $("menuRole").className="badge "+(ME.role==="admin"?"badge-admin":"badge-agent");
+  {
+    const prof=professionLabel(ME);
+    $("menuRole").textContent = ME.role==="admin"
+      ? "Administrateur"+(prof?" · "+prof:"")
+      : (prof||"Praticien");
+    $("menuRole").className="badge "+(ME.role==="admin"?"badge-admin":"badge-agent");
+  }
   $("siteLabel").textContent=ME.role==="admin"?"Espace administrateur":siteName(ME.site_id);
 
   // Un agent sans site attribué doit d'abord choisir le sien (et sa campagne si besoin), une seule fois.
@@ -1115,6 +1120,11 @@ async function confirmSiteSelection(){
    ONGLETS SELON LE RÔLE
    ===================================================================== */
 const SPEC_LABELS={generaliste:"Généraliste",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
+const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
+function professionLabel(p){
+  if(!p || !p.profession_declaree) return "";
+  return (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" — "+esc(p.profession_declaree_detail):"");
+}
 
 // Icônes de la barre de navigation (traits fins, cohérentes avec le reste de l'app)
 const NAV_ICON_HOME=`<path d="M3 9.5 12 3l9 6.5"></path><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"></path>`;
@@ -1711,12 +1721,11 @@ async function loadCollegues(){
 
 function collegueCardHtml(collegues){
   if(!collegues.length) return "";
-  const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
   return `<div class="dash-card"><div class="dash-card-head"><span>Collègues de ce site</span></div>
     ${collegues.map(p=>{
       const nom=(esc(p.prenom||"")+" "+esc(p.nom||"")).trim()||"(sans nom)";
       const specLabel = p.role==="admin" ? "Administrateur" : (SPEC_LABELS[p.specialite||"generaliste"]||"Praticien")+(p.specialite==="specialiste"&&p.specialite_detail?" — "+esc(p.specialite_detail):"");
-      const profession = p.profession_declaree ? (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" — "+esc(p.profession_declaree_detail):"") : "";
+      const profession = professionLabel(p);
       const avatar = p.avatar_url
         ? `<img src="${esc(p.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
         : `<div style="width:36px;height:36px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc((p.prenom||"?")[0].toUpperCase())}</div>`;

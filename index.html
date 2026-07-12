@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v47</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v48</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -494,7 +494,7 @@
 
   <!-- Modale "Mon profil" : prénom, nom, photo — accessible à tout compte connecté -->
   <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(18,60,28,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto">
+    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 style="font-size:18px;margin-bottom:16px">Mon profil</h2>
       <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
         <div id="profileAvatarPreview" style="width:80px;height:80px;border-radius:50%;background:var(--green-50);color:var(--green-700);
@@ -921,8 +921,12 @@ function openProfileModal(){
   renderProfileAvatarPreview(ME.avatar_url);
   $("profileModalOverlay").classList.remove("hidden");
   $("menuPop")?.classList.add("hidden");
+  document.body.style.overflow="hidden"; // empêche la page de fond de défiler pendant que la modale est ouverte
 }
-function closeProfileModal(){ $("profileModalOverlay").classList.add("hidden"); }
+function closeProfileModal(){
+  $("profileModalOverlay").classList.add("hidden");
+  document.body.style.overflow="";
+}
 
 function onProfileProfessionChange(currentDetail){
   const isSpecialiste=$("profile_profession").value==="specialiste";

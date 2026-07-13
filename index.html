@@ -143,7 +143,10 @@
   .navtab{flex:1;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
     padding:10px 2px;border:none;background:none;color:var(--muted)}
   .navtab-icon{width:38px;height:38px;min-width:38px;min-height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-    transition:background .2s ease,transform .15s ease}
+    position:relative;transition:background .2s ease,transform .15s ease}
+  .navtab-badge{position:absolute;top:-3px;right:-5px;background:var(--danger);color:#fff;font-size:10px;font-weight:800;
+    min-width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1;
+    box-shadow:0 0 0 2px #fff}
   /* Force le SVG à être centré à l'intérieur */
   .navtab-icon svg {
     display: block;
@@ -484,7 +487,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v57</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v58</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1187,7 +1190,7 @@ function buildTabs(){
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
-    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}</span><span>${l}</span></button>`).join("");
+    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}</span><span>${l}</span></button>`).join("");
   // le filtre par site n'a de sens que pour l'admin
   $("siteFilter").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
@@ -1241,7 +1244,23 @@ function buildTabs(){
   } else if(ME.role==="admin"){
     refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
   }
+  refreshPendingReferencesCount(); // visible depuis n'importe quel écran, pas seulement le tableau de bord
   switchTab(tabs[0][0]);
+}
+
+// Badge rouge sur l'icône Tableau de bord : seule façon, pour l'instant, de savoir
+// qu'un confrère nous a référé un patient sans avoir à penser à aller vérifier soi-même.
+async function refreshPendingReferencesCount(){
+  if(!ME || !ME.site_id){ updateReferenceBadge(0); return; }
+  const {count,error}=await sb.from("consultations")
+    .select("id",{count:"exact",head:true}).eq("refere_vers_id",ME.id).eq("refere_traite",false);
+  if(error) return;
+  updateReferenceBadge(count||0);
+}
+function updateReferenceBadge(n){
+  const el=$("navBadgeDashboard"); if(!el) return;
+  if(n>0){ el.textContent = n>9?"9+":n; el.classList.remove("hidden"); }
+  else { el.classList.add("hidden"); }
 }
 
 async function setupReferField(){
@@ -1274,6 +1293,7 @@ function commencerConsultationReferee(consultId,prenom,nom,sexe,age){
 async function marquerReferenceTraitee(consultId,silencieux){
   const {error}=await sb.rpc("marquer_reference_traitee",{p_consultation_id:consultId});
   if(error){ if(!silencieux) toast("Échec : "+error.message,true); return; }
+  refreshPendingReferencesCount();
   if(!silencieux){ toast("Marqué comme traité"); if(CURRENT_TAB==="dashboard") renderDashboard(); }
 }
 

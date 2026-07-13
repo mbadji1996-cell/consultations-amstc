@@ -567,7 +567,7 @@
       <div id="formAlert"></div>
       <div class="field hidden" id="c_site_wrap">
         <label>Site de consultation <span class="req">*</span></label>
-        <select id="c_site" onchange="refreshStockForForm(this.value)"><option value="">— Sélectionner un site —</option></select>
+        <select id="c_site" onchange="refreshStockForForm(this.value); setupReferField(this.value)"><option value="">— Sélectionner un site —</option></select>
       </div>
       <div class="field hidden" id="typePickerWrap">
         <label>Type de consultation</label>
@@ -1243,6 +1243,7 @@ function buildTabs(){
     setupReferField();
   } else if(ME.role==="admin"){
     refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
+    setupReferField(""); // idem : masqué tant qu'aucun site n'est choisi
   }
   refreshPendingReferencesCount(); // visible depuis n'importe quel écran, pas seulement le tableau de bord
   switchTab(tabs[0][0]);
@@ -1263,8 +1264,8 @@ function updateReferenceBadge(n){
   else { el.classList.add("hidden"); }
 }
 
-async function setupReferField(){
-  const collegues=await loadCollegues();
+async function setupReferField(siteId){
+  const collegues=await loadCollegues(siteId);
   const fs=$("referFieldset"); if(!fs) return;
   if(!collegues.length){ fs.classList.add("hidden"); return; }
   fs.classList.remove("hidden");
@@ -1737,10 +1738,11 @@ function computeDashboardStats(){
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu };
 }
 
-async function loadCollegues(){
-  if(!ME.site_id) return [];
+async function loadCollegues(siteId){
+  const sid = siteId!==undefined ? siteId : ME.site_id;
+  if(!sid) return [];
   const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url,telephone,profession_declaree,profession_declaree_detail")
-    .eq("site_id",ME.site_id).eq("actif",true).neq("id",ME.id);
+    .eq("site_id",sid).eq("actif",true).neq("id",ME.id);
   return data||[];
 }
 
@@ -1773,7 +1775,10 @@ async function renderDashboard(){
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu } = S;
   const collegues = ME.role==="admin" ? [] : await loadCollegues();
   let referencesRecues=[];
-  if(ME.role!=="admin"){
+  {
+    // Un admin peut lui aussi recevoir une référence (il apparaît dans la liste des
+    // confrères du site) : le badge du tableau de bord le compte déjà, donc la carte
+    // doit aussi s'afficher pour lui, sans quoi la référence reste invisible.
     const {data}=await sb.from("consultations")
       .select("id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at")
       .eq("refere_vers_id",ME.id).eq("refere_traite",false).order("created_at",{ascending:false});

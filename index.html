@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v56</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v57</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -2001,7 +2001,7 @@ function chartImage(canvasId){
   try{
     const c=$(canvasId);
     if(!c) return null;
-    return c.toDataURL("image/png",1.0);
+    return { data:c.toDataURL("image/png",1.0), ratio: c.height/c.width }; // ratio réel, pour ne jamais déformer l'image
   }catch(e){ return null; }
 }
 
@@ -2078,13 +2078,19 @@ async function downloadReportPDF(){
 
   // Graphiques (si actuellement affichés à l'écran)
   const addChartImage=(canvasId,label)=>{
-    const img=chartImage(canvasId);
-    if(!img) return;
+    const chart=chartImage(canvasId);
+    if(!chart) return;
     if(y>230){ doc.addPage(); y=18; }
     doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
     doc.text(label, margin, y); y+=5;
-    const w=pageW-margin*2, h=w*0.45;
-    doc.addImage(img,"PNG",margin,y,w,h);
+    // Respecte toujours la vraie proportion du graphique : on part de la pleine largeur,
+    // puis si la hauteur qui en découle dépasse le plafond, on réduit largeur ET hauteur
+    // ensemble (jamais l'une sans l'autre, sinon l'image s'étire).
+    const maxW=pageW-margin*2, maxH=150;
+    let w=maxW, h=w*chart.ratio;
+    if(h>maxH){ h=maxH; w=h/chart.ratio; }
+    if(y+h>270){ doc.addPage(); y=18; }
+    doc.addImage(chart.data,"PNG",margin,y,w,h);
     y+=h+9;
   };
   addChartImage("dashTypeChart","Consultations par type de praticien");
@@ -2178,14 +2184,19 @@ async function downloadReportWord(){
 
   // Graphiques capturés en image, si actuellement affichés à l'écran
   const addChartImage=(canvasId,label)=>{
-    const img=chartImage(canvasId);
-    if(!img) return;
-    const base64=img.split(",")[1];
+    const chart=chartImage(canvasId);
+    if(!chart) return;
+    const base64=chart.data.split(",")[1];
     const bin=atob(base64);
     const bytes=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    // Même principe que pour le PDF : on respecte toujours la vraie proportion du graphique,
+    // plutôt qu'un format 520x230 identique et imposé à tous.
+    const maxW=520, maxH=280;
+    let w=maxW, h=w*chart.ratio;
+    if(h>maxH){ h=maxH; w=h/chart.ratio; }
     children.push(new Paragraph({ text:label, heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
-    children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:bytes, transformation:{ width:520, height:230 } })] }));
+    children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:bytes, transformation:{ width:w, height:h } })] }));
   };
   addChartImage("dashTypeChart","Consultations par type de praticien");
   addChartImage("dashSpecialiteChart","Détail par spécialité médicale");

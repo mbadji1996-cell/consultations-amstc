@@ -137,7 +137,7 @@
   .menu-pop button:hover{background:var(--green-50)}
 
   /* ---------- NAVIGATION PAR ICÔNES ---------- */
-  /* Mobile (par défaut) : barre fixe en bas de l'écran, icônes seules — plus de chevauchement de texte */
+  /* Mobile (par défaut) : barre fixe en bas de l'écran, icônes seules - plus de chevauchement de texte */
   .tabs{display:flex;background:var(--gradient-brand-rich);border-top:1px solid var(--line);position:fixed;left:0;right:0;bottom:0;
     z-index:999;min-height:75px;padding-bottom:max(env(safe-area-inset-bottom,0px),10px);box-shadow:0 -2px 14px rgba(6,68,28,.08)}
   .navtab{flex:1;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
@@ -208,7 +208,7 @@
   .toolbar input,.toolbar select{width:auto;flex:1;min-width:140px}
   .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
   /* .stat (le petit indicateur "Consultations / En attente d'envoi" en haut de la liste) est
-     défini une seule fois plus bas, avec son liseré coloré — voir "Unification de .stat" */
+     défini une seule fois plus bas, avec son liseré coloré - voir "Unification de .stat" */
 
   .rec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
   .rec-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
@@ -356,7 +356,7 @@
       </div>
       <div class="auth-hero-overlay"></div>
       <div class="auth-hero-content">
-        <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh"></div>
+        <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh"></div>
         <h1>Bienvenue sur la plateforme de gestion des consultations de l'Association Médico-Sociale des Talibés Cheikh (AMSTC)</h1>
         <p>Un outil pensé pour le terrain, conçu pour accompagner nos équipes médicales au plus près des patients.</p>
         <div class="auth-hero-features">
@@ -368,7 +368,7 @@
     </div>
   <div class="auth-card">
     <div class="brand" style="flex-direction:column;text-align:center;gap:10px">
-      <img src="./logo-horizontal.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:100%;max-width:280px;height:auto">
+      <img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh" style="width:100%;max-width:280px;height:auto">
     </div>
 
     <div id="loginBox">
@@ -487,7 +487,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v61</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v62</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -495,7 +495,7 @@
     </div>
   </div>
 
-  <!-- Modale "Mon profil" : prénom, nom, photo — accessible à tout compte connecté -->
+  <!-- Modale "Mon profil" : prénom, nom, photo - accessible à tout compte connecté -->
   <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 style="font-size:18px;margin-bottom:16px">Mon profil</h2>
@@ -510,7 +510,7 @@
       <div class="field"><label>Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
       <div class="field"><label>Profession</label>
         <select id="profile_profession" onchange="onProfileProfessionChange()">
-          <option value="">— Choisir —</option>
+          <option value="">- Choisir -</option>
           <option value="medecin">Médecin</option>
           <option value="pharmacien">Pharmacien</option>
           <option value="dentiste">Dentiste</option>
@@ -524,7 +524,7 @@
       </div>
       <div class="field"><label>Niveau d'étude</label>
         <select id="profile_niveau">
-          <option value="">— Choisir —</option>
+          <option value="">- Choisir -</option>
           <option value="Licence 1">Licence 1</option>
           <option value="Licence 2">Licence 2</option>
           <option value="Licence 3">Licence 3</option>
@@ -547,7 +547,7 @@
 
   <div class="tabs" id="tabs"></div>
 
-  <!-- Sélection du site par l'agent — une seule fois, avant de démarrer -->
+  <!-- Sélection du site par l'agent - une seule fois, avant de démarrer -->
   <div class="content hidden" id="siteSelectScreen" style="max-width:460px">
     <fieldset>
       <legend>Choix de votre site de consultation</legend>
@@ -567,7 +567,7 @@
       <div id="formAlert"></div>
       <div class="field hidden" id="c_site_wrap">
         <label>Site de consultation <span class="req">*</span></label>
-        <select id="c_site" onchange="refreshStockForForm(this.value); setupReferField(this.value)"><option value="">— Sélectionner un site —</option></select>
+        <select id="c_site" onchange="refreshStockForForm(this.value); setupReferField(this.value)"><option value="">- Sélectionner un site -</option></select>
       </div>
       <div class="field hidden" id="typePickerWrap">
         <label>Type de consultation</label>
@@ -584,14 +584,14 @@
       </div>
       <div class="row2">
         <div class="field"><label>Sexe <span class="req">*</span></label>
-          <select id="c_sexe"><option value="">— Sélectionner —</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
+          <select id="c_sexe"><option value="">- Sélectionner -</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
         <div class="field"><label>Âge (années) <span class="req">*</span></label><input type="number" id="c_age" min="0" max="150"></div>
       </div>
       <div class="field"><label>Adresse</label><input type="text" id="c_adresse" placeholder="Quartier / localité"></div>
       <div class="field"><label>Motifs de consultation <span class="req">*</span></label>
         <textarea id="c_motifs" placeholder="Raisons de la visite"></textarea></div>
 
-      <!-- ===== GÉNÉRALISTE (également utilisé par le DENTISTE — même formulaire) ===== -->
+      <!-- ===== GÉNÉRALISTE (également utilisé par le DENTISTE - même formulaire) ===== -->
       <div id="type_generaliste_fields">
         <fieldset>
           <legend>Constantes vitales</legend>
@@ -649,7 +649,7 @@
 
       <fieldset id="referFieldset" class="hidden"><legend>Référer ce patient à un confrère (facultatif)</legend>
         <div class="field"><label>Référer vers</label>
-          <select id="c_refere_vers" onchange="onRefereVersChange()"><option value="">— Ne pas référer —</option></select></div>
+          <select id="c_refere_vers" onchange="onRefereVersChange()"><option value="">- Ne pas référer -</option></select></div>
         <div class="field hidden" id="referMotifWrap"><label>Motif de la référence</label>
           <textarea id="c_refere_motif" placeholder="Pourquoi orienter ce patient vers ce confrère ?"></textarea></div>
       </fieldset>
@@ -752,7 +752,7 @@
             <div class="field"><label>Seuil d'alerte (stock bas)</label><input type="number" id="stock_seuil" min="0" placeholder="ex : 5"></div>
             <button class="btn btn-primary btn-sm" onclick="addStockItem()">Ajouter au stock</button>
           </fieldset>
-          <p class="rec-meta" style="margin-bottom:12px">Quand vous délivrez un médicament dans l'onglet Délivrances, le stock est ajusté automatiquement si un article du même nom est trouvé — vérifiez toujours vos chiffres, ce rapprochement se fait par nom.</p>
+          <p class="rec-meta" style="margin-bottom:12px">Quand vous délivrez un médicament dans l'onglet Délivrances, le stock est ajusté automatiquement si un article du même nom est trouvé - vérifiez toujours vos chiffres, ce rapprochement se fait par nom.</p>
           <div id="stockBody"></div>
         </div>
       </div>
@@ -762,11 +762,11 @@
         <div class="stat-row" style="margin-bottom:16px">
           <div class="dstat">
             <div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div>
-            <div><b id="pharmaAdminDeliveredCount">—</b><span>Médicaments délivrés au total</span></div>
+            <div><b id="pharmaAdminDeliveredCount">-</b><span>Médicaments délivrés au total</span></div>
           </div>
         </div>
         <fieldset>
-          <legend>Stock total — toute la campagne</legend>
+          <legend>Stock total - toute la campagne</legend>
           <div id="pharmaAdminGlobalStockBody"></div>
         </fieldset>
         <fieldset>
@@ -791,7 +791,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 /* =====================================================================
-   CONFIGURATION — À REMPLIR (une seule fois)
+   CONFIGURATION - À REMPLIR (une seule fois)
    Récupère ces deux valeurs dans Supabase :
    Project Settings → Data API / API Keys
    ---------------------------------------------------------------------
@@ -823,7 +823,7 @@ function toast(msg, isErr){ const t=$("toast"); t.textContent=msg; t.className="
 function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;
   if(type==="ok") setTimeout(()=>el.innerHTML="",3500); }
 function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"—"; }
+function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"-"; }
 
 /* ---------- offline queue ---------- */
 function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return[];} }
@@ -1024,7 +1024,7 @@ async function enterApp(){
   const {data:sites}=await sb.from("sites").select("*").order("nom");
   SITES=sites||[];
 
-  // charge les campagnes — nécessaire pour tous les rôles désormais :
+  // charge les campagnes - nécessaire pour tous les rôles désormais :
   // l'admin les gère, l'agent en a besoin pour choisir campagne puis site en cascade
   const {data:campagnes}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
   CAMPAGNES=campagnes||[];
@@ -1072,24 +1072,24 @@ function setupSiteSelectScreen(){
     const c=CAMPAGNES.find(x=>x.id===ME.campagne_id);
     const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id);
     wrap.innerHTML=`
-      <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"—")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
+      <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"-")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
       <div class="field"><label>Site <span class="req">*</span></label>
-        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option>
+        <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
           ${opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   } else if(CAMPAGNES.length){
     wrap.innerHTML=`
       <div class="field"><label>Campagne <span class="req">*</span></label>
         <select id="siteSelectCampagne" onchange="onSiteSelectCampagneChange()">
-          <option value="">— Sélectionner une campagne —</option>
+          <option value="">- Sélectionner une campagne -</option>
           ${CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("")}
         </select></div>
       <div class="field"><label>Site <span class="req">*</span></label>
-        <select id="siteSelectInput" disabled><option value="">— Choisissez d'abord une campagne —</option></select></div>`;
+        <select id="siteSelectInput" disabled><option value="">- Choisissez d'abord une campagne -</option></select></div>`;
   } else {
     wrap.innerHTML=`
       <div class="field"><label>Site <span class="req">*</span></label>
-        <select id="siteSelectInput"><option value="">— Sélectionner votre site —</option>
+        <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
           ${SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   }
@@ -1098,10 +1098,10 @@ function setupSiteSelectScreen(){
 function onSiteSelectCampagneChange(){
   const cid=$("siteSelectCampagne").value;
   const sel=$("siteSelectInput");
-  if(!cid){ sel.disabled=true; sel.innerHTML=`<option value="">— Choisissez d'abord une campagne —</option>`; return; }
+  if(!cid){ sel.disabled=true; sel.innerHTML=`<option value="">- Choisissez d'abord une campagne -</option>`; return; }
   const opts=SITES.filter(s=>s.campagne_id===cid);
   sel.disabled=false;
-  sel.innerHTML=`<option value="">— Sélectionner votre site —</option>`+
+  sel.innerHTML=`<option value="">- Sélectionner votre site -</option>`+
     opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
 }
 
@@ -1129,7 +1129,7 @@ const SPEC_LABELS={generaliste:"Généraliste",dentiste:"Dentiste",specialiste:"
 const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
 function professionLabel(p){
   if(!p || !p.profession_declaree) return "";
-  return (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" — "+esc(p.profession_declaree_detail):"");
+  return (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" - "+esc(p.profession_declaree_detail):"");
 }
 
 // Icônes de la barre de navigation (traits fins, cohérentes avec le reste de l'app)
@@ -1142,7 +1142,7 @@ const NAV_ICON_PHARMA=`<path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-
 const NAV_ICONS={dashboard:NAV_ICON_HOME, form:NAV_ICON_PLUS, list:NAV_ICON_LIST, users:NAV_ICON_USERS, campagnes:NAV_ICON_FLAG, dispensation:NAV_ICON_PHARMA};
 function navIconSvg(paths){ return `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`; }
 
-// Liste des spécialités médicales proposées à l'admin — avec une option "Autre" en secours,
+// Liste des spécialités médicales proposées à l'admin - avec une option "Autre" en secours,
 // pour ne jamais bloquer sur un cas non prévu.
 const SPECIALTY_LIST=["Allergologie","Anesthésie-réanimation","Cardiologie","Chirurgie générale",
   "Chirurgie orthopédique et traumatologique","Dermatologie","Endocrinologie et diabétologie",
@@ -1154,13 +1154,13 @@ const SPECIALTY_LIST=["Allergologie","Anesthésie-réanimation","Cardiologie","C
 
 function specialtySelectOptions(currentValue){
   const known=SPECIALTY_LIST.includes(currentValue);
-  return `<option value="">— Sélectionner —</option>`+
+  return `<option value="">- Sélectionner -</option>`+
     SPECIALTY_LIST.map(s=>`<option value="${esc(s)}"${s===currentValue?" selected":""}>${esc(s)}</option>`).join("")+
     `<option value="__autre__"${(!known&&currentValue)?" selected":""}>Autre…</option>`;
 }
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
 
-// Listes de référence pour le stock pharmacie — inspirées d'un devis réel de campagne médicale AMSTC
+// Listes de référence pour le stock pharmacie - inspirées d'un devis réel de campagne médicale AMSTC
 const STOCK_CATEGORIES=["Injectables","Soins infirmiers","Antalgiques / AINS","Antibiotiques","IPP / Antiacides",
   "Antiparasitaires","Antihistaminiques","Antihypertenseurs","Fer / Acide folique / Vitamines","Antitussifs",
   "Nébulisations","Gynécologie","Ophtalmologie","Pommades / Gel","Gastro-entérologie",
@@ -1197,7 +1197,7 @@ function buildTabs(){
     $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
       SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
   }
-  // filtre de campagne du tableau de bord — admin uniquement, s'il existe au moins une campagne
+  // filtre de campagne du tableau de bord - admin uniquement, s'il existe au moins une campagne
   $("dashCampagneFilter").classList.toggle("hidden", !(ME.role==="admin" && CAMPAGNES.length));
   $("backupBtn").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin" && CAMPAGNES.length){
@@ -1207,7 +1207,7 @@ function buildTabs(){
   // l'admin n'a pas de site fixe (contrairement à l'agent) : il choisit à chaque consultation
   $("c_site_wrap").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
-    $("c_site").innerHTML=`<option value="">— Sélectionner un site —</option>`+
+    $("c_site").innerHTML=`<option value="">- Sélectionner un site -</option>`+
       SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
   }
 
@@ -1227,7 +1227,7 @@ function buildTabs(){
     const spec=mySpecialite();
     $("typePickerWrap").classList.add("hidden");
     $("roleBadgeWrap").classList.remove("hidden");
-    $("roleBadgeWrap").innerHTML=`Vous êtes connecté en tant que : <b>${SPEC_LABELS[spec]}</b>${spec==="specialiste"&&ME.specialite_detail?" — "+esc(ME.specialite_detail):""}`;
+    $("roleBadgeWrap").innerHTML=`Vous êtes connecté en tant que : <b>${SPEC_LABELS[spec]}</b>${spec==="specialiste"&&ME.specialite_detail?" - "+esc(ME.specialite_detail):""}`;
     $("c_type").value=spec;
     if(spec==="specialiste"){
       // Un vrai agent spécialiste ne choisit rien : sa spécialité est assignée par l'admin, affichée en lecture seule.
@@ -1236,7 +1236,7 @@ function buildTabs(){
       $("c_specialite_med_autre").classList.add("hidden");
       $("c_specialite_med").readOnly=true;
       $("c_specialite_med").value=ME.specialite_detail||"";
-      $("c_specialite_med").placeholder="Non renseignée — demandez à un administrateur";
+      $("c_specialite_med").placeholder="Non renseignée - demandez à un administrateur";
     }
     onConsultTypeChange();
     refreshStockForForm(ME.site_id); // le stock disponible pour prescrire dépend du site fixe de l'agent
@@ -1269,11 +1269,11 @@ async function setupReferField(siteId){
   const fs=$("referFieldset"); if(!fs) return;
   if(!collegues.length){ fs.classList.add("hidden"); return; }
   fs.classList.remove("hidden");
-  $("c_refere_vers").innerHTML=`<option value="">— Ne pas référer —</option>`+
+  $("c_refere_vers").innerHTML=`<option value="">- Ne pas référer -</option>`+
     collegues.map(p=>{
       const nom=(p.prenom||"")+" "+(p.nom||"");
       const spec=SPEC_LABELS[p.specialite||"generaliste"]||"Praticien";
-      return `<option value="${p.id}">${esc(nom.trim()||"(sans nom)")} — ${esc(spec)}${p.specialite==="specialiste"&&p.specialite_detail?" ("+esc(p.specialite_detail)+")":""}</option>`;
+      return `<option value="${p.id}">${esc(nom.trim()||"(sans nom)")} - ${esc(spec)}${p.specialite==="specialiste"&&p.specialite_detail?" ("+esc(p.specialite_detail)+")":""}</option>`;
     }).join("");
 }
 
@@ -1287,7 +1287,7 @@ function commencerConsultationReferee(consultId,prenom,nom,sexe,age){
   $("c_prenom").value=prenom; $("c_nom").value=nom;
   if(sexe) $("c_sexe").value=sexe;
   if(age!=null) $("c_age").value=age;
-  toast("Identité du patient reprise — complétez la consultation");
+  toast("Identité du patient reprise - complétez la consultation");
   marquerReferenceTraitee(consultId,true);
 }
 
@@ -1300,7 +1300,7 @@ async function marquerReferenceTraitee(consultId,silencieux){
 
 function onConsultTypeChange(){
   const t=$("c_type").value||"generaliste";
-  // Le dentiste utilise exactement le même formulaire que le généraliste — seul le type
+  // Le dentiste utilise exactement le même formulaire que le généraliste - seul le type
   // enregistré change, pour que l'agent sache quel rôle il exerce (badge ci-dessus).
   $("type_generaliste_fields").classList.toggle("hidden", t==="specialiste");
   $("type_specialiste_fields").classList.toggle("hidden", t!=="specialiste");
@@ -1312,7 +1312,7 @@ function onCSpecialiteMedSelectChange(){
   if(sel==="__autre__") $("c_specialite_med_autre").focus();
 }
 
-// Liste de médicaments saisis un par un — utilisée par les formulaires généraliste et spécialiste.
+// Liste de médicaments saisis un par un - utilisée par les formulaires généraliste et spécialiste.
 let STOCK_FOR_FORM=[]; // médicaments disponibles en stock pour le site courant du formulaire de prescription
 
 async function refreshStockForForm(siteId){
@@ -1323,7 +1323,7 @@ async function refreshStockForForm(siteId){
 }
 
 function stockPickerOptions(){
-  return `<option value="">— Choisir dans le stock du site —</option>`+
+  return `<option value="">- Choisir dans le stock du site -</option>`+
     STOCK_FOR_FORM.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
     `<option value="__hors_stock__">Médicament non trouvé dans la liste…</option>`;
 }
@@ -1386,11 +1386,11 @@ function onPasTraitementChange(scope){
   if(checked){ clearMedRows(scope); $(notesId).value=""; }
   $("addMedBtn_"+scope).disabled=checked;
   $(notesId).disabled=checked;
-  $(notesId).placeholder = checked ? "—" : "Autres recommandations, suivi… (facultatif si des médicaments sont listés)";
+  $(notesId).placeholder = checked ? "-" : "Autres recommandations, suivi… (facultatif si des médicaments sont listés)";
 }
 
 function medsToText(meds){
-  return meds.map(m=>`${m.nom}${m.posologie?" — "+m.posologie:""}`).join("; ");
+  return meds.map(m=>`${m.nom}${m.posologie?" - "+m.posologie:""}`).join("; ");
 }
 
 function onCampagneFilterChange(){
@@ -1418,7 +1418,7 @@ async function refreshData(){
     await flushQueue();
     // Garde-fou : au-delà de 1500 lignes, on ne charge que les plus récentes plutôt que
     // de laisser la requête grossir indéfiniment avec l'historique. Voir la discussion sur
-    // la montée en charge — une vraie pagination reste à construire au-delà de ce seuil.
+    // la montée en charge - une vraie pagination reste à construire au-delà de ce seuil.
     const q = sb.from("consultations").select("*").order("created_at",{ascending:false}).limit(1500);
     const {data,error}=await q;
     if(!error){ LIST=data||[]; setCache(LIST); }
@@ -1433,7 +1433,7 @@ async function saveConsultation(){
   // ce qui permet un numéro de consultation stable et connu immédiatement (pas d'attente de synchro).
   const newId=crypto.randomUUID();
   const numero="AMSTC-"+newId.slice(0,8).toUpperCase();
-  const medecinNom=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email||"—";
+  const medecinNom=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email||"-";
   // L'agent a un site fixe (choisi une fois) ; l'admin, "chef d'équipe", choisit son site à chaque consultation.
   const siteId = ME.role==="admin" ? ($("c_site").value||null) : ME.site_id;
   const type = $("c_type").value || "generaliste";
@@ -1469,7 +1469,7 @@ async function saveConsultation(){
     { const notes=$("c_conduite_notes_spec").value.trim();
       const pasTraitement=$("c_pas_traitement_spec").checked;
       rec.conduite = pasTraitement ? "Pas de traitement nécessaire"
-        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" - "); }
     if(!rec.specialite_medicale) missing.push("spécialité médicale");
     if(!rec.signes) missing.push("signes cliniques");
     if(!rec.diagnostic) missing.push("diagnostic");
@@ -1488,7 +1488,7 @@ async function saveConsultation(){
     { const notes=$("c_conduite_notes").value.trim();
       const pasTraitement=$("c_pas_traitement").checked;
       rec.conduite = pasTraitement ? "Pas de traitement nécessaire"
-        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" — "); }
+        : [notes, rec.medicaments.length?"Médicaments : "+medsToText(rec.medicaments):""].filter(Boolean).join(" - "); }
     if(!rec.signes) missing.push("signes cliniques");
     if(!rec.diagnostic) missing.push("diagnostic");
     if(!rec.conduite) missing.push("conduite à tenir (médicament, note, ou \"pas de traitement\")");
@@ -1523,7 +1523,7 @@ async function flushQueue(){
     if(!error){ sentCount++; continue; }
     // Une violation de clé unique sur l'id signifie que cette consultation a DÉJÀ été
     // enregistrée lors d'une tentative précédente (l'envoi avait réussi, seule la
-    // confirmation s'était perdue en route) — sans ce test, elle resterait bloquée
+    // confirmation s'était perdue en route) - sans ce test, elle resterait bloquée
     // "en attente d'envoi" pour toujours, en échouant à chaque nouvelle tentative.
     const isDuplicate = error.code==="23505" || /duplicate key/i.test(error.message||"");
     if(isDuplicate){ recoveredCount++; continue; }
@@ -1538,7 +1538,7 @@ function resetForm(){
   ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite_notes",
    "signes_spec","diagnostic_spec","explorations_spec","conduite_notes_spec"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
-  // Pour un vrai agent spécialiste, ce champ est en lecture seule et pré-rempli par l'admin — on ne l'efface pas.
+  // Pour un vrai agent spécialiste, ce champ est en lecture seule et pré-rempli par l'admin - on ne l'efface pas.
   if(!$("c_specialite_med").readOnly) $("c_specialite_med").value="";
   if($("c_specialite_med_select")){ $("c_specialite_med_select").value=""; }
   if($("c_specialite_med_autre")){ $("c_specialite_med_autre").value=""; $("c_specialite_med_autre").classList.add("hidden"); }
@@ -1686,7 +1686,7 @@ function computeDashboardStats(){
     });
   }
 
-  // Répartition par type de praticien — nuance importante : dentiste et généraliste partagent
+  // Répartition par type de praticien - nuance importante : dentiste et généraliste partagent
   // le même formulaire de saisie, mais leurs données sont comptées séparément ici.
   const typeCounts={generaliste:0,dentiste:0,specialiste:0};
   rows.forEach(r=>{ const t=r.type_consultation||"generaliste"; if(typeCounts[t]!==undefined) typeCounts[t]++; });
@@ -1701,7 +1701,7 @@ function computeDashboardStats(){
   const specialiteBreakdown=Object.entries(specialiteCounts).sort((a,b)=>b[1]-a[1]);
 
   // Médicaments les plus délivrés, dans le même périmètre que le reste du tableau de bord
-  // (respecte le filtre de campagne déjà appliqué à "rows") — uniquement ceux liés au stock.
+  // (respecte le filtre de campagne déjà appliqué à "rows") - uniquement ceux liés au stock.
   const medDeliveredMap={};
   rows.forEach(r=>{
     (r.medicaments||[]).forEach(m=>{
@@ -1713,7 +1713,7 @@ function computeDashboardStats(){
   });
   const medDeliveredBreakdown=Object.entries(medDeliveredMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
 
-  // Détail jour par jour, sur tout l'historique disponible (pas seulement une fenêtre de 14 jours) — utilisé dans le rapport téléchargé
+  // Détail jour par jour, sur tout l'historique disponible (pas seulement une fenêtre de 14 jours) - utilisé dans le rapport téléchargé
   const dayMap={};
   rows.forEach(r=>{
     const key=new Date(r.created_at).toISOString().slice(0,10); // yyyy-mm-dd, pour un tri fiable
@@ -1723,7 +1723,7 @@ function computeDashboardStats(){
     .sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([key,count])=>({ date:new Date(key+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}), count }));
 
-  // Aperçu de toutes les campagnes actives d'un coup d'œil — uniquement en vue globale (admin, sans filtre)
+  // Aperçu de toutes les campagnes actives d'un coup d'œil - uniquement en vue globale (admin, sans filtre)
   let campagneApercu=[];
   if(ME.role==="admin" && !SELECTED_CAMPAGNE){
     campagneApercu = CAMPAGNES.filter(c=>!c.archivee).map(c=>{
@@ -1785,7 +1785,7 @@ async function renderDashboard(){
     referencesRecues=data||[];
   }
 
-  // Icônes (traits fins, cohérentes avec le reste de l'app — même style que l'icône de compte)
+  // Icônes (traits fins, cohérentes avec le reste de l'app - même style que l'icône de compte)
   const ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
   const ICON_CALENDAR=`<rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>`;
   const ICON_TREND=`<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline>`;
@@ -1813,7 +1813,7 @@ async function renderDashboard(){
     ${statCard(ICON_USERS,"g",total,ME.role==="admin"?"Consultations au total":"Mes consultations")}
     ${statCard(ICON_CALENDAR,"o",today,"Aujourd'hui")}
     ${statCard(ICON_TREND,"g",semaine,"7 derniers jours")}
-    ${statCard(ICON_USER,"o",ageMoyen??"—","Âge moyen (ans)")}
+    ${statCard(ICON_USER,"o",ageMoyen??"-","Âge moyen (ans)")}
     ${statCard(ICON_FLASK,"g",explorations,"Explorations demandées")}
   </div>`;
 
@@ -1827,7 +1827,7 @@ async function renderDashboard(){
           <b>${esc(s.nom)}</b><span class="rec-meta">${s.n} consultation${s.n>1?"s":""}</span>
         </div>
         <div class="rec-meta" style="margin-top:2px">
-          ${s.pctF!=null?s.pctF+"% F · ":""}${s.pctM!=null?s.pctM+"% M · ":""}Âge moyen : ${s.moy??"—"}
+          ${s.pctF!=null?s.pctF+"% F · ":""}${s.pctM!=null?s.pctM+"% M · ":""}Âge moyen : ${s.moy??"-"}
           ${s.topPath?" · "+esc(s.topPath):""}
         </div>
       </div>`).join("")}
@@ -1852,7 +1852,7 @@ async function renderDashboard(){
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div>
               <b>${esc(r.prenom)} ${esc(r.nom)}</b> <span class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans</span>
-              <div class="rec-meta">${d} · Référé par ${esc(r.medecin_nom||"—")}</div>
+              <div class="rec-meta">${d} · Référé par ${esc(r.medecin_nom||"-")}</div>
               ${r.refere_motif?`<div class="rec-meta"><b>Motif :</b> ${esc(r.refere_motif)}</div>`:""}
             </div>
           </div>
@@ -1866,7 +1866,7 @@ async function renderDashboard(){
 
     ${collegueCardHtml(collegues)}
 
-    ${total?`${cardOpen(ICON_TREND,"Évolution — 14 derniers jours")}<div style="height:220px"><canvas id="dashTrendChart"></canvas></div></div>`:""}
+    ${total?`${cardOpen(ICON_TREND,"Évolution - 14 derniers jours")}<div style="height:220px"><canvas id="dashTrendChart"></canvas></div></div>`:""}
 
     ${total?`${cardOpen(ICON_USERS,"Consultations par type de praticien")}<div style="height:170px"><canvas id="dashTypeChart"></canvas></div></div>`:""}
 
@@ -1878,12 +1878,12 @@ async function renderDashboard(){
 
     ${topDiag.length?`${cardOpen(ICON_FLASK,"Pathologies les plus fréquentes")}<div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></div>`:""}
 
-    ${(ME.role==="admin"&&medDeliveredBreakdown.length)?`${cardOpen(ICON_FLASK,"Pharmacie — médicaments les plus délivrés")}<div style="height:${Math.max(140,medDeliveredBreakdown.length*40)}px"><canvas id="dashMedDeliveredChart"></canvas></div></div>`:""}
+    ${(ME.role==="admin"&&medDeliveredBreakdown.length)?`${cardOpen(ICON_FLASK,"Pharmacie - médicaments les plus délivrés")}<div style="height:${Math.max(140,medDeliveredBreakdown.length*40)}px"><canvas id="dashMedDeliveredChart"></canvas></div></div>`:""}
 
     ${siteTableHtml}
 
-    ${!total?`<div class="empty">Aucune donnée pour l'instant — les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
-    ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark)">⚠ Affichage limité aux 1500 consultations les plus récentes — au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
+    ${!total?`<div class="empty">Aucune donnée pour l'instant - les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
+    ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark)">⚠ Affichage limité aux 1500 consultations les plus récentes - au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
     <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
   `;
 
@@ -1983,7 +1983,7 @@ async function renderDashboard(){
 }
 
 /* =====================================================================
-   EXPORT DU RAPPORT STATISTIQUE — PDF et Word
+   EXPORT DU RAPPORT STATISTIQUE - PDF et Word
    Réutilise exactement les mêmes chiffres que le tableau de bord affiché
    (computeDashboardStats), pour qu'un rapport téléchargé corresponde
    toujours à ce que la personne voit à l'écran au même moment.
@@ -1995,13 +1995,13 @@ function reportFileBaseName(S){
 }
 
 function reportTitleLines(S){
-  const title="Rapport statistique — Consultations AMSTC";
+  const title="Rapport statistique - Consultations AMSTC";
   const meta=[
     ME.role==="admin" ? "Périmètre : toutes les consultations" : `Périmètre : consultations de ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(),
   ];
   if(S.campagneInfo){
     const c=S.campagneInfo;
-    const periode = (c.date_debut||c.date_fin) ? ` — du ${fmtDate(c.date_debut)} au ${fmtDate(c.date_fin)}` : "";
+    const periode = (c.date_debut||c.date_fin) ? ` - du ${fmtDate(c.date_debut)} au ${fmtDate(c.date_fin)}` : "";
     meta.push(`Campagne : ${c.nom}${c.lieu?" ("+c.lieu+")":""}${periode}`);
   } else if(ME.role==="admin"){
     meta.push("Campagne : toutes campagnes confondues");
@@ -2010,7 +2010,7 @@ function reportTitleLines(S){
   return { title, meta };
 }
 
-// Effectifs d'une campagne précise : nombre de sites et de praticiens par spécialité —
+// Effectifs d'une campagne précise : nombre de sites et de praticiens par spécialité -
 // interrogé à la demande pour être toujours à jour au moment du téléchargement du rapport.
 async function getCampagneEffectifs(campagneId){
   if(!campagneId) return null;
@@ -2058,7 +2058,7 @@ async function downloadReportPDF(){
     head:[["Indicateur","Valeur"]],
     body:[
       [ME.role==="admin"?"Consultations au total":"Mes consultations", String(S.total)],
-      ["Âge moyen (ans)", S.ageMoyen??"—"],
+      ["Âge moyen (ans)", S.ageMoyen??"-"],
       ["Explorations complémentaires demandées", String(S.explorations)],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
     ],
@@ -2087,7 +2087,7 @@ async function downloadReportPDF(){
     }
   }
 
-  // Détail jour par jour — patients consultés par date
+  // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
     if(y>250){ doc.addPage(); y=18; }
     doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
@@ -2123,13 +2123,13 @@ async function downloadReportPDF(){
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
-  addChartImage("dashMedDeliveredChart","Pharmacie — médicaments les plus délivrés");
+  addChartImage("dashMedDeliveredChart","Pharmacie - médicaments les plus délivrés");
 
   // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
   if(S.topDiag.length){
     if(y>250){ doc.addPage(); y=18; }
     doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-    doc.text("Détail — Pathologies les plus fréquentes", margin, y); y+=4;
+    doc.text("Détail - Pathologies les plus fréquentes", margin, y); y+=4;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
@@ -2148,7 +2148,7 @@ async function downloadReportPDF(){
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
       head:[["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"]],
-      body:S.siteStats.map(s=>[s.nom,String(s.n),s.pctF!=null?s.pctF+"%":"—",s.pctM!=null?s.pctM+"%":"—",s.moy??"—",s.topPath||"—"]),
+      body:S.siteStats.map(s=>[s.nom,String(s.n),s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"]),
     });
   }
 
@@ -2180,7 +2180,7 @@ async function downloadReportWord(){
     new Paragraph({ text:"Chiffres clés", heading:HeadingLevel.HEADING_2, spacing:{before:160,after:120} }),
     mkTable(["Indicateur","Valeur"],[
       [ME.role==="admin"?"Consultations au total":"Mes consultations", S.total],
-      ["Âge moyen (ans)", S.ageMoyen??"—"],
+      ["Âge moyen (ans)", S.ageMoyen??"-"],
       ["Explorations complémentaires demandées", S.explorations],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
     ]),
@@ -2201,7 +2201,7 @@ async function downloadReportWord(){
     }
   }
 
-  // Détail jour par jour — patients consultés par date
+  // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
     children.push(new Paragraph({ text:"Consultations par jour", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
     children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
@@ -2228,17 +2228,17 @@ async function downloadReportWord(){
   addChartImage("dashSexChart","Répartition par sexe");
   addChartImage("dashAgeChart","Pyramide des âges");
   addChartImage("dashDiagChart","Pathologies les plus fréquentes");
-  addChartImage("dashMedDeliveredChart","Pharmacie — médicaments les plus délivrés");
+  addChartImage("dashMedDeliveredChart","Pharmacie - médicaments les plus délivrés");
 
   if(S.topDiag.length){
-    children.push(new Paragraph({ text:"Détail — Pathologies les plus fréquentes", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(new Paragraph({ text:"Détail - Pathologies les plus fréquentes", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
     children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
   }
 
   if(S.siteStats.length){
     children.push(new Paragraph({ text:"Statistiques par site", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
     children.push(mkTable(["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"],
-      S.siteStats.map(s=>[s.nom,s.n,s.pctF!=null?s.pctF+"%":"—",s.pctM!=null?s.pctM+"%":"—",s.moy??"—",s.topPath||"—"])));
+      S.siteStats.map(s=>[s.nom,s.n,s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
   }
 
   const doc=new Document({ sections:[{ children }] });
@@ -2287,7 +2287,7 @@ function exportCSV(){
 }
 
 /* =====================================================================
-   ADMIN — GESTION DES UTILISATEURS
+   ADMIN - GESTION DES UTILISATEURS
    ===================================================================== */
 async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
@@ -2318,7 +2318,7 @@ function renderUsers(){
   // le site proposé pour un utilisateur est limité aux sites de SA campagne (ou aux sites sans campagne, si "Aucune")
   const siteOptsForCampagne=(campagneId,selectedSiteId)=>{
     const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
-    return `<option value="">— Aucun —</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
+    return `<option value="">- Aucun -</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
   };
   if(!data.length){
     $("usersBody").innerHTML=`<div class="empty">${q?"Aucun praticien ne correspond à cette recherche.":"Aucun utilisateur."}</div>`;
@@ -2332,7 +2332,7 @@ function renderUsers(){
       : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${esc((u.prenom||"?")[0].toUpperCase())}</div>`;
     const prof=professionLabel(u);
     const roleLabel = u.role==="admin" ? "Admin"+(prof?" · "+prof:"") : (prof||"Praticien");
-    const siteLabel = siteName(u.site_id)||"— Aucun site —";
+    const siteLabel = siteName(u.site_id)||"- Aucun site -";
     return `
     <div class="rec" id="usercard_${u.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" onclick="toggleUserEdit('${u.id}')">
@@ -2351,7 +2351,7 @@ function renderUsers(){
 
       <div id="userEdit_${u.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
-        ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px">🔒 Compte protégé — le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
+        ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px">🔒 Compte protégé - le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
         <div class="row2" style="gap:10px">
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Rôle</label>
@@ -2438,12 +2438,12 @@ async function setRole(id,role){ const {error}=await sb.from("profiles").update(
 async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
   if(error) toast("Échec : "+error.message,true); else toast("Site attribué"); }
 // Changer la campagne d'un utilisateur réinitialise son site (l'ancien site n'a probablement plus de sens
-// dans la nouvelle campagne) — l'admin choisit ensuite explicitement le nouveau site dans la liste filtrée.
+// dans la nouvelle campagne) - l'admin choisit ensuite explicitement le nouveau site dans la liste filtrée.
 async function onUserCampagneChange(id){
   const campagne_id=$("user_campagne_"+id).value||null;
   const {error}=await sb.from("profiles").update({campagne_id,site_id:null}).eq("id",id);
   if(error){ toast("Échec : "+error.message,true); return; }
-  toast("Campagne attribuée — sélectionnez maintenant un site");
+  toast("Campagne attribuée - sélectionnez maintenant un site");
   loadUsers();
 }
 async function deleteUser(id){
@@ -2458,7 +2458,7 @@ async function deleteUser(id){
 }
 
 /* =====================================================================
-   PHARMACIEN — SUIVI DES DÉLIVRANCES
+   PHARMACIEN - SUIVI DES DÉLIVRANCES
    L'accès en lecture est élargi (RLS : consult_pharmacien_lecture_site)
    mais l'écriture passe exclusivement par la fonction mark_delivered,
    qui ne peut jamais toucher qu'aux 3 colonnes de délivrance.
@@ -2469,7 +2469,7 @@ async function loadDispensation(){
     .order("created_at",{ascending:false})
     .limit(300);
   if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
-  // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici — jamais une prescription
+  // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici - jamais une prescription
   // hors stock saisie manuellement par le médecin faute de correspondance dans le stock.
   DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.some(m=>m.en_stock));
   renderDispensation();
@@ -2478,7 +2478,7 @@ async function loadDispensation(){
 function renderDispensation(){
   const showAll=$("dispShowDelivered")?.checked;
   const cards=DISPENSATION_LIST.map(r=>{
-    // On garde toujours l'indice ORIGINAL de chaque médicament dans le tableau complet — indispensable
+    // On garde toujours l'indice ORIGINAL de chaque médicament dans le tableau complet - indispensable
     // pour que le bouton "Délivré" agisse sur le bon médicament après filtrage à l'affichage.
     const indexed=r.medicaments.map((m,i)=>({m,i})).filter(({m})=>m.en_stock);
     const visible=indexed.filter(({m})=>showAll || !m.delivre);
@@ -2490,7 +2490,7 @@ function renderDispensation(){
         return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
           <div>
             <b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}
-            <div class="rec-meta">Délivré : ${esc(m.quantite||"—")} · par ${esc(m.delivre_par||"—")}</div>
+            <div class="rec-meta">Délivré : ${esc(m.quantite||"-")} · par ${esc(m.delivre_par||"-")}</div>
           </div>
           <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},false)">Annuler</button>
         </div>`;
@@ -2504,7 +2504,7 @@ function renderDispensation(){
           <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
             <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
           <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
-            <select id="${uId}"><option value="">— Choisir —</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
+            <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
           <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
         </div>
       </div>`;
@@ -2512,7 +2512,7 @@ function renderDispensation(){
     return `<div class="rec">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
-          <div class="rec-meta">${d}${site} · Prescrit par ${esc(r.medecin_nom||"—")}</div>
+          <div class="rec-meta">${d}${site} · Prescrit par ${esc(r.medecin_nom||"-")}</div>
           <div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation||"")}</div></div>
       </div>
       ${medsHtml}
@@ -2557,9 +2557,9 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
       quantite:newQty, updated_at:new Date().toISOString(),
       updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
     }).eq("id",item.id);
-    toast(delivered?`Délivré — stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée — stock restauré");
+    toast(delivered?`Délivré - stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée - stock restauré");
   } else if(med && qty>0){
-    toast(delivered?"Médicament marqué comme délivré (article de stock introuvable — vérifiez le stock manuellement)":"Délivrance annulée");
+    toast(delivered?"Médicament marqué comme délivré (article de stock introuvable - vérifiez le stock manuellement)":"Délivrance annulée");
   } else {
     toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
   }
@@ -2567,7 +2567,7 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
 }
 
 /* =====================================================================
-   TABLEAU DE BORD PHARMACIEN — indicateurs de pharmacie uniquement,
+   TABLEAU DE BORD PHARMACIEN - indicateurs de pharmacie uniquement,
    aucune donnée de consultation (diagnostics, âges, sexes...).
    ===================================================================== */
 async function renderPharmacienDashboard(){
@@ -2624,9 +2624,9 @@ async function renderPharmacienDashboard(){
     ${topDelivered.length?`<div class="dash-card"><div class="dash-card-head"><span>Médicaments les plus délivrés</span></div>
       <div style="height:${Math.max(140,topDelivered.length*38)}px"><canvas id="dashPharmaDelivChart"></canvas></div></div>`:""}
     ${lowStock.length?`<div class="dash-card"><div class="dash-card-head"><span>Articles en stock bas</span></div>
-      ${lowStock.map(it=>`<div class="rec-meta" style="margin-bottom:6px">${esc(it.nom)} — <b>${it.quantite} ${esc(it.unite||"")}</b> (seuil : ${it.seuil_alerte||0})</div>`).join("")}
+      ${lowStock.map(it=>`<div class="rec-meta" style="margin-bottom:6px">${esc(it.nom)} - <b>${it.quantite} ${esc(it.unite||"")}</b> (seuil : ${it.seuil_alerte||0})</div>`).join("")}
       </div>`:""}
-    ${!stockItems.length?`<div class="empty">Aucun article en stock pour l'instant — allez dans l'onglet Pharmacie pour en ajouter.</div>`:""}
+    ${!stockItems.length?`<div class="empty">Aucun article en stock pour l'instant - allez dans l'onglet Pharmacie pour en ajouter.</div>`:""}
   `;
 
   if(typeof Chart==="undefined") return;
@@ -2663,16 +2663,16 @@ function loadPharmacieTab(){
     $("pharmaAgentView").classList.remove("hidden");
     $("pharmaAdminOverview").classList.add("hidden");
     if(!$("stock_categorie").innerHTML){
-      $("stock_categorie").innerHTML=`<option value="">— Choisir —</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
-      $("stock_type").innerHTML=`<option value="">— Choisir —</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
-      $("stock_unite").innerHTML=`<option value="">— Choisir —</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+      $("stock_categorie").innerHTML=`<option value="">- Choisir -</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      $("stock_type").innerHTML=`<option value="">- Choisir -</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
+      $("stock_unite").innerHTML=`<option value="">- Choisir -</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
     }
     loadDispensation();
   }
 }
 
 async function loadPharmaAdminOverview(){
-  // Compte global des médicaments délivrés, tous sites confondus — un simple chiffre, pas le détail.
+  // Compte global des médicaments délivrés, tous sites confondus - un simple chiffre, pas le détail.
   const {data,error}=await sb.from("consultations").select("medicaments").limit(2000);
   if(!error){
     let count=0;
@@ -2690,7 +2690,7 @@ async function loadPharmaAdminGlobalStock(){
   const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,site_id");
   if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucun site.</div>`; return; }
-  // Regroupement par nom (insensible à la casse) — additionne les quantités, quelle que soit l'unité
+  // Regroupement par nom (insensible à la casse) - additionne les quantités, quelle que soit l'unité
   // déclarée site par site (à interpréter avec prudence si les unités diffèrent d'un site à l'autre).
   const map={};
   data.forEach(it=>{
@@ -2855,7 +2855,7 @@ function renderStockImportPreview(){
   box.classList.remove("hidden");
   const nbConflits=STOCK_IMPORT_ROWS.filter(r=>r.conflict).length;
   box.innerHTML=`
-    <div class="rec-meta" style="margin-bottom:10px">${STOCK_IMPORT_ROWS.length} ligne(s) détectée(s)${nbConflits?`, dont ${nbConflits} déjà en stock — à trancher ci-dessous`:""}.</div>
+    <div class="rec-meta" style="margin-bottom:10px">${STOCK_IMPORT_ROWS.length} ligne(s) détectée(s)${nbConflits?`, dont ${nbConflits} déjà en stock - à trancher ci-dessous`:""}.</div>
     ${STOCK_IMPORT_ROWS.map((r,i)=>`
       <div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;gap:8px">
@@ -2863,7 +2863,7 @@ function renderStockImportPreview(){
           <span class="rec-meta">${r.quantite} ${esc(r.unite)}</span>
         </div>
         ${r.conflict?`
-          <div class="rec-meta" style="margin:6px 0">Déjà en stock : ${r.existingQty} — que faire ?</div>
+          <div class="rec-meta" style="margin:6px 0">Déjà en stock : ${r.existingQty} - que faire ?</div>
           <select onchange="STOCK_IMPORT_ROWS[${i}].decision=this.value" style="padding:6px 8px">
             <option value="ajouter"${r.decision==="ajouter"?" selected":""}>Ajouter à l'existant (${r.existingQty} + ${r.quantite} = ${r.existingQty+r.quantite})</option>
             <option value="remplacer"${r.decision==="remplacer"?" selected":""}>Remplacer par ${r.quantite}</option>
@@ -2952,20 +2952,20 @@ async function deleteStockItem(id){
 }
 
 /* =====================================================================
-   ADMIN — CAMPAGNES ET LEURS SITES (onglet fusionné, vue en fiches)
+   ADMIN - CAMPAGNES ET LEURS SITES (onglet fusionné, vue en fiches)
    Chaque campagne est affichée avec ses sites directement en dessous,
    éditables sur place. Un bloc "Sites autonomes" regroupe les sites
    sans campagne (conservés pour compatibilité avec les données existantes).
    ===================================================================== */
 function campagneName(id){ const c=CAMPAGNES.find(x=>x.id===id); return c?c.nom:null; }
 function campagneOpts(selectedId){
-  return `<option value="">— Aucune —</option>`+
+  return `<option value="">- Aucune -</option>`+
     CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===selectedId?" selected":""}>${esc(c.nom)}</option>`).join("");
 }
-function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}):"—"; }
+function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"; }
 
 /* Rendu unique : chaque campagne est une fiche, avec ses sites juste en dessous,
-   directement modifiables — plus besoin de sélectionner un contexte séparément. */
+   directement modifiables - plus besoin de sélectionner un contexte séparément. */
 let CAMPAGNES_SUBTAB="actives";
 function switchCampagnesSubTab(sub){
   CAMPAGNES_SUBTAB=sub;
@@ -3019,7 +3019,7 @@ function siteListHtml(sites){
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (seul habilité à gérer le stock de ce site)</label>
         <select onchange="setPharmacienChef('${s.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
-          <option value="">— Aucun —</option>
+          <option value="">- Aucun -</option>
           ${candidats.map(p=>`<option value="${p.id}"${s.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
         </select>
         ${!candidats.length?'<span class="rec-meta">Aucun pharmacien affecté à ce site pour l\'instant.</span>':""}
@@ -3136,7 +3136,7 @@ async function addCampagne(){
   $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
-  toast("Campagne créée — ajoutez ses sites juste en dessous");
+  toast("Campagne créée - ajoutez ses sites juste en dessous");
   // amène directement la personne sur la fiche de la campagne qu'elle vient de créer
   if(inserted && inserted[0]) $("campcard_"+inserted[0].id)?.scrollIntoView({behavior:"smooth",block:"start"});
 }

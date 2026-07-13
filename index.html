@@ -3,20 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1a5a2a">
+<meta name="theme-color" content="#17763B">
 <link rel="icon" type="image/png" href="./icon.png">
 <link rel="apple-touch-icon" href="./icon.png">
 <title>Consultations AMSTC</title>
 <style>
   :root{
-    --green-900:#123c1c; --green-700:#1a5a2a; --green-500:#2ea038; --green-50:#eef6f0;
-    --orange:#f39c12; --orange-dark:#cf850a; --gold:#f6c453;
+    --green-900:#06441C; --green-700:#17763B; --green-500:#2ea038; --green-50:#eef6f0;
+    --orange:#F8B718; --orange-dark:#AA7B11; --gold:#F8B718;
     --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
     --danger:#c0392b; --danger-bg:#fdecea;
     --radius:12px; --radius-sm:8px;
     --shadow:0 1px 3px rgba(20,50,25,.08),0 1px 2px rgba(20,50,25,.04);
     --gradient-brand:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 100%);
-    --gradient-brand-rich:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 65%,#0c2e15 100%);
+    --gradient-brand-rich:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 65%,#03260f 100%);
     --gradient-gold:linear-gradient(135deg,var(--gold) 0%,var(--orange) 55%,var(--orange-dark) 100%);
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -36,12 +36,13 @@
     opacity:0;transition:opacity 1.4s ease}
   .auth-hero-slide.active{opacity:1}
   .auth-hero-overlay{position:absolute;inset:0;
-    background:linear-gradient(165deg,rgba(9,40,17,.94) 8%,rgba(18,60,28,.72) 45%,rgba(18,60,28,.88) 100%)}
+    background:linear-gradient(165deg,rgba(3,30,12,.94) 8%,rgba(6,68,28,.72) 45%,rgba(6,68,28,.88) 100%)}
   .auth-hero-overlay::after{content:"";position:absolute;top:-30%;right:-10%;width:260px;height:260px;
     border-radius:50%;background:var(--gradient-gold);opacity:.16;pointer-events:none}
   .auth-hero-content{position:relative;padding:30px 26px;width:100%}
-  .auth-hero-badge{width:52px;height:52px;background:#fff;border-radius:15px;
-    display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  .auth-hero-badge{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;
+    padding:10px 16px;margin-bottom:18px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  .auth-hero-badge img{height:38px;width:auto;display:block}
   .auth-hero h1{font-size:21px;font-weight:800;line-height:1.28;margin-bottom:10px;max-width:520px;letter-spacing:-.3px}
   .auth-hero p{font-size:13.5px;opacity:.94;line-height:1.62;max-width:480px;margin-bottom:18px}
   .auth-hero-features{display:flex;flex-wrap:wrap;gap:9px}
@@ -84,7 +85,7 @@
   .btn-primary:hover{background:var(--green-900)}
   .btn-primary:disabled{opacity:.55;cursor:not-allowed}
   .btn-primary:active{transform:scale(.98)}
-  .btn-accent{background:var(--gradient-gold);color:#3a2600;box-shadow:0 2px 6px rgba(243,156,18,.3)}
+  .btn-accent{background:var(--gradient-gold);color:#3a2600;box-shadow:0 2px 6px rgba(248,183,24,.3)}
   .btn-accent:hover{filter:brightness(.95);color:#3a2600}
   .btn-ghost{background:transparent;color:var(--green-700);border:1px solid var(--line)}
   .btn-ghost:hover{background:var(--green-50)}
@@ -131,14 +132,14 @@
   .menu-head b{display:block;font-size:14px}
   .menu-head small{color:var(--muted);font-size:12px}
   .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;margin-top:4px}
-  .badge-admin{background:#fff1d6;color:#8a5a05} .badge-agent{background:var(--green-50);color:var(--green-900)}
+  .badge-admin{background:#fdf1d6;color:#7a5808} .badge-agent{background:var(--green-50);color:var(--green-900)}
   .menu-pop button{width:100%;text-align:left;padding:11px 14px;background:none;border:none;font-size:14px;color:var(--ink)}
   .menu-pop button:hover{background:var(--green-50)}
 
   /* ---------- NAVIGATION PAR ICÔNES ---------- */
   /* Mobile (par défaut) : barre fixe en bas de l'écran, icônes seules — plus de chevauchement de texte */
   .tabs{display:flex;background:var(--gradient-brand-rich);border-top:1px solid var(--line);position:fixed;left:0;right:0;bottom:0;
-    z-index:999;min-height:75px;padding-bottom:max(env(safe-area-inset-bottom,0px),10px);box-shadow:0 -2px 14px rgba(18,60,28,.08)}
+    z-index:999;min-height:75px;padding-bottom:max(env(safe-area-inset-bottom,0px),10px);box-shadow:0 -2px 14px rgba(6,68,28,.08)}
   .navtab{flex:1;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
     padding:10px 2px;border:none;background:none;color:var(--muted)}
   .navtab-icon{width:38px;height:38px;min-width:38px;min-height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;
@@ -160,7 +161,7 @@
   margin-top: 2px;
 }
   .navtab.active{color:var(--green-700)}
-  .navtab.active .navtab-icon{background:var(--gradient-gold);box-shadow:0 3px 8px rgba(243,156,18,.35)}
+  .navtab.active .navtab-icon{background:var(--gradient-gold);box-shadow:0 3px 8px rgba(248,183,24,.35)}
   .navtab.active .navtab-icon svg{color:#fff;stroke:#fff}
   .navtab:active .navtab-icon{transform:scale(.9)}
 
@@ -168,7 +169,7 @@
   .subnav{display:flex;background:var(--green-50);border-radius:100px;padding:4px;margin-bottom:16px;gap:4px}
   .subnav-btn{flex:1;border:none;background:transparent;padding:10px 14px;border-radius:100px;font-size:14px;font-weight:600;
     color:var(--muted);cursor:pointer;transition:background .25s ease,color .25s ease,box-shadow .25s ease,transform .15s ease}
-  .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(18,60,28,.14)}
+  .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(6,68,28,.14)}
   .subnav-btn:active{transform:scale(.97)}
 
   .content{padding:18px 16px 96px;max-width:760px;width:100%;margin:0 auto;flex:1}
@@ -181,31 +182,30 @@
 
   /* ---------- TABLEAU DE BORD : bandeau, cartes de stats, cartes de contenu ---------- */
   .dash-greeting{background:var(--gradient-brand-rich);border-radius:18px;position:relative;overflow:hidden;
-    padding:20px 22px;margin-bottom:16px;color:#fff;box-shadow:0 4px 14px rgba(18,60,28,.18)}
+    padding:20px 22px;margin-bottom:16px;color:#fff;box-shadow:0 4px 14px rgba(6,68,28,.18)}
   .dash-greeting::after{content:"";position:absolute;top:-40%;right:-15%;width:180px;height:180px;border-radius:50%;
     background:var(--gradient-gold);opacity:.16;pointer-events:none}
   .dash-greeting-title{position:relative;font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px}
   .dash-greeting-date{position:relative;font-size:13px;opacity:.85;font-weight:500;text-transform:capitalize}
-  .dash-card{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(18,60,28,.07),0 1px 3px rgba(18,60,28,.05);
-    padding:18px;margin-bottom:16px;border:1px solid rgba(18,60,28,.05)}
+  .dash-card{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(6,68,28,.07),0 1px 3px rgba(6,68,28,.05);
+    padding:18px;margin-bottom:16px;border:1px solid rgba(6,68,28,.05)}
   .dash-card-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
   .dash-card-head svg{color:var(--green-700);flex-shrink:0}
   .dash-card-head span{font-weight:700;font-size:14.5px;color:var(--green-900)}
-  .stat{background:#fff;border-radius:16px;padding:15px;box-shadow:0 2px 8px rgba(18,60,28,.06);
-    border:1px solid rgba(18,60,28,.05);display:flex;flex-direction:column;gap:10px}
-  .stat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .stat-icon-g{background:var(--green-50);color:var(--green-700)}
-  .stat-icon-o{background:#fff3de;color:var(--orange-dark)}
-  .stat b{font-size:23px;font-weight:800;color:var(--green-900);line-height:1}
-  .stat span{font-size:11.5px;color:var(--muted);font-weight:600}
+  .dstat{background:#fff;border-radius:16px;padding:15px;box-shadow:0 2px 8px rgba(6,68,28,.06);
+    border:1px solid rgba(6,68,28,.05);display:flex;flex-direction:column;gap:10px}
+  .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .dstat-icon-g{background:var(--green-50);color:var(--green-700)}
+  .dstat-icon-o{background:#fff3de;color:var(--orange-dark)}
+  .dstat b{font-size:23px;font-weight:800;color:var(--green-900);line-height:1}
+  .dstat span{font-size:11.5px;color:var(--muted);font-weight:600}
 
   /* ---------- CARDS / LIST ---------- */
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
   .toolbar input,.toolbar select{width:auto;flex:1;min-width:140px}
   .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
-  .stat{background:#fff;border:1px solid var(--line);border-left:3px solid var(--green-500);border-radius:var(--radius);padding:14px 16px}
-  .stat b{display:block;font-size:26px;font-weight:700;color:var(--green-900);line-height:1}
-  .stat span{font-size:12px;color:var(--muted)}
+  /* .stat (le petit indicateur "Consultations / En attente d'envoi" en haut de la liste) est
+     défini une seule fois plus bas, avec son liseré coloré — voir "Unification de .stat" */
 
   .rec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
   .rec-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px}
@@ -214,7 +214,7 @@
   .rec-diag{font-size:14px;margin:8px 0}
   .rec-diag b{color:var(--green-900)}
   .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap}
-  .tag-sent{background:var(--green-50);color:var(--green-900)} .tag-queue{background:#fff1d6;color:#8a5a05}
+  .tag-sent{background:var(--green-50);color:var(--green-900)} .tag-queue{background:#fdf1d6;color:#7a5808}
   .rec-foot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:var(--radius);overflow:hidden}
@@ -235,7 +235,7 @@
   /* ---------- GRAND ÉCRAN : barre latérale au lieu de la barre du bas, mise en page élargie ---------- */
   @media(min-width:900px){
     .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
-      border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(18,60,28,.05);
+      border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(6,68,28,.05);
       padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
     .navtab{padding:10px 4px}
     .navtab span{display:block;font-size:11px;font-weight:600}
@@ -290,9 +290,9 @@
     }
   }
 
-  /* 5 · Unification de .stat (résout le conflit des deux définitions plus haut).
-     Une seule définition cohérente ; le liseré gauche est conservé pour que
-     l'override inline orange (compteur « en attente ») continue de fonctionner. */
+  /* .stat : uniquement le petit indicateur "Consultations / En attente d'envoi" en tête
+     de la liste des consultations. Les cartes du tableau de bord (avec badge d'icône)
+     utilisent .dstat, une classe séparée, pour ne plus jamais entrer en conflit avec ceci. */
   .stat{
     background:var(--white);
     border:1px solid var(--line);
@@ -318,7 +318,7 @@
       padding:12px 16px;
       background:var(--white);
       border-top:1px solid var(--line);
-      box-shadow:0 -6px 16px rgba(18,60,28,.07);
+      box-shadow:0 -6px 16px rgba(6,68,28,.07);
     }
     #panel-form .actions .btn{ flex:1; }   /* les deux boutons se partagent la largeur */
   }
@@ -353,7 +353,7 @@
       </div>
       <div class="auth-hero-overlay"></div>
       <div class="auth-hero-content">
-        <div class="auth-hero-badge"><img src="./icon.png" alt="AMSTC" style="width:32px;height:32px"></div>
+        <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh"></div>
         <h1>Bienvenue sur la plateforme de gestion des consultations de l'Association Médico-Sociale des Talibés Cheikh (AMSTC)</h1>
         <p>Un outil pensé pour le terrain, conçu pour accompagner nos équipes médicales au plus près des patients.</p>
         <div class="auth-hero-features">
@@ -365,7 +365,7 @@
     </div>
   <div class="auth-card">
     <div class="brand" style="flex-direction:column;text-align:center;gap:10px">
-      <img src="./logo.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:140px;height:auto">
+      <img src="./logo-horizontal.png" alt="AMSTC — Association Médico-Sociale des Talibés Cheikh" style="width:100%;max-width:280px;height:auto">
     </div>
 
     <div id="loginBox">
@@ -484,7 +484,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v53</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v56</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -493,7 +493,7 @@
   </div>
 
   <!-- Modale "Mon profil" : prénom, nom, photo — accessible à tout compte connecté -->
-  <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(18,60,28,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 style="font-size:18px;margin-bottom:16px">Mon profil</h2>
       <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
@@ -757,7 +757,10 @@
       <!-- Vue ADMIN : aperçu en lecture seule, aucune action possible ici -->
       <div id="pharmaAdminOverview" class="hidden">
         <div class="stat-row" style="margin-bottom:16px">
-          <div class="stat"><b id="pharmaAdminDeliveredCount">—</b><span>Médicaments délivrés au total</span></div>
+          <div class="dstat">
+            <div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div>
+            <div><b id="pharmaAdminDeliveredCount">—</b><span>Médicaments délivrés au total</span></div>
+          </div>
         </div>
         <fieldset>
           <legend>Stock total — toute la campagne</legend>
@@ -1776,8 +1779,8 @@ async function renderDashboard(){
     <div class="dash-greeting-date">${dateLong}</div>
   </div>`;
 
-  const statCard=(icon,tone,value,label)=>`<div class="stat">
-    <div class="stat-icon stat-icon-${tone}">${svg(icon)}</div>
+  const statCard=(icon,tone,value,label)=>`<div class="dstat">
+    <div class="dstat-icon dstat-icon-${tone}">${svg(icon)}</div>
     <div><b>${value}</b><span>${label}</span></div>
   </div>`;
 
@@ -1864,7 +1867,7 @@ async function renderDashboard(){
     return; // les chiffres et le tableau par site restent affichés, seuls les graphiques sont indisponibles
   }
 
-  const green="#2ea038", green900="#123c1c", orange="#f39c12", grid="#e3e9e5";
+  const green="#17763B", green900="#06441C", orange="#F8B718", grid="#e3e9e5";
   Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
   Chart.defaults.color="#5f6b62";
 
@@ -2574,10 +2577,10 @@ async function renderPharmacienDashboard(){
       <div class="dash-greeting-date">${dateLong} · Pharmacie de ${esc(siteName(siteId))}</div>
     </div>
     <div class="stat-row">
-      <div class="stat"><b>${stockItems.length}</b><span>Articles en stock</span></div>
-      <div class="stat"><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div>
-      <div class="stat"><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div>
-      <div class="stat"><b>${lowStock.length}</b><span>Alertes stock bas</span></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div><div><b>${stockItems.length}</b><span>Articles en stock</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div><b>${lowStock.length}</b><span>Alertes stock bas</span></div></div>
     </div>
     ${collegueCardHtml(collegues)}
     ${catEntries.length?`<div class="dash-card"><div class="dash-card-head"><span>Stock par catégorie</span></div>
@@ -2591,7 +2594,7 @@ async function renderPharmacienDashboard(){
   `;
 
   if(typeof Chart==="undefined") return;
-  const green="#2ea038", green900="#123c1c", orange="#f39c12", grid="#e3e9e5";
+  const green="#17763B", green900="#06441C", orange="#F8B718", grid="#e3e9e5";
   if(catEntries.length){
     killChart("pharmaCat");
     CHARTS.pharmaCat=new Chart($("dashPharmaCatChart"),{

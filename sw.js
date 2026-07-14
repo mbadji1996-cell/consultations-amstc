@@ -32,7 +32,7 @@ self.addEventListener("fetch", (e) => {
   if (url.hostname.endsWith(".supabase.co")) return;
 
   // App shell : cache d'abord, réseau en secours (rapide + hors ligne)
-  if (APP_SHELL.some((p) => req.url.endsWith(p.replace("./", "")) || req.url === p)) {
+  if (APP_SHELL.some((p) => req.url === new URL(p, self.location).href || req.url === p)) {
     e.respondWith(
       caches.match(req).then((cached) => cached || fetch(req))
     );

@@ -10,7 +10,7 @@
 <style>
   :root{
     --green-900:#06441C; --green-700:#17763B; --green-500:#2ea038; --green-50:#eef6f0;
-    --orange:#F8B718; --orange-dark:#AA7B11; --gold:#F8B718;
+    --orange:#D19914; --orange-dark:#AA7B11; --gold:#F8B718;
     --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
     --danger:#c0392b; --danger-bg:#fdecea;
     --radius:12px; --radius-sm:8px;
@@ -141,7 +141,7 @@
   .tabs{display:flex;background:var(--gradient-brand-rich);border-top:1px solid var(--line);position:fixed;left:0;right:0;bottom:0;
     z-index:999;min-height:75px;padding-bottom:max(env(safe-area-inset-bottom,0px),10px);box-shadow:0 -2px 14px rgba(6,68,28,.08)}
   .navtab{flex:1;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-    padding:10px 2px;border:none;background:none;color:var(--muted)}
+    padding:10px 2px;border:none;background:none;color:rgba(255,255,255,.62)}
   .navtab-icon{width:38px;height:38px;min-width:38px;min-height:38px;border-radius:13px;display:flex;align-items:center;justify-content:center;
     position:relative;transition:background .2s ease,transform .15s ease}
   .navtab-badge{position:absolute;top:-3px;right:-5px;background:var(--danger);color:#fff;font-size:10px;font-weight:800;
@@ -200,7 +200,7 @@
   .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .dstat-icon-g{background:var(--green-50);color:var(--green-700)}
   .dstat-icon-o{background:#fff3de;color:var(--orange-dark)}
-  .dstat b{font-size:23px;font-weight:800;color:var(--green-900);line-height:1}
+  .dstat b{font-size:24px;font-weight:800;color:var(--green-900);line-height:1}
   .dstat span{font-size:11.5px;color:var(--muted);font-weight:600}
 
   /* ---------- CARDS / LIST ---------- */
@@ -229,9 +229,14 @@
 
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--green-900);color:#fff;
     padding:12px 18px;border-radius:100px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);
-    z-index:60;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+    z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:var(--danger)}
+  /* Sur mobile, la barre d'onglets fixe occupe le bas de l'écran (z-index:999) :
+     le toast doit remonter au-dessus d'elle pour rester visible. */
+  @media (max-width:899px){
+    .toast{ bottom:calc(85px + env(safe-area-inset-bottom,0px)); }
+  }
 
   @media(max-width:480px){.row2,.constants{grid-template-columns:1fr}}
 
@@ -498,9 +503,9 @@
   </div>
 
   <!-- Modale "Mon profil" : prénom, nom, photo - accessible à tout compte connecté -->
-  <div id="profileModalOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px">
+  <div id="profileModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle" onclick="if(event.target===this) closeProfileModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
-      <h2 style="font-size:18px;margin-bottom:16px">Mon profil</h2>
+      <h2 id="profileModalTitle" style="font-size:18px;margin-bottom:16px">Mon profil</h2>
       <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
         <div id="profileAvatarPreview" style="width:80px;height:80px;border-radius:50%;background:var(--green-50);color:var(--green-700);
           display:flex;align-items:center;justify-content:center;font-weight:700;font-size:26px;overflow:hidden;margin-bottom:10px"></div>
@@ -665,7 +670,7 @@
     <!-- TABLEAU DE BORD (agent et admin) -->
     <div class="panel" id="panel-dashboard">
       <div class="actions" style="margin-bottom:16px;align-items:center">
-        <select id="dashCampagneFilter" class="hidden" onchange="onCampagneFilterChange()" style="max-width:260px"></select>
+        <select id="dashCampagneFilter" class="hidden" onchange="onCampagneFilterChange()" style="max-width:260px" aria-label="Filtrer par campagne"></select>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
         <button class="btn btn-ghost btn-sm hidden" id="backupBtn" onclick="downloadFullBackup()">Sauvegarde complète (JSON)</button>
@@ -677,8 +682,8 @@
     <div class="panel" id="panel-list">
       <div class="stat-row" id="listStats"></div>
       <div class="toolbar">
-        <input type="text" id="search" placeholder="Rechercher (nom, numéro AMSTC-…, diagnostic…)" oninput="renderList()">
-        <select id="siteFilter" class="hidden" onchange="renderList()"></select>
+        <input type="text" id="search" placeholder="Rechercher (nom, numéro AMSTC-…, diagnostic…)" aria-label="Rechercher une consultation" oninput="renderList()">
+        <select id="siteFilter" class="hidden" onchange="renderList()" aria-label="Filtrer par site"></select>
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Exporter CSV</button>
         <button class="btn btn-ghost btn-sm" onclick="refreshData()">Actualiser</button>
       </div>
@@ -689,7 +694,7 @@
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
       <div class="toolbar">
-        <input type="text" id="userSearch" placeholder="Rechercher un praticien (nom, e-mail…)" oninput="renderUsers()">
+        <input type="text" id="userSearch" placeholder="Rechercher un praticien (nom, e-mail…)" aria-label="Rechercher un praticien" oninput="renderUsers()">
       </div>
       <div id="usersBody"></div>
     </div>
@@ -783,7 +788,7 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -817,6 +822,12 @@ let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien 
 let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
 let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
+// Panneaux dépliés (fiches utilisateur / campagne / sites d'une campagne) : mémorisés ici pour
+// survivre au re-rendu complet (innerHTML=) déclenché après chaque action, plutôt que de se
+// refermer systématiquement et forcer un nouveau clic sur "Modifier"/"Détails" à chaque fois.
+let OPEN_USER_EDITS = new Set();
+let OPEN_CAMP_DETAILS = new Set();
+let OPEN_CAMP_SITES = new Set();
 
 /* ---------- utilitaires ---------- */
 const $ = id => document.getElementById(id);
@@ -826,6 +837,17 @@ function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert a
   if(type==="ok") setTimeout(()=>el.innerHTML="",3500); }
 function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"-"; }
+
+// Traduit les erreurs réseau génériques (souvent en anglais brut, ex. "Failed to fetch") en un
+// message français compréhensible ; laisse passer tel quel un message déjà clair (ex. contrainte
+// métier Supabase), pour ne jamais masquer une information utile.
+function errMsg(error){
+  const raw=(error&&error.message)||"";
+  if(/failed to fetch|networkerror|network error|load failed|ERR_INTERNET|ERR_NETWORK/i.test(raw)){
+    return "Connexion impossible. Vérifiez votre connexion internet et réessayez.";
+  }
+  return raw||"Erreur inconnue.";
+}
 
 /* ---------- offline queue ---------- */
 function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return[];} }
@@ -860,7 +882,7 @@ async function doForgotPassword(){
   $("forgotBtn").disabled=true; $("forgotBtn").textContent="Envoi…";
   const {error}=await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname });
   $("forgotBtn").disabled=false; $("forgotBtn").textContent="Envoyer le lien";
-  if(error){ alertIn("forgotAlert","err","Échec : "+error.message); return; }
+  if(error){ alertIn("forgotAlert","err","Échec : "+errMsg(error)); return; }
   alertIn("forgotAlert","ok","Si un compte existe avec cette adresse, un e-mail vient d'être envoyé. Pensez à vérifier vos spams.");
 }
 
@@ -871,7 +893,7 @@ async function doUpdatePassword(){
   $("resetBtn").disabled=true; $("resetBtn").textContent="Enregistrement…";
   const {error}=await sb.auth.updateUser({ password:p1 });
   $("resetBtn").disabled=false; $("resetBtn").textContent="Enregistrer le nouveau mot de passe";
-  if(error){ alertIn("resetAlert","err","Échec : "+error.message); return; }
+  if(error){ alertIn("resetAlert","err","Échec : "+errMsg(error)); return; }
   IS_RECOVERY=false;
   history.replaceState(null,"",window.location.pathname); // retire le jeton de récupération de l'URL
   toast("Mot de passe mis à jour");
@@ -896,7 +918,7 @@ async function doSignup(){
   $("signupBtn").disabled=true; $("signupBtn").textContent="Création…";
   const {error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom}}});
   $("signupBtn").disabled=false; $("signupBtn").textContent="Créer le compte";
-  if(error){ alertIn("signupAlert","err","Échec : "+error.message); return; }
+  if(error){ alertIn("signupAlert","err","Échec : "+errMsg(error)); return; }
   showLogin();
   alertIn("loginAlert","ok","Compte créé. Il doit être activé par un administrateur avant utilisation.");
 }
@@ -909,7 +931,7 @@ async function doGoogle(){
       queryParams:{ prompt:"select_account" } // force Google à toujours proposer le choix du compte
     }
   });
-  if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+error.message); }
+  if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+errMsg(error)); }
   // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app
 }
 
@@ -991,7 +1013,7 @@ async function saveProfile(){
   if(PROFILE_AVATAR_BLOB){
     const path=`${ME.id}/avatar.jpg`;
     const {error:upErr}=await sb.storage.from("avatars").upload(path,PROFILE_AVATAR_BLOB,{upsert:true,contentType:"image/jpeg"});
-    if(upErr){ toast("Échec de l'envoi de la photo : "+upErr.message,true); return; }
+    if(upErr){ toast("Échec de l'envoi de la photo : "+errMsg(upErr),true); return; }
     const {data:pub}=sb.storage.from("avatars").getPublicUrl(path);
     avatar_url=pub.publicUrl+"?t="+Date.now(); // évite que le navigateur affiche l'ancienne photo en cache
   }
@@ -999,7 +1021,7 @@ async function saveProfile(){
   const {error}=await sb.from("profiles").update({
     prenom, nom, avatar_url, telephone, niveau_etude, profession_declaree, profession_declaree_detail,
   }).eq("id",ME.id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
 
   Object.assign(ME,{prenom,nom,avatar_url,telephone,niveau_etude,profession_declaree,profession_declaree_detail});
   $("menuName").textContent=`${prenom} ${nom}`.trim()||ME.email;
@@ -1119,7 +1141,7 @@ async function confirmSiteSelection(){
   $("siteSelectBtn").disabled=true; $("siteSelectBtn").textContent="Confirmation…";
   const {error}=await sb.from("profiles").update(payload).eq("id",ME.id);
   $("siteSelectBtn").disabled=false; $("siteSelectBtn").textContent="Confirmer mon site";
-  if(error){ alertIn("siteSelectAlert","err","Échec : "+error.message); return; }
+  if(error){ alertIn("siteSelectAlert","err","Échec : "+errMsg(error)); return; }
   toast("Site confirmé");
   await enterApp(); // recharge le profil à jour et poursuit normalement
 }
@@ -1224,6 +1246,8 @@ function buildTabs(){
     $("c_specialite_med_select").classList.remove("hidden");
     $("c_specialite_med_select").innerHTML=specialtySelectOptions("");
     $("c_specialite_med_autre").classList.add("hidden"); $("c_specialite_med_autre").value="";
+    refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
+    setupReferField(""); // idem : masqué tant qu'aucun site n'est choisi
   } else if(!isPharmacien()){
     // Un agent normal n'a qu'une spécialité : pas de sélecteur, juste un rappel visible de son rôle.
     const spec=mySpecialite();
@@ -1243,9 +1267,6 @@ function buildTabs(){
     onConsultTypeChange();
     refreshStockForForm(ME.site_id); // le stock disponible pour prescrire dépend du site fixe de l'agent
     setupReferField();
-  } else if(ME.role==="admin"){
-    refreshStockForForm(""); // vide tant que l'admin n'a pas choisi de site pour cette consultation
-    setupReferField(""); // idem : masqué tant qu'aucun site n'est choisi
   }
   refreshPendingReferencesCount(); // visible depuis n'importe quel écran, pas seulement le tableau de bord
   switchTab(tabs[0][0]);
@@ -1295,7 +1316,7 @@ function commencerConsultationReferee(consultId,prenom,nom,sexe,age){
 
 async function marquerReferenceTraitee(consultId,silencieux){
   const {error}=await sb.rpc("marquer_reference_traitee",{p_consultation_id:consultId});
-  if(error){ if(!silencieux) toast("Échec : "+error.message,true); return; }
+  if(error){ if(!silencieux) toast("Échec : "+errMsg(error),true); return; }
   refreshPendingReferencesCount();
   if(!silencieux){ toast("Marqué comme traité"); if(CURRENT_TAB==="dashboard") renderDashboard(); }
 }
@@ -1499,20 +1520,23 @@ async function saveConsultation(){
   if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
 
   $("saveBtn").disabled=true;
+  let confirmMsg="Consultation enregistrée.";
   if(navigator.onLine){
     const {error}=await sb.from("consultations").insert(rec);
     $("saveBtn").disabled=false;
     if(error){ // bascule en file d'attente si l'envoi échoue
       const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
       toast("Enregistré localement (envoi différé)");
+      confirmMsg="Consultation enregistrée localement - l'envoi sera retenté automatiquement.";
     } else { toast("Consultation enregistrée"); await refreshData(); }
   } else {
     const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
     $("saveBtn").disabled=false;
     toast("Enregistré hors ligne · sera synchronisé");
+    confirmMsg="Consultation enregistrée hors ligne - elle sera synchronisée dès le retour de la connexion.";
   }
   resetForm();
-  alertIn("formAlert","ok","Consultation enregistrée.");
+  alertIn("formAlert","ok",confirmMsg);
 }
 
 async function flushQueue(){
@@ -1578,7 +1602,7 @@ function renderList(){
     const d=new Date(r.created_at).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
     const tag=r._queued?`<span class="tag tag-queue">À envoyer</span>`:`<span class="tag tag-sent">Synchronisée</span>`;
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
-    const medecin=ME.role==="admin"&&r.medecin_nom?` · Dr/Agent : ${esc(r.medecin_nom)}`:"";
+    const medecin=ME.role==="admin"&&r.medecin_nom?` · Praticien : ${esc(r.medecin_nom)}`:"";
     const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
@@ -1610,8 +1634,15 @@ async function deleteConsultation(id, isQueued){
     setQueue(getQueue().filter(x=>String(x._local)!==localTs));
     renderList(); toast("Consultation en attente supprimée"); return;
   }
+  if(!navigator.onLine){
+    // Contrairement à l'enregistrement, la suppression d'une consultation déjà synchronisée
+    // n'est pas mise en file d'attente hors ligne : on informe clairement plutôt que de laisser
+    // échouer l'appel réseau avec un message technique.
+    toast("Suppression impossible hors connexion. Réessayez une fois reconnecté.",true);
+    return;
+  }
   const {data,error}=await sb.from("consultations").delete().eq("id",id).select();
-  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){
     toast("Suppression refusée par la base (droits insuffisants ou déjà supprimée)",true);
     await refreshData();
@@ -2252,7 +2283,7 @@ async function downloadReportWord(){
     a.click();
     toast("Rapport Word téléchargé");
   }catch(e){
-    toast("Échec de la génération du document Word : "+e.message,true);
+    toast("Échec de la génération du document Word : "+errMsg(e),true);
   }
 }
 
@@ -2263,7 +2294,7 @@ async function downloadFullBackup(){
   const backup={ genere_le:new Date().toISOString(), tables:{} };
   for(const t of tables){
     const {data,error}=await sb.from(t).select("*");
-    if(error){ toast(`Échec sur la table "${t}" : `+error.message,true); return; }
+    if(error){ toast(`Échec sur la table "${t}" : `+errMsg(error),true); return; }
     backup.tables[t]=data||[];
   }
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
@@ -2293,7 +2324,7 @@ function exportCSV(){
    ===================================================================== */
 async function loadUsers(){
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
-  if(error){ alertIn("usersAlert","err","Chargement impossible : "+error.message); return; }
+  if(error){ alertIn("usersAlert","err","Chargement impossible : "+errMsg(error)); return; }
   USERS_CACHE=data||[];
   PHARMACIENS_CACHE=USERS_CACHE.filter(u=>u.specialite==="pharmacien" && u.actif);
   renderUsers();
@@ -2306,7 +2337,7 @@ async function refreshPharmaciensCache(){
 
 async function setPharmacienChef(siteId,pharmacienId){
   const {error}=await sb.from("sites").update({pharmacien_chef_id:pharmacienId||null}).eq("id",siteId);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   toast(pharmacienId?"Pharmacien en chef désigné":"Pharmacien en chef retiré");
   renderCampagnes();
@@ -2347,11 +2378,11 @@ function renderUsers(){
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
           ${u.actif?'<span class="tag tag-sent">Actif</span>':'<span class="tag tag-queue">Inactif</span>'}
-          <button class="btn btn-ghost btn-sm" id="userToggleBtn_${u.id}" onclick="event.stopPropagation();toggleUserEdit('${u.id}')">Modifier</button>
+          <button class="btn btn-ghost btn-sm" id="userToggleBtn_${u.id}" onclick="event.stopPropagation();toggleUserEdit('${u.id}')">${OPEN_USER_EDITS.has(u.id)?"Fermer":"Modifier"}</button>
         </div>
       </div>
 
-      <div id="userEdit_${u.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+      <div id="userEdit_${u.id}" class="${OPEN_USER_EDITS.has(u.id)?"":"hidden"}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
         ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px">🔒 Compte protégé - le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
         <div class="row2" style="gap:10px">
@@ -2359,7 +2390,7 @@ function renderUsers(){
             <label style="font-size:12px">Rôle</label>
             ${u.super_admin
               ? `<div style="padding:9px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--green-50);font-weight:600">Admin (protégé)</div>`
-              : `<select onchange="setRole('${u.id}',this.value)">
+              : `<select onchange="setRole('${u.id}',this.value,this)">
                   <option value="agent"${u.role==="agent"?" selected":""}>Praticien</option>
                   <option value="admin"${u.role==="admin"?" selected":""}>Admin</option>
                 </select>`}
@@ -2410,6 +2441,7 @@ function toggleUserEdit(id){
   const el=$("userEdit_"+id); if(!el) return;
   const showing=!el.classList.contains("hidden");
   el.classList.toggle("hidden");
+  if(showing) OPEN_USER_EDITS.delete(id); else OPEN_USER_EDITS.add(id);
   const btn=$("userToggleBtn_"+id);
   if(btn) btn.textContent = showing ? "Modifier" : "Fermer";
 }
@@ -2418,13 +2450,13 @@ async function setSpecialite(id,value){
   const payload={ specialite:value };
   if(value!=="specialiste") payload.specialite_detail=null; // le détail n'a de sens que pour un spécialiste
   const {error}=await sb.from("profiles").update(payload).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Spécialité mise à jour");
   loadUsers();
 }
 async function setSpecialiteDetail(id,value){
   const {error}=await sb.from("profiles").update({specialite_detail:value.trim()||null}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Détail de spécialité enregistré");
   loadUsers();
 }
@@ -2434,17 +2466,22 @@ function onUserSpecialtySelectChange(id,value){
   setSpecialiteDetail(id,value);
 }
 async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
-  if(error) toast("Échec : "+error.message,true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
-async function setRole(id,role){ const {error}=await sb.from("profiles").update({role}).eq("id",id);
-  if(error) toast("Échec : "+error.message,true); else toast("Rôle mis à jour"); }
+  if(error) toast("Échec : "+errMsg(error),true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
+async function setRole(id,role,selectEl){
+  if(role==="admin" && !confirm("Promouvoir ce praticien au rôle Administrateur ?\n\nIl aura alors accès à la gestion de tous les utilisateurs, sites, campagnes et à l'ensemble des consultations, tous sites confondus.")){
+    if(selectEl) selectEl.value="agent";
+    return;
+  }
+  const {error}=await sb.from("profiles").update({role}).eq("id",id);
+  if(error) toast("Échec : "+errMsg(error),true); else { toast("Rôle mis à jour"); loadUsers(); } }
 async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
-  if(error) toast("Échec : "+error.message,true); else toast("Site attribué"); }
+  if(error) toast("Échec : "+errMsg(error),true); else { toast("Site attribué"); loadUsers(); } }
 // Changer la campagne d'un utilisateur réinitialise son site (l'ancien site n'a probablement plus de sens
 // dans la nouvelle campagne) - l'admin choisit ensuite explicitement le nouveau site dans la liste filtrée.
 async function onUserCampagneChange(id){
   const campagne_id=$("user_campagne_"+id).value||null;
   const {error}=await sb.from("profiles").update({campagne_id,site_id:null}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Campagne attribuée - sélectionnez maintenant un site");
   loadUsers();
 }
@@ -2453,7 +2490,7 @@ async function deleteUser(id){
   const label=u?(`${u.prenom||""} ${u.nom||""}`.trim()||u.email||"cet utilisateur"):"cet utilisateur";
   if(!confirm(`Supprimer définitivement le profil de "${label}" ?\n\nCette personne perdra tout accès à l'application. Ses consultations déjà enregistrées seront conservées. Cette action est irréversible.`)) return;
   const {data,error}=await sb.from("profiles").delete().eq("id",id).select();
-  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); loadUsers(); return; }
   toast("Utilisateur supprimé");
   loadUsers();
@@ -2470,7 +2507,7 @@ async function loadDispensation(){
     .select("id,numero_consultation,created_at,prenom,nom,medicaments,medecin_nom,site_id")
     .order("created_at",{ascending:false})
     .limit(300);
-  if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici - jamais une prescription
   // hors stock saisie manuellement par le médecin faute de correspondance dans le stock.
   DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.some(m=>m.en_stock));
@@ -2533,7 +2570,7 @@ function confirmDelivery(consultId,idx){
 
 async function toggleMedDelivered(consultId,idx,delivered,quantite){
   const {error}=await sb.rpc("mark_medicament_delivered",{p_consultation_id:consultId,p_index:idx,p_delivered:delivered,p_quantite:quantite||null});
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
 
   // Répercussion sur le stock : fiable via l'identifiant lié (stock_id) quand disponible,
   // sinon repli par correspondance de nom pour les anciennes prescriptions.
@@ -2690,7 +2727,7 @@ async function loadPharmaAdminOverview(){
 
 async function loadPharmaAdminGlobalStock(){
   const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,site_id");
-  if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucun site.</div>`; return; }
   // Regroupement par nom (insensible à la casse) - additionne les quantités, quelle que soit l'unité
   // déclarée site par site (à interpréter avec prudence si les unités diffèrent d'un site à l'autre).
@@ -2716,7 +2753,7 @@ async function loadPharmaAdminStock(){
   const siteId=$("pharmaAdminStockSite").value;
   if(!siteId){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun site.</div>`; return; }
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
-  if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
   const groups={};
   data.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
@@ -2726,7 +2763,7 @@ async function loadPharmaAdminStock(){
       <div style="font-size:12px;font-weight:700;color:var(--green-900);margin-bottom:6px">${esc(cat)}</div>
       ${groups[cat].map(it=>{
         const low=it.quantite<=(it.seuil_alerte||0);
-        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)${low?';background:#fdecea':''}">
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)${low?';background:var(--danger-bg)':''}">
           <div>
             <b>${esc(it.nom)}</b>${low?' <span class="tag tag-queue">Bas</span>':''}
             <div class="rec-meta">${esc(STOCK_TYPES[it.type_article]||"Médicament")}</div>
@@ -2757,7 +2794,7 @@ async function loadStock(){
   $("importStockFieldset")?.classList.toggle("hidden", !isChiefPharmacien());
   if(!siteId){ $("stockBody").innerHTML=`<div class="empty">Aucun site attribué.</div>`; return; }
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
-  if(error){ $("stockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(error.message)}</div>`; return; }
+  if(error){ $("stockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   renderStock(data||[]);
 }
 
@@ -2774,7 +2811,7 @@ function renderStock(items){
       </tr></thead><tbody>
         ${groups[cat].map(it=>{
           const low=it.quantite<=(it.seuil_alerte||0);
-          return `<tr${low?' style="background:#fdecea"':''} id="stockrow_${it.id}">
+          return `<tr${low?' style="background:var(--danger-bg)"':''} id="stockrow_${it.id}">
             <td><b>${esc(it.nom)}</b>${low?'<div class="tag tag-queue" style="margin-top:4px">Stock bas</div>':''}</td>
             <td>${esc(STOCK_TYPES[it.type_article]||"Médicament")}</td>
             <td><input type="number" min="0" value="${it.quantite}" id="stockqte_${it.id}" disabled style="width:65px;padding:6px 8px"></td>
@@ -2926,7 +2963,7 @@ async function addStockItem(){
     site_id:siteId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   });
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   $("stock_nom").value=""; $("stock_qte").value=""; $("stock_seuil").value="";
   toast("Article ajouté au stock");
   loadStock();
@@ -2940,7 +2977,7 @@ async function updateStockQty(id){
     quantite:qte, unite, seuil_alerte, updated_at:new Date().toISOString(),
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   }).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Stock mis à jour");
   loadStock();
 }
@@ -2948,7 +2985,7 @@ async function updateStockQty(id){
 async function deleteStockItem(id){
   if(!confirm("Retirer ce médicament du stock ?")) return;
   const {error}=await sb.from("stock_medicaments").delete().eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Retiré du stock");
   loadStock();
 }
@@ -2992,15 +3029,14 @@ function renderCampagnes(){
       <div class="rec-name" style="margin-bottom:2px">Sites autonomes</div>
       <div class="rec-meta" style="margin-bottom:10px">Sites qui ne sont rattachés à aucune campagne.</div>
       <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('autonomes')" id="campSitesToggleBtn_autonomes">
-        <span>Sites (${autonomes.length})</span><span id="campSitesChevron_autonomes">▾</span>
+        <span>Sites (${autonomes.length})</span><span id="campSitesChevron_autonomes">${OPEN_CAMP_SITES.has('autonomes')?"▴":"▾"}</span>
       </button>
-      <div id="campSitesBody_autonomes" class="hidden">
+      <div id="campSitesBody_autonomes" class="${OPEN_CAMP_SITES.has('autonomes')?"":"hidden"}">
         ${siteListHtml(autonomes)}
         ${addSiteFormHtml(null)}
       </div>
     </div>`;
-  $("campagnesBody").innerHTML = groups + autonomesHtml ||
-    `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`+autonomesHtml;
+  $("campagnesBody").innerHTML = (groups || `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`) + autonomesHtml;
 }
 
 function siteListHtml(sites){
@@ -3053,11 +3089,11 @@ function campagneCardHtml(c){
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
         ${statusBadge}
-        <button class="btn btn-ghost btn-sm" id="campToggleBtn_${c.id}" onclick="event.stopPropagation();toggleCampagneDetails('${c.id}')">Détails</button>
+        <button class="btn btn-ghost btn-sm" id="campToggleBtn_${c.id}" onclick="event.stopPropagation();toggleCampagneDetails('${c.id}')">${OPEN_CAMP_DETAILS.has(c.id)?"Masquer":"Détails"}</button>
       </div>
     </div>
 
-    <div id="campDetails_${c.id}" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+    <div id="campDetails_${c.id}" class="${OPEN_CAMP_DETAILS.has(c.id)?"":"hidden"}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
       <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
       <div class="row2" style="gap:8px;margin-bottom:8px">
         <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="padding:7px 9px;font-size:13.5px">
@@ -3082,9 +3118,9 @@ function campagneCardHtml(c){
       </div>
       <div style="border-top:1px solid var(--line);padding-top:12px">
         <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('${c.id}')" id="campSitesToggleBtn_${c.id}">
-          <span>Sites (${sites.length})</span><span id="campSitesChevron_${c.id}">▾</span>
+          <span>Sites (${sites.length})</span><span id="campSitesChevron_${c.id}">${OPEN_CAMP_SITES.has(c.id)?"▴":"▾"}</span>
         </button>
-        <div id="campSitesBody_${c.id}" class="hidden">
+        <div id="campSitesBody_${c.id}" class="${OPEN_CAMP_SITES.has(c.id)?"":"hidden"}">
           ${siteListHtml(sites)}
           ${addSiteFormHtml(c.id)}
         </div>
@@ -3096,20 +3132,23 @@ function campagneCardHtml(c){
 function toggleCampagneSites(id){
   const el=$("campSitesBody_"+id); if(!el) return;
   el.classList.toggle("hidden");
-  $("campSitesChevron_"+id).textContent = el.classList.contains("hidden") ? "▾" : "▴";
+  const nowHidden=el.classList.contains("hidden");
+  if(nowHidden) OPEN_CAMP_SITES.delete(id); else OPEN_CAMP_SITES.add(id);
+  $("campSitesChevron_"+id).textContent = nowHidden ? "▾" : "▴";
 }
 
 function toggleCampagneDetails(id){
   const el=$("campDetails_"+id); if(!el) return;
   const showing=!el.classList.contains("hidden");
   el.classList.toggle("hidden");
+  if(showing) OPEN_CAMP_DETAILS.delete(id); else OPEN_CAMP_DETAILS.add(id);
   const btn=$("campToggleBtn_"+id);
   if(btn) btn.textContent = showing ? "Détails" : "Masquer";
 }
 
 async function archiveCampagne(id,archivee){
   const {error}=await sb.from("campagnes").update({archivee}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   await reloadCampagnes();
   toast(archivee?"Campagne archivée":"Campagne réactivée");
   renderCampagnes();
@@ -3134,7 +3173,7 @@ async function addCampagne(){
   if(!nom){ alertIn("campagnesAlert","err","Le nom de la campagne est requis."); return; }
   if(date_debut && date_fin && date_fin<date_debut){ alertIn("campagnesAlert","err","La date de fin ne peut pas précéder la date de début."); return; }
   const {data:inserted,error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin}).select();
-  if(error){ alertIn("campagnesAlert","err","Échec : "+error.message); return; }
+  if(error){ alertIn("campagnesAlert","err","Échec : "+errMsg(error)); return; }
   $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
@@ -3152,7 +3191,7 @@ async function updateCampagne(id){
   if(!nom){ toast("Le nom de la campagne ne peut pas être vide",true); return; }
   if(date_debut && date_fin && date_fin<date_debut){ toast("La date de fin ne peut pas précéder la date de début",true); return; }
   const {error}=await sb.from("campagnes").update({nom,lieu:lieu||null,date_debut,date_fin,actif}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne mise à jour");
@@ -3163,7 +3202,7 @@ async function deleteCampagne(id){
   const label=c?c.nom:"cette campagne";
   if(!confirm(`Supprimer définitivement la campagne "${label}" ?\n\nLes sites qui lui sont rattachés seront conservés, mais deviendront "sans campagne". Les consultations ne sont jamais affectées. Cette action est irréversible.`)) return;
   const {data,error}=await sb.from("campagnes").delete().eq("id",id).select();
-  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
   await reloadCampagnes();
   const {data:sitesData}=await sb.from("sites").select("*").order("nom"); SITES=sitesData||[];
@@ -3177,7 +3216,7 @@ async function addSite(campagneId){
   const nom=$(inputId).value.trim();
   if(!nom){ toast("Le nom du site est requis",true); return; }
   const {error}=await sb.from("sites").insert({nom,campagne_id:campagneId||null});
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderCampagnes(); buildTabsSiteFilter(); toast("Site ajouté");
 }
@@ -3187,7 +3226,7 @@ async function updateSite(id){
   const actif=$("site_actif_"+id).value==="true";
   if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
   const {error}=await sb.from("sites").update({nom,actif}).eq("id",id);
-  if(error){ toast("Échec : "+error.message,true); return; }
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderCampagnes(); buildTabsSiteFilter(); toast("Site mis à jour");
 }
@@ -3197,7 +3236,7 @@ async function deleteSite(id){
   const label=s?s.nom:"ce site";
   if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et praticiens déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
   const {data,error}=await sb.from("sites").delete().eq("id",id).select();
-  if(error){ toast("Échec de la suppression : "+error.message,true); return; }
+  if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
   const {data:fresh}=await sb.from("sites").select("*").order("nom"); SITES=fresh||[];
   renderCampagnes(); buildTabsSiteFilter(); toast("Site supprimé");
@@ -3222,6 +3261,7 @@ function togglePwd(id,btn){
   btn.setAttribute("aria-label",showing?"Masquer le mot de passe":"Afficher le mot de passe");
 }
 document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) $("menuPop").classList.add("hidden"); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("profileModalOverlay").classList.contains("hidden")) closeProfileModal(); });
 window.addEventListener("online",async()=>{ updateSync(); await refreshData(); });
 window.addEventListener("offline",updateSync);
 

@@ -13,8 +13,10 @@
     --orange:#D19914; --orange-dark:#AA7B11; --gold:#F8B718;
     --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
     --danger:#c0392b; --danger-bg:#fdecea;
+    --amber-bg:#fdf1d6; --amber-text:#7a5808;
     --radius:12px; --radius-sm:8px;
     --shadow:0 1px 3px rgba(20,50,25,.08),0 1px 2px rgba(20,50,25,.04);
+    --shadow-lg:0 2px 10px rgba(6,68,28,.07),0 1px 3px rgba(6,68,28,.05);
     --gradient-brand:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 100%);
     --gradient-brand-rich:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 65%,#03260f 100%);
     --gradient-gold:linear-gradient(135deg,var(--gold) 0%,var(--orange) 55%,var(--orange-dark) 100%);
@@ -47,9 +49,9 @@
   .auth-hero p{font-size:13.5px;opacity:.94;line-height:1.62;max-width:480px;margin-bottom:18px}
   .auth-hero-features{display:flex;flex-wrap:wrap;gap:9px}
   .auth-hero-feature{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);
-    backdrop-filter:blur(2px);padding:8px 13px;border-radius:100px;font-size:12.5px;font-weight:600}
+    backdrop-filter:blur(2px);padding:8px 13px;border-radius:var(--radius-full);font-size:12.5px;font-weight:600}
   .auth-hero-feature svg{width:15px;height:15px;flex-shrink:0}
-  .auth-card{background:var(--white);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+  .auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);
     width:100%;max-width:400px;margin:0 auto;padding:32px 28px}
   @media(min-width:860px){
     .auth-wrap{flex-direction:row;align-items:stretch;gap:32px}
@@ -121,11 +123,11 @@
   .topbar-title{font-size:15px;font-weight:700;flex:1;line-height:1.15}
   .topbar-title span{display:block;font-size:11px;font-weight:400;opacity:.85}
   .sync-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);padding:6px 11px;
-    border-radius:100px;font-size:12.5px;font-weight:600;white-space:nowrap}
+    border-radius:var(--radius-full);font-size:12.5px;font-weight:600;white-space:nowrap}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
   .dot-on{background:#7ee29a} .dot-off{background:var(--orange)} .dot-sync{background:#8ecbff;animation:pulse 1s infinite}
   @keyframes pulse{50%{opacity:.4}}
-  .sync-count{background:var(--orange);color:#3a2600;border-radius:100px;padding:1px 7px;font-size:11px;font-weight:700}
+  .sync-count{background:var(--orange);color:#3a2600;border-radius:var(--radius-full);padding:1px 7px;font-size:11px;font-weight:700}
 
   .usermenu{position:relative}
   .avatar{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.16);color:#fff;border:none;
@@ -135,8 +137,8 @@
   .menu-head{padding:12px 14px;border-bottom:1px solid var(--line)}
   .menu-head b{display:block;font-size:14px}
   .menu-head small{color:var(--muted);font-size:12px}
-  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:100px;margin-top:4px}
-  .badge-admin{background:#fdf1d6;color:#7a5808} .badge-agent{background:var(--green-50);color:var(--green-900)}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--radius-full);margin-top:4px}
+  .badge-admin{background:var(--amber-bg);color:var(--amber-text)} .badge-agent{background:var(--green-50);color:var(--green-900)}
   .menu-pop button{width:100%;text-align:left;padding:11px 14px;background:none;border:none;font-size:14px;color:var(--ink)}
   .menu-pop button:hover{background:var(--green-50)}
 
@@ -171,8 +173,8 @@
   .navtab:active .navtab-icon{transform:scale(.9)}
 
   /* ---------- Sous-sélecteur à deux positions (ex : Pharmacie > Délivrances / Stock) ---------- */
-  .subnav{display:flex;background:var(--green-50);border-radius:100px;padding:4px;margin-bottom:16px;gap:4px}
-  .subnav-btn{flex:1;border:none;background:transparent;padding:10px 14px;border-radius:100px;font-size:14px;font-weight:600;
+  .subnav{display:flex;background:var(--green-50);border-radius:var(--radius-full);padding:4px;margin-bottom:16px;gap:4px}
+  .subnav-btn{flex:1;border:none;background:transparent;padding:10px 14px;border-radius:var(--radius-full);font-size:14px;font-weight:600;
     color:var(--muted);cursor:pointer;transition:background .25s ease,color .25s ease,box-shadow .25s ease,transform .15s ease}
   .subnav-btn.active{background:#fff;color:var(--green-700);box-shadow:0 2px 8px rgba(6,68,28,.14)}
   .subnav-btn:active{transform:scale(.97)}
@@ -184,6 +186,7 @@
   .constants{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .constants .field{margin-bottom:0}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .med-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-end}
 
   /* ---------- TABLEAU DE BORD : bandeau, cartes de stats, cartes de contenu ---------- */
   .dash-greeting{background:var(--gradient-brand-rich);border-radius:18px;position:relative;overflow:hidden;
@@ -192,12 +195,12 @@
     background:var(--gradient-gold);opacity:.16;pointer-events:none}
   .dash-greeting-title{position:relative;font-size:19px;font-weight:800;margin-bottom:3px;letter-spacing:-.2px}
   .dash-greeting-date{position:relative;font-size:13px;opacity:.85;font-weight:500;text-transform:capitalize}
-  .dash-card{background:#fff;border-radius:16px;box-shadow:0 2px 10px rgba(6,68,28,.07),0 1px 3px rgba(6,68,28,.05);
+  .dash-card{background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
     padding:18px;margin-bottom:16px;border:1px solid rgba(6,68,28,.05)}
   .dash-card-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
   .dash-card-head svg{color:var(--green-700);flex-shrink:0}
   .dash-card-head span{font-weight:700;font-size:14.5px;color:var(--green-900)}
-  .dstat{background:#fff;border-radius:16px;padding:15px;box-shadow:0 2px 8px rgba(6,68,28,.06);
+  .dstat{background:#fff;border-radius:var(--radius-lg);padding:15px;box-shadow:var(--shadow-lg);
     border:1px solid rgba(6,68,28,.05);display:flex;flex-direction:column;gap:10px}
   .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .dstat-icon-g{background:var(--green-50);color:var(--green-700)}
@@ -221,8 +224,8 @@
   .rec-meta{font-size:12.5px;color:var(--muted)}
   .rec-diag{font-size:14px;margin:8px 0}
   .rec-diag b{color:var(--green-900)}
-  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:100px;white-space:nowrap}
-  .tag-sent{background:var(--green-50);color:var(--green-900)} .tag-queue{background:#fdf1d6;color:#7a5808}
+  .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:var(--radius-full);white-space:nowrap}
+  .tag-sent{background:var(--green-50);color:var(--green-900)} .tag-queue{background:var(--amber-bg);color:var(--amber-text)}
   .rec-foot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:var(--radius);overflow:hidden}
@@ -233,7 +236,7 @@
   .empty{text-align:center;color:var(--muted);padding:40px 16px;font-size:14px}
 
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--green-900);color:#fff;
-    padding:12px 18px;border-radius:100px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);
+    padding:12px 18px;border-radius:var(--radius-full);font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);
     z-index:1000;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .toast.err{background:var(--danger)}
@@ -288,7 +291,8 @@
   .subnav-btn:focus-visible,
   .pwd-toggle:focus-visible,
   .avatar:focus-visible,
-  .menu-pop button:focus-visible{
+  .menu-pop button:focus-visible,
+  [role="button"]:focus-visible{
     outline:2px solid var(--gold);
     outline-offset:2px;
   }
@@ -360,7 +364,7 @@
   html{ scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
   ::-webkit-scrollbar{ width:10px; height:10px; }
   ::-webkit-scrollbar-track{ background:transparent; }
-  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:100px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:var(--radius-full); }
   ::-webkit-scrollbar-thumb:hover{ background:#c7d2cb; }
 
   /* 2 · Légère élévation au survol des cartes (souris uniquement - jamais sur tactile,
@@ -390,6 +394,14 @@
     -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8h18l-1.6-4.8A2 2 0 0 0 17.5 2h-11a2 2 0 0 0-1.9 1.2L3 8Z"/><path d="M3 8h18"/><path d="M9 12a3 3 0 0 0 6 0"/></svg>') center/contain no-repeat;
     mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8h18l-1.6-4.8A2 2 0 0 0 17.5 2h-11a2 2 0 0 0-1.9 1.2L3 8Z"/><path d="M3 8h18"/><path d="M9 12a3 3 0 0 0 6 0"/></svg>') center/contain no-repeat;
   }
+  /* Variante pour un échec de chargement (réseau, permissions...) : une icône d'alerte
+     plutôt que la boîte vide, qui suggérerait à tort "aucune donnée" au lieu d'un échec. */
+  .empty-err::before{
+    background-color:var(--danger);
+    -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>') center/contain no-repeat;
+    mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>') center/contain no-repeat;
+  }
+  .empty-err{ color:#8a231a; }
 
   /* 5 · Petit indicateur de chargement, réutilisé partout où l'app va chercher des
      données (tableau de bord, utilisateurs, pharmacie...) pour éviter l'écran vide
@@ -413,7 +425,7 @@
   /* 8 · Modale de confirmation "sur mesure", pour remplacer le confirm() natif du
      navigateur (rendu très daté et incohérent d'un système à l'autre) par un composant
      aux couleurs de l'application - même structure que la modale "Mon profil". */
-  .confirm-modal-box{ background:#fff;border-radius:16px;padding:24px;width:100%;max-width:400px;
+  .confirm-modal-box{ background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:400px;
     box-shadow:0 20px 50px rgba(6,68,28,.25); }
   .confirm-modal-box h2{ font-size:17px;margin-bottom:10px; }
   .confirm-modal-box p{ font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:20px; }
@@ -455,8 +467,8 @@
       <h2>Connexion</h2>
       <p class="auth-sub">Accédez à votre espace de consultations.</p>
       <div id="loginAlert"></div>
-      <div class="field"><label>Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label>
+      <div class="field"><label for="loginEmail">Adresse e-mail</label><input type="email" id="loginEmail" autocomplete="email"></div>
+      <div class="field"><label for="loginPass">Mot de passe</label>
         <div class="pwd-wrap"><input type="password" id="loginPass" autocomplete="current-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('loginPass',this)" aria-label="Afficher le mot de passe">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -481,11 +493,11 @@
       <p class="auth-sub">Votre compte sera activé par un administrateur avant utilisation.</p>
       <div id="signupAlert"></div>
       <div class="row2">
-        <div class="field"><label>Prénom</label><input type="text" id="suPrenom"></div>
-        <div class="field"><label>Nom</label><input type="text" id="suNom"></div>
+        <div class="field"><label for="suPrenom">Prénom</label><input type="text" id="suPrenom"></div>
+        <div class="field"><label for="suNom">Nom</label><input type="text" id="suNom"></div>
       </div>
-      <div class="field"><label>Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
+      <div class="field"><label for="suEmail">Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
+      <div class="field"><label for="suPass">Mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
         <div class="pwd-wrap"><input type="password" id="suPass" autocomplete="new-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('suPass',this)" aria-label="Afficher le mot de passe">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -515,7 +527,7 @@
       <h2>Mot de passe oublié</h2>
       <p class="auth-sub">Indiquez votre adresse e-mail : un lien de réinitialisation vous sera envoyé.</p>
       <div id="forgotAlert"></div>
-      <div class="field"><label>Adresse e-mail</label><input type="email" id="forgotEmail" autocomplete="email"></div>
+      <div class="field"><label for="forgotEmail">Adresse e-mail</label><input type="email" id="forgotEmail" autocomplete="email"></div>
       <button class="btn btn-primary btn-block" id="forgotBtn" onclick="doForgotPassword()">Envoyer le lien</button>
       <p style="text-align:center;margin-top:16px;font-size:14px;color:var(--muted)">
         <button class="link-btn" onclick="showLogin()">Retour à la connexion</button>
@@ -526,13 +538,13 @@
       <h2>Nouveau mot de passe</h2>
       <p class="auth-sub">Choisissez un nouveau mot de passe pour votre compte.</p>
       <div id="resetAlert"></div>
-      <div class="field"><label>Nouveau mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
+      <div class="field"><label for="resetPass">Nouveau mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
         <div class="pwd-wrap"><input type="password" id="resetPass" autocomplete="new-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('resetPass',this)" aria-label="Afficher le mot de passe">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           </button>
         </div></div>
-      <div class="field"><label>Confirmer le mot de passe</label>
+      <div class="field"><label for="resetPass2">Confirmer le mot de passe</label>
         <div class="pwd-wrap"><input type="password" id="resetPass2" autocomplete="new-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('resetPass2',this)" aria-label="Afficher le mot de passe">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -579,7 +591,7 @@
 
   <!-- Modale "Mon profil" : prénom, nom, photo - accessible à tout compte connecté -->
   <div id="profileModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle" onclick="if(event.target===this) closeProfileModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
+    <div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 id="profileModalTitle" style="font-size:18px;margin-bottom:16px">Mon profil</h2>
       <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
         <div id="profileAvatarPreview" style="width:80px;height:80px;border-radius:50%;background:var(--green-50);color:var(--green-700);
@@ -587,10 +599,10 @@
         <input type="file" id="profileAvatarInput" accept="image/*" onchange="onProfileAvatarSelected(event)">
         <p class="rec-meta" style="margin-top:6px;text-align:center">Photo visible par l'administrateur et vos collègues du même site.</p>
       </div>
-      <div class="field"><label>Prénom</label><input type="text" id="profile_prenom"></div>
-      <div class="field"><label>Nom</label><input type="text" id="profile_nom"></div>
-      <div class="field"><label>Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
-      <div class="field"><label>Profession</label>
+      <div class="field"><label for="profile_prenom">Prénom</label><input type="text" id="profile_prenom"></div>
+      <div class="field"><label for="profile_nom">Nom</label><input type="text" id="profile_nom"></div>
+      <div class="field"><label for="profile_telephone">Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
+      <div class="field"><label for="profile_profession">Profession</label>
         <select id="profile_profession" onchange="onProfileProfessionChange()">
           <option value="">- Choisir -</option>
           <option value="medecin">Médecin</option>
@@ -601,10 +613,10 @@
         </select>
       </div>
       <div class="field hidden" id="profileProfessionDetailWrap">
-        <label>Spécialité</label>
+        <label for="profile_profession_detail">Spécialité</label>
         <select id="profile_profession_detail"></select>
       </div>
-      <div class="field"><label>Niveau d'étude</label>
+      <div class="field"><label for="profile_niveau">Niveau d'étude</label>
         <select id="profile_niveau">
           <option value="">- Choisir -</option>
           <option value="Licence 1">Licence 1</option>
@@ -660,11 +672,11 @@
     <div class="panel" id="panel-form">
       <div id="formAlert"></div>
       <div class="field hidden" id="c_site_wrap">
-        <label>Site de consultation <span class="req">*</span></label>
+        <label for="c_site">Site de consultation <span class="req">*</span></label>
         <select id="c_site" onchange="refreshStockForForm(this.value); setupReferField(this.value)"><option value="">- Sélectionner un site -</option></select>
       </div>
       <div class="field hidden" id="typePickerWrap">
-        <label>Type de consultation</label>
+        <label for="c_type">Type de consultation</label>
         <select id="c_type" onchange="onConsultTypeChange()">
           <option value="generaliste">Généraliste</option>
           <option value="dentiste">Dentiste</option>
@@ -673,16 +685,16 @@
       </div>
       <div class="hidden" id="roleBadgeWrap" style="background:var(--green-50);color:var(--green-900);border-radius:var(--radius-sm);padding:10px 12px;font-size:13.5px;margin-bottom:16px"></div>
       <div class="field row2">
-        <div><label>Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
-        <div><label>Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
+        <div><label for="c_prenom">Prénom <span class="req">*</span></label><input type="text" id="c_prenom"></div>
+        <div><label for="c_nom">Nom <span class="req">*</span></label><input type="text" id="c_nom"></div>
       </div>
       <div class="row2">
-        <div class="field"><label>Sexe <span class="req">*</span></label>
+        <div class="field"><label for="c_sexe">Sexe <span class="req">*</span></label>
           <select id="c_sexe"><option value="">- Sélectionner -</option><option value="M">Masculin</option><option value="F">Féminin</option></select></div>
-        <div class="field"><label>Âge (années) <span class="req">*</span></label><input type="number" id="c_age" min="0" max="150"></div>
+        <div class="field"><label for="c_age">Âge (années) <span class="req">*</span></label><input type="number" id="c_age" min="0" max="150"></div>
       </div>
-      <div class="field"><label>Adresse</label><input type="text" id="c_adresse" placeholder="Quartier / localité"></div>
-      <div class="field"><label>Motifs de consultation <span class="req">*</span></label>
+      <div class="field"><label for="c_adresse">Adresse</label><input type="text" id="c_adresse" placeholder="Quartier / localité"></div>
+      <div class="field"><label for="c_motifs">Motifs de consultation <span class="req">*</span></label>
         <textarea id="c_motifs" placeholder="Raisons de la visite"></textarea></div>
 
       <!-- ===== GÉNÉRALISTE (également utilisé par le DENTISTE - même formulaire) ===== -->
@@ -690,20 +702,20 @@
         <fieldset>
           <legend>Constantes vitales</legend>
           <div class="constants">
-            <div class="field"><label>Tension artérielle</label><input type="text" id="c_ta" placeholder="120/80"></div>
-            <div class="field"><label>Température (°C)</label><input type="number" id="c_temperature" step="0.1" placeholder="37.5"></div>
-            <div class="field"><label>Fréquence cardiaque</label><input type="number" id="c_fc" placeholder="72"></div>
-            <div class="field"><label>Taille (cm)</label><input type="number" id="c_taille" step="0.1" placeholder="165"></div>
-            <div class="field"><label>Poids (kg)</label><input type="number" id="c_poids" step="0.1" placeholder="65.5"></div>
+            <div class="field"><label for="c_ta">Tension artérielle</label><input type="text" id="c_ta" placeholder="120/80"></div>
+            <div class="field"><label for="c_temperature">Température (°C)</label><input type="number" id="c_temperature" step="0.1" placeholder="37.5"></div>
+            <div class="field"><label for="c_fc">Fréquence cardiaque</label><input type="number" id="c_fc" placeholder="72"></div>
+            <div class="field"><label for="c_taille">Taille (cm)</label><input type="number" id="c_taille" step="0.1" placeholder="165"></div>
+            <div class="field"><label for="c_poids">Poids (kg)</label><input type="number" id="c_poids" step="0.1" placeholder="65.5"></div>
           </div>
         </fieldset>
-        <div class="field"><label>Antécédents et terrain</label>
+        <div class="field"><label for="c_antecedents">Antécédents et terrain</label>
           <textarea id="c_antecedents" placeholder="Antécédents, allergies, maladies chroniques…"></textarea></div>
-        <div class="field"><label>Signes cliniques <span class="req">*</span></label>
+        <div class="field"><label for="c_signes">Signes cliniques <span class="req">*</span></label>
           <textarea id="c_signes" placeholder="Résultats de l'examen clinique"></textarea></div>
-        <div class="field"><label>Diagnostic <span class="req">*</span></label>
+        <div class="field"><label for="c_diagnostic">Diagnostic <span class="req">*</span></label>
           <textarea id="c_diagnostic" placeholder="Diagnostic principal"></textarea></div>
-        <div class="field"><label>Explorations complémentaires demandées</label>
+        <div class="field"><label for="c_explorations">Explorations complémentaires demandées</label>
           <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
@@ -719,16 +731,16 @@
       <!-- ===== SPÉCIALISTE ===== -->
       <div id="type_specialiste_fields" class="hidden">
         <div class="field">
-          <label>Spécialité médicale <span class="req">*</span></label>
+          <label for="c_specialite_med">Spécialité médicale <span class="req">*</span></label>
           <input type="text" id="c_specialite_med" class="hidden" readonly>
           <select id="c_specialite_med_select" class="hidden" onchange="onCSpecialiteMedSelectChange()"></select>
           <input type="text" id="c_specialite_med_autre" class="hidden" placeholder="Précisez la spécialité" style="margin-top:8px">
         </div>
-        <div class="field"><label>Signes cliniques <span class="req">*</span></label>
+        <div class="field"><label for="c_signes_spec">Signes cliniques <span class="req">*</span></label>
           <textarea id="c_signes_spec" placeholder="Résultats de l'examen"></textarea></div>
-        <div class="field"><label>Diagnostic <span class="req">*</span></label>
+        <div class="field"><label for="c_diagnostic_spec">Diagnostic <span class="req">*</span></label>
           <textarea id="c_diagnostic_spec" placeholder="Diagnostic principal"></textarea></div>
-        <div class="field"><label>Explorations complémentaires demandées</label>
+        <div class="field"><label for="c_explorations_spec">Explorations complémentaires demandées</label>
           <textarea id="c_explorations_spec"></textarea></div>
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
@@ -742,9 +754,9 @@
       </div>
 
       <fieldset id="referFieldset" class="hidden"><legend>Référer ce patient à un confrère (facultatif)</legend>
-        <div class="field"><label>Référer vers</label>
+        <div class="field"><label for="c_refere_vers">Référer vers</label>
           <select id="c_refere_vers" onchange="onRefereVersChange()"><option value="">- Ne pas référer -</option></select></div>
-        <div class="field hidden" id="referMotifWrap"><label>Motif de la référence</label>
+        <div class="field hidden" id="referMotifWrap"><label for="c_refere_motif">Motif de la référence</label>
           <textarea id="c_refere_motif" placeholder="Pourquoi orienter ce patient vers ce confrère ?"></textarea></div>
       </fieldset>
 
@@ -758,8 +770,8 @@
     <div class="panel" id="panel-dashboard">
       <div class="actions" style="margin-bottom:16px;align-items:center">
         <select id="dashCampagneFilter" class="hidden" onchange="onCampagneFilterChange()" style="max-width:260px" aria-label="Filtrer par campagne"></select>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
+        <button class="btn btn-ghost btn-sm" id="pdfReportBtn" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
+        <button class="btn btn-ghost btn-sm" id="wordReportBtn" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
         <button class="btn btn-ghost btn-sm hidden" id="backupBtn" onclick="downloadFullBackup()">Sauvegarde complète (JSON)</button>
       </div>
       <div id="dashBody"></div>
@@ -771,7 +783,7 @@
       <div class="toolbar">
         <input type="text" id="search" placeholder="Rechercher (nom, numéro AMSTC-…, diagnostic…)" aria-label="Rechercher une consultation" oninput="renderList()">
         <select id="siteFilter" class="hidden" onchange="renderList()" aria-label="Filtrer par site"></select>
-        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Exporter CSV</button>
+        <button class="btn btn-ghost btn-sm" id="exportCsvBtn" onclick="exportCSV()">Exporter CSV</button>
         <button class="btn btn-ghost btn-sm" onclick="refreshData()">Actualiser</button>
       </div>
       <div id="listBody"></div>
@@ -791,14 +803,14 @@
     <div class="panel" id="panel-campagnes">
       <div id="campagnesAlert"></div>
       <fieldset><legend>Créer une campagne</legend>
-        <div class="field"><label>Nom de la campagne <span class="req">*</span></label>
+        <div class="field"><label for="cp_nom">Nom de la campagne <span class="req">*</span></label>
           <input type="text" id="cp_nom" placeholder="Ex : Campagne Ramadan 2026"></div>
-        <div class="field"><label>Lieu</label><input type="text" id="cp_lieu" placeholder="Ex : Dakar et environs"></div>
+        <div class="field"><label for="cp_lieu">Lieu</label><input type="text" id="cp_lieu" placeholder="Ex : Dakar et environs"></div>
         <div class="row2">
-          <div class="field"><label>Date de début</label><input type="date" id="cp_debut"></div>
-          <div class="field"><label>Date de fin</label><input type="date" id="cp_fin"></div>
+          <div class="field"><label for="cp_debut">Date de début</label><input type="date" id="cp_debut"></div>
+          <div class="field"><label for="cp_fin">Date de fin</label><input type="date" id="cp_fin"></div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="addCampagne()">Créer la campagne</button>
+        <button class="btn btn-primary btn-sm" onclick="addCampagne(this)">Créer la campagne</button>
       </fieldset>
       <div class="subnav">
         <button class="subnav-btn active" id="campSubTab-actives" onclick="switchCampagnesSubTab('actives')">Campagnes actives</button>
@@ -835,16 +847,16 @@
           </fieldset>
           <fieldset><legend>Ajouter un article au stock</legend>
             <div class="row2">
-              <div class="field"><label>Nom de l'article <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
-              <div class="field"><label>Type d'article</label><select id="stock_type"></select></div>
+              <div class="field"><label for="stock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
+              <div class="field"><label for="stock_type">Type d'article</label><select id="stock_type"></select></div>
             </div>
-            <div class="field"><label>Catégorie</label><select id="stock_categorie"></select></div>
+            <div class="field"><label for="stock_categorie">Catégorie</label><select id="stock_categorie"></select></div>
             <div class="row2">
-              <div class="field"><label>Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
-              <div class="field"><label>Unité</label><select id="stock_unite"></select></div>
+              <div class="field"><label for="stock_qte">Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
+              <div class="field"><label for="stock_unite">Unité</label><select id="stock_unite"></select></div>
             </div>
-            <div class="field"><label>Seuil d'alerte (stock bas)</label><input type="number" id="stock_seuil" min="0" placeholder="ex : 5"></div>
-            <button class="btn btn-primary btn-sm" onclick="addStockItem()">Ajouter au stock</button>
+            <div class="field"><label for="stock_seuil">Seuil d'alerte (stock bas)</label><input type="number" id="stock_seuil" min="0" placeholder="ex : 5"></div>
+            <button class="btn btn-primary btn-sm" onclick="addStockItem(this)">Ajouter au stock</button>
           </fieldset>
           <p class="rec-meta" style="margin-bottom:12px">Quand vous délivrez un médicament dans l'onglet Délivrances, le stock est ajusté automatiquement si un article du même nom est trouvé - vérifiez toujours vos chiffres, ce rapprochement se fait par nom.</p>
           <div id="stockBody"></div>
@@ -865,7 +877,7 @@
         </fieldset>
         <fieldset>
           <legend>Stock par site</legend>
-          <div class="field"><label>Site</label>
+          <div class="field"><label for="pharmaAdminStockSite">Site</label>
             <select id="pharmaAdminStockSite" onchange="loadPharmaAdminStock()"></select></div>
           <div id="pharmaAdminStockBody"></div>
         </fieldset>
@@ -925,6 +937,17 @@ function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert a
 function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"-"; }
 
+// Avatar rond réutilisable (photo ou initiale à défaut) - une seule définition pour la carte
+// collègue, la carte utilisateur (admin) et tout futur endroit qui en aurait besoin.
+function avatarHtml(person,size){
+  if(person && person.avatar_url){
+    return `<img src="${esc(person.avatar_url)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`;
+  }
+  const initial=esc(((person&&person.prenom)||"?")[0].toUpperCase());
+  const fontSize=Math.round(size*0.36);
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${fontSize}px;flex-shrink:0">${initial}</div>`;
+}
+
 // Traduit les erreurs réseau génériques (souvent en anglais brut, ex. "Failed to fetch") en un
 // message français compréhensible ; laisse passer tel quel un message déjà clair (ex. contrainte
 // métier Supabase), pour ne jamais masquer une information utile.
@@ -938,7 +961,7 @@ function errMsg(error){
 
 // Indicateur de chargement réutilisé pendant les récupérations de données un peu longues
 // (tableau de bord, utilisateurs, pharmacie...), pour éviter un panneau vide ou périmé.
-const LOADING_HTML = `<div class="loading-state"><div class="spinner"></div>Chargement…</div>`;
+const LOADING_HTML = `<div class="loading-state" role="status" aria-live="polite"><div class="spinner"></div>Chargement…</div>`;
 
 /* ---------- offline queue ---------- */
 function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return[];} }
@@ -1225,22 +1248,22 @@ function setupSiteSelectScreen(){
     const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id);
     wrap.innerHTML=`
       <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"-")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
-      <div class="field"><label>Site <span class="req">*</span></label>
+      <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
           ${opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   } else if(CAMPAGNES.length){
     wrap.innerHTML=`
-      <div class="field"><label>Campagne <span class="req">*</span></label>
+      <div class="field"><label for="siteSelectCampagne">Campagne <span class="req">*</span></label>
         <select id="siteSelectCampagne" onchange="onSiteSelectCampagneChange()">
           <option value="">- Sélectionner une campagne -</option>
           ${CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("")}
         </select></div>
-      <div class="field"><label>Site <span class="req">*</span></label>
+      <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput" disabled><option value="">- Choisissez d'abord une campagne -</option></select></div>`;
   } else {
     wrap.innerHTML=`
-      <div class="field"><label>Site <span class="req">*</span></label>
+      <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
           ${SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
@@ -1483,7 +1506,6 @@ function addMedRow(scope){
   const container=$("medsList_"+scope); if(!container) return;
   const row=document.createElement("div");
   row.className="med-row";
-  row.style.cssText="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-end";
   row.innerHTML=`
     <div style="flex:2;min-width:180px">
       <label style="font-size:11px;color:var(--muted)">Médicament</label>
@@ -1782,6 +1804,10 @@ async function deleteConsultation(id, isQueued){
 
 
 let CHARTS={}; // instances Chart.js actives, détruites/recréées à chaque rendu pour éviter les doublons sur le même canvas
+// Palette des graphiques Chart.js - une seule source, alignée sur les tokens CSS de :root,
+// réutilisée par le tableau de bord général et celui du pharmacien (au lieu de deux copies
+// locales qui pourraient diverger silencieusement d'une future palette).
+const CHART_GREEN="#17763B", CHART_GREEN900="#06441C", CHART_ORANGE="#F8B718", CHART_GRID="#e3e9e5";
 function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
 
 const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
@@ -1914,9 +1940,7 @@ function collegueCardHtml(collegues){
       const nom=(esc(p.prenom||"")+" "+esc(p.nom||"")).trim()||"(sans nom)";
       const prof=professionLabel(p);
       const roleLabel = p.role==="admin" ? "Administrateur"+(prof?" · "+prof:"") : (prof||"Praticien");
-      const avatar = p.avatar_url
-        ? `<img src="${esc(p.avatar_url)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0">`
-        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0">${esc((p.prenom||"?")[0].toUpperCase())}</div>`;
+      const avatar = avatarHtml(p,36);
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
         ${avatar}
         <div>
@@ -2054,7 +2078,7 @@ async function renderDashboard(){
     return; // les chiffres et le tableau par site restent affichés, seuls les graphiques sont indisponibles
   }
 
-  const green="#17763B", green900="#06441C", orange="#F8B718", grid="#e3e9e5";
+  const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
   Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
   Chart.defaults.color="#5f6b62";
 
@@ -2197,6 +2221,7 @@ async function downloadReportPDF(){
     toast("Génération PDF indisponible : bibliothèque non chargée. Vérifiez votre connexion et réessayez.",true);
     return;
   }
+  $("pdfReportBtn").disabled=true; $("pdfReportBtn").textContent="Génération…";
   const S=computeDashboardStats();
   const { jsPDF }=window.jspdf;
   const doc=new jsPDF({ unit:"mm", format:"a4" });
@@ -2204,7 +2229,7 @@ async function downloadReportPDF(){
   const margin=14;
   let y=18;
 
-  const green=[46,160,56], green900=[18,60,28];
+  const green=[46,160,56], green900=[6,68,28]; // rgb(--green-500), rgb(--green-900) - alignés sur la palette de l'app
   const { title, meta }=reportTitleLines(S);
   doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(...green900);
   doc.text(title, margin, y); y+=8;
@@ -2315,6 +2340,7 @@ async function downloadReportPDF(){
   }
 
   doc.save(reportFileBaseName(S)+".pdf");
+  $("pdfReportBtn").disabled=false; $("pdfReportBtn").textContent="Télécharger le rapport (PDF)";
   toast("Rapport PDF téléchargé");
 }
 
@@ -2404,6 +2430,7 @@ async function downloadReportWord(){
   }
 
   const doc=new Document({ sections:[{ children }] });
+  $("wordReportBtn").disabled=true; $("wordReportBtn").textContent="Génération…";
   try{
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
@@ -2413,25 +2440,32 @@ async function downloadReportWord(){
     toast("Rapport Word téléchargé");
   }catch(e){
     toast("Échec de la génération du document Word : "+errMsg(e),true);
+  }finally{
+    $("wordReportBtn").disabled=false; $("wordReportBtn").textContent="Télécharger le rapport (Word)";
   }
 }
 
 async function downloadFullBackup(){
   if(ME.role!=="admin") return;
   toast("Préparation de la sauvegarde…");
-  const tables=["profiles","sites","campagnes","consultations"];
-  const backup={ genere_le:new Date().toISOString(), tables:{} };
-  for(const t of tables){
-    const {data,error}=await sb.from(t).select("*");
-    if(error){ toast(`Échec sur la table "${t}" : `+errMsg(error),true); return; }
-    backup.tables[t]=data||[];
+  $("backupBtn").disabled=true;
+  try{
+    const tables=["profiles","sites","campagnes","consultations"];
+    const backup={ genere_le:new Date().toISOString(), tables:{} };
+    for(const t of tables){
+      const {data,error}=await sb.from(t).select("*");
+      if(error){ toast(`Échec sur la table "${t}" : `+errMsg(error),true); return; }
+      backup.tables[t]=data||[];
+    }
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`amstc_sauvegarde_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    toast("Sauvegarde téléchargée");
+  }finally{
+    $("backupBtn").disabled=false;
   }
-  const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download=`amstc_sauvegarde_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  toast("Sauvegarde téléchargée");
 }
 
 function exportCSV(){
@@ -2490,15 +2524,13 @@ function renderUsers(){
   $("usersBody").innerHTML=data.map(u=>{
     const spec=u.specialite||"generaliste";
     const nomAffiche=(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>';
-    const avatar = u.avatar_url
-      ? `<img src="${esc(u.avatar_url)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">`
-      : `<div style="width:40px;height:40px;border-radius:50%;background:var(--green-50);color:var(--green-700);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${esc((u.prenom||"?")[0].toUpperCase())}</div>`;
+    const avatar = avatarHtml(u,40);
     const prof=professionLabel(u);
     const roleLabel = u.role==="admin" ? "Admin"+(prof?" · "+prof:"") : (prof||"Praticien");
     const siteLabel = siteName(u.site_id)||"- Aucun site -";
     return `
     <div class="rec" id="usercard_${u.id}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" onclick="toggleUserEdit('${u.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" role="button" tabindex="0" aria-expanded="${OPEN_USER_EDITS.has(u.id)}" onclick="toggleUserEdit('${u.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleUserEdit('${u.id}')}">
         <div style="display:flex;align-items:center;gap:10px">
           ${avatar}
           <div>
@@ -2638,7 +2670,7 @@ async function loadDispensation(){
     .select("id,numero_consultation,created_at,prenom,nom,medicaments,medecin_nom,site_id")
     .order("created_at",{ascending:false})
     .limit(300);
-  if(error){ $("dispensationBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
+  if(error){ $("dispensationBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici - jamais une prescription
   // hors stock saisie manuellement par le médecin faute de correspondance dans le stock.
   DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.some(m=>m.en_stock));
@@ -2800,7 +2832,7 @@ async function renderPharmacienDashboard(){
   `;
 
   if(typeof Chart==="undefined") return;
-  const green="#17763B", green900="#06441C", orange="#F8B718", grid="#e3e9e5";
+  const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
   if(catEntries.length){
     killChart("pharmaCat");
     CHARTS.pharmaCat=new Chart($("dashPharmaCatChart"),{
@@ -2857,8 +2889,9 @@ async function loadPharmaAdminOverview(){
 }
 
 async function loadPharmaAdminGlobalStock(){
+  $("pharmaAdminGlobalStockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,site_id");
-  if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
+  if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucun site.</div>`; return; }
   // Regroupement par nom (insensible à la casse) - additionne les quantités, quelle que soit l'unité
   // déclarée site par site (à interpréter avec prudence si les unités diffèrent d'un site à l'autre).
@@ -2883,8 +2916,9 @@ async function loadPharmaAdminGlobalStock(){
 async function loadPharmaAdminStock(){
   const siteId=$("pharmaAdminStockSite").value;
   if(!siteId){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun site.</div>`; return; }
+  $("pharmaAdminStockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
-  if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
+  if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
   const groups={};
   data.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
@@ -2924,8 +2958,9 @@ async function loadStock(){
   const siteId=currentStockSiteId();
   $("importStockFieldset")?.classList.toggle("hidden", !isChiefPharmacien());
   if(!siteId){ $("stockBody").innerHTML=`<div class="empty">Aucun site attribué.</div>`; return; }
+  $("stockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
-  if(error){ $("stockBody").innerHTML=`<div class="empty">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
+  if(error){ $("stockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   renderStock(data||[]);
 }
 
@@ -3078,7 +3113,7 @@ async function confirmStockImport(){
   loadStock();
 }
 
-async function addStockItem(){
+async function addStockItem(btn){
   const siteId=currentStockSiteId();
   if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
   const nom=$("stock_nom").value.trim();
@@ -3090,10 +3125,12 @@ async function addStockItem(){
   if(!nom){ toast("Le nom de l'article est requis",true); return; }
   if(!type_article){ toast("Choisissez un type d'article",true); return; }
   if(!unite){ toast("Choisissez une unité",true); return; }
+  if(btn) btn.disabled=true;
   const {error}=await sb.from("stock_medicaments").insert({
     site_id:siteId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   });
+  if(btn) btn.disabled=false;
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   $("stock_nom").value=""; $("stock_qte").value=""; $("stock_seuil").value="";
   toast("Article ajouté au stock");
@@ -3201,7 +3238,7 @@ function addSiteFormHtml(campagneId){
   const inputId = campagneId ? "newsite_"+campagneId : "newsite_none";
   return `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
     <input type="text" id="${inputId}" placeholder="Nom du nouveau site" style="flex:1;min-width:140px;padding:8px 10px">
-    <button class="btn btn-accent btn-sm" onclick="addSite(${campagneId?`'${campagneId}'`:"null"})">+ Ajouter un site</button>
+    <button class="btn btn-accent btn-sm" onclick="addSite(${campagneId?`'${campagneId}'`:"null"},this)">+ Ajouter un site</button>
   </div>`;
 }
 
@@ -3212,7 +3249,7 @@ function campagneCardHtml(c){
     : (c.actif ? '<span class="tag tag-sent">Active</span>' : '<span class="tag tag-queue">Terminée</span>');
   const periode = (c.date_debut||c.date_fin) ? `${fmtDate(c.date_debut)} → ${fmtDate(c.date_fin)}` : "Dates non renseignées";
   return `<div class="rec" id="campcard_${c.id}" style="margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" onclick="toggleCampagneDetails('${c.id}')">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer" role="button" tabindex="0" aria-expanded="${OPEN_CAMP_DETAILS.has(c.id)}" onclick="toggleCampagneDetails('${c.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCampagneDetails('${c.id}')}">
       <div>
         <div class="rec-name">${esc(c.nom)}</div>
         <div class="rec-meta">${esc(c.lieu||"Lieu non renseigné")} · ${periode}</div>
@@ -3296,15 +3333,16 @@ async function reloadCampagnes(){
   CAMPAGNES=data||[];
 }
 
-async function addCampagne(){
+async function addCampagne(btn){
   const nom=$("cp_nom").value.trim();
   const lieu=$("cp_lieu").value.trim();
   const date_debut=$("cp_debut").value||null;
   const date_fin=$("cp_fin").value||null;
   if(!nom){ alertIn("campagnesAlert","err","Le nom de la campagne est requis."); return; }
   if(date_debut && date_fin && date_fin<date_debut){ alertIn("campagnesAlert","err","La date de fin ne peut pas précéder la date de début."); return; }
+  if(btn) btn.disabled=true;
   const {data:inserted,error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin}).select();
-  if(error){ alertIn("campagnesAlert","err","Échec : "+errMsg(error)); return; }
+  if(error){ if(btn) btn.disabled=false; alertIn("campagnesAlert","err","Échec : "+errMsg(error)); return; }
   $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
@@ -3342,12 +3380,13 @@ async function deleteCampagne(id){
   toast("Campagne supprimée");
 }
 
-async function addSite(campagneId){
+async function addSite(campagneId,btn){
   const inputId = campagneId ? "newsite_"+campagneId : "newsite_none";
   const nom=$(inputId).value.trim();
   if(!nom){ toast("Le nom du site est requis",true); return; }
+  if(btn) btn.disabled=true;
   const {error}=await sb.from("sites").insert({nom,campagne_id:campagneId||null});
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderCampagnes(); buildTabsSiteFilter(); toast("Site ajouté");
 }
@@ -3392,7 +3431,11 @@ function togglePwd(id,btn){
   btn.setAttribute("aria-label",showing?"Masquer le mot de passe":"Afficher le mot de passe");
 }
 document.addEventListener("click",e=>{ if(!e.target.closest(".usermenu")) $("menuPop").classList.add("hidden"); });
-document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("profileModalOverlay").classList.contains("hidden")) closeProfileModal(); });
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if(!$("profileModalOverlay").classList.contains("hidden")) closeProfileModal();
+  if(!$("menuPop").classList.contains("hidden")) $("menuPop").classList.add("hidden");
+});
 window.addEventListener("online",async()=>{ updateSync(); await refreshData(); });
 window.addEventListener("offline",updateSync);
 

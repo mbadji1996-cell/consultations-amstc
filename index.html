@@ -1048,6 +1048,7 @@ async function enterApp(){
   ME=await loadProfile();
   if(!ME){ showPending(); return; }
   if(!ME.actif){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); showPending(); return; }
+  resetIdleTimer(); // démarre la surveillance d'inactivité dès qu'un compte actif est connecté
 
   // charge les sites (nécessaire pour libellés + filtres + attribution)
   const {data:sites}=await sb.from("sites").select("*").order("nom");
@@ -3270,6 +3271,25 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("profileModal
 window.addEventListener("online",async()=>{ updateSync(); await refreshData(); });
 window.addEventListener("offline",updateSync);
 
+/* ---------- déconnexion automatique après inactivité ----------
+   Un appareil de terrain peut rester ouvert sur des données patients sans surveillance :
+   on déconnecte automatiquement après une période sans la moindre interaction. */
+const IDLE_TIMEOUT_MS = 30*60*1000; // 30 minutes
+let idleTimer=null;
+function resetIdleTimer(){
+  if(!ME) return; // pas de compte connecté : rien à surveiller
+  clearTimeout(idleTimer);
+  idleTimer=setTimeout(autoLogoutForInactivity, IDLE_TIMEOUT_MS);
+}
+async function autoLogoutForInactivity(){
+  if(!ME) return;
+  localStorage.setItem("amstc_auto_logout","1"); // lu au prochain chargement pour informer l'utilisateur
+  await doLogout();
+}
+["mousemove","mousedown","keydown","scroll","touchstart"].forEach(evt=>
+  document.addEventListener(evt, resetIdleTimer, {passive:true})
+);
+
 /* ---------- service worker (mode hors ligne) ---------- */
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("./sw.js").catch(()=>{}); }
 
@@ -3301,6 +3321,10 @@ sb.auth.onAuthStateChange((event)=>{
 /* ---------- démarrage ---------- */
 (async function(){
   updateSync();
+  if(localStorage.getItem("amstc_auto_logout")){
+    localStorage.removeItem("amstc_auto_logout");
+    alertIn("loginAlert","info","Vous avez été déconnecté automatiquement après une période d'inactivité. Reconnectez-vous pour continuer.");
+  }
   if(isRecoveryUrl()){ IS_RECOVERY=true; showResetPassword(); }
   await new Promise(r=>setTimeout(r,150)); // laisse une chance à l'événement Supabase de confirmer
   if(IS_RECOVERY) return;

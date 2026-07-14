@@ -349,6 +349,76 @@
   .auth-legal a{ color:var(--muted); text-decoration:none; font-weight:600; }
   .auth-legal a:hover{ color:var(--green-700); text-decoration:underline; }
   .auth-legal span{ color:var(--line); }
+
+  /* ============================================================
+     PATCH MODERNISATION
+     ============================================================ */
+
+  /* 1 · Sélection de texte et barre de défilement aux couleurs de la marque plutôt
+     que le gris/bleu par défaut du navigateur. */
+  ::selection{ background:var(--green-700); color:#fff; }
+  html{ scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:100px; }
+  ::-webkit-scrollbar-thumb:hover{ background:#c7d2cb; }
+
+  /* 2 · Légère élévation au survol des cartes (souris uniquement - jamais sur tactile,
+     où :hover resterait "collé" après un tap et gênerait plus qu'il n'aiderait). */
+  @media (hover:hover){
+    .rec,.dash-card,.dstat,.stat{ transition:transform .15s ease,box-shadow .15s ease; }
+    .rec:hover,.dash-card:hover,.dstat:hover,.stat:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 20px rgba(6,68,28,.1);
+    }
+    .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(23,118,59,.28); }
+    .btn-accent:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(248,183,24,.4); }
+  }
+
+  /* 3 · Transition douce à l'affichage d'un onglet (au lieu d'un display:block sec). */
+  @keyframes panelIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+  .panel.active{ animation:panelIn .22s ease; }
+
+  /* 4 · États vides : une icône générique plutôt qu'un simple texte gris esseulé. */
+  .empty{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  .empty::before{
+    content:"";
+    width:44px; height:44px;
+    background-color:var(--line);
+    -webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8h18l-1.6-4.8A2 2 0 0 0 17.5 2h-11a2 2 0 0 0-1.9 1.2L3 8Z"/><path d="M3 8h18"/><path d="M9 12a3 3 0 0 0 6 0"/></svg>') center/contain no-repeat;
+    mask:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6"><path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M3 8h18l-1.6-4.8A2 2 0 0 0 17.5 2h-11a2 2 0 0 0-1.9 1.2L3 8Z"/><path d="M3 8h18"/><path d="M9 12a3 3 0 0 0 6 0"/></svg>') center/contain no-repeat;
+  }
+
+  /* 5 · Petit indicateur de chargement, réutilisé partout où l'app va chercher des
+     données (tableau de bord, utilisateurs, pharmacie...) pour éviter l'écran vide
+     ou le contenu périmé pendant l'attente. */
+  .loading-state{ text-align:center;color:var(--muted);padding:40px 16px;font-size:14px;
+    display:flex;flex-direction:column;align-items:center;gap:12px; }
+  .spinner{ width:28px;height:28px;border:3px solid var(--green-50);border-top-color:var(--green-700);
+    border-radius:50%;animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* 6 · Ombre discrète sous la barre supérieure collante, pour la détacher visuellement
+     du contenu qui défile en dessous (jusqu'ici confondue avec le fond de page en scroll). */
+  .topbar{ box-shadow:0 2px 10px rgba(0,0,0,.1); }
+
+  /* 7 · Effet "Ken Burns" très léger sur le diaporama de connexion, pour un rendu plus
+     premium qu'un simple fondu statique (neutralisé par la règle prefers-reduced-motion
+     déjà en place plus haut). */
+  @keyframes kenBurns{ from{ transform:scale(1); } to{ transform:scale(1.08); } }
+  .auth-hero-slide.active{ animation:kenBurns 9s ease-out forwards; }
+
+  /* 8 · Modale de confirmation "sur mesure", pour remplacer le confirm() natif du
+     navigateur (rendu très daté et incohérent d'un système à l'autre) par un composant
+     aux couleurs de l'application - même structure que la modale "Mon profil". */
+  .confirm-modal-box{ background:#fff;border-radius:16px;padding:24px;width:100%;max-width:400px;
+    box-shadow:0 20px 50px rgba(6,68,28,.25); }
+  .confirm-modal-box h2{ font-size:17px;margin-bottom:10px; }
+  .confirm-modal-box p{ font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:20px; }
+  .btn-danger-solid{ background:var(--danger);color:#fff; }
+  .btn-danger-solid:hover{ background:#a52f21; }
 </style>
 </head>
 <body>
@@ -553,6 +623,18 @@
       <div class="actions">
         <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
         <button class="btn btn-ghost" onclick="closeProfileModal()">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale de confirmation générique (remplace les confirm() natifs du navigateur) -->
+  <div id="confirmModalOverlay" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalTitle" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1002;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div class="confirm-modal-box">
+      <h2 id="confirmModalTitle">Confirmer</h2>
+      <p id="confirmModalBody"></p>
+      <div class="actions">
+        <button class="btn btn-danger-solid" id="confirmModalOk">Confirmer</button>
+        <button class="btn btn-ghost" id="confirmModalCancel">Annuler</button>
       </div>
     </div>
   </div>
@@ -854,6 +936,10 @@ function errMsg(error){
   return raw||"Erreur inconnue.";
 }
 
+// Indicateur de chargement réutilisé pendant les récupérations de données un peu longues
+// (tableau de bord, utilisateurs, pharmacie...), pour éviter un panneau vide ou périmé.
+const LOADING_HTML = `<div class="loading-state"><div class="spinner"></div>Chargement…</div>`;
+
 /* ---------- offline queue ---------- */
 function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]");}catch{return[];} }
 function setQueue(q){ localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); updateSync(); }
@@ -961,6 +1047,42 @@ function openProfileModal(){
 function closeProfileModal(){
   $("profileModalOverlay").classList.add("hidden");
   document.body.style.overflow="";
+}
+
+/* ---------- Modale de confirmation générique ----------
+   Remplace confirm() (rendu système daté, bloquant, incohérent selon le navigateur) par
+   un composant aux couleurs de l'application. Usage : if(await confirmModal("...")) {...}
+   Le message peut contenir du HTML simple (ex. <br><br> pour un second paragraphe) -
+   à l'appelant d'échapper (esc()) toute donnée utilisateur avant de l'y insérer. */
+function confirmModal(message,opts={}){
+  return new Promise(resolve=>{
+    const overlay=$("confirmModalOverlay");
+    $("confirmModalTitle").textContent=opts.title||"Confirmer";
+    $("confirmModalBody").innerHTML=message;
+    const okBtn=$("confirmModalOk"), cancelBtn=$("confirmModalCancel");
+    okBtn.textContent=opts.okLabel||"Confirmer";
+    okBtn.className="btn "+(opts.danger===false?"btn-primary":"btn-danger-solid");
+    overlay.classList.remove("hidden");
+    document.body.style.overflow="hidden";
+    function finish(result){
+      overlay.classList.add("hidden");
+      document.body.style.overflow="";
+      okBtn.removeEventListener("click",onOk);
+      cancelBtn.removeEventListener("click",onCancel);
+      overlay.removeEventListener("click",onBackdrop);
+      document.removeEventListener("keydown",onKey);
+      resolve(result);
+    }
+    function onOk(){ finish(true); }
+    function onCancel(){ finish(false); }
+    function onBackdrop(e){ if(e.target===overlay) finish(false); }
+    function onKey(e){ if(e.key==="Escape") finish(false); }
+    okBtn.addEventListener("click",onOk);
+    cancelBtn.addEventListener("click",onCancel);
+    overlay.addEventListener("click",onBackdrop);
+    document.addEventListener("keydown",onKey);
+    cancelBtn.focus();
+  });
 }
 
 function onProfileProfessionChange(currentDetail){
@@ -1633,7 +1755,7 @@ function renderList(){
 }
 
 async function deleteConsultation(id, isQueued){
-  if(!confirm("Supprimer définitivement cette consultation ? Cette action est irréversible.")) return;
+  if(!(await confirmModal("Supprimer définitivement cette consultation ?<br><br>Cette action est irréversible.",{title:"Supprimer la consultation",okLabel:"Supprimer"}))) return;
   if(isQueued){
     // suppression d'une saisie encore locale, pas encore envoyée au serveur
     const localTs = id.replace(/^q/,"");
@@ -1809,6 +1931,7 @@ function collegueCardHtml(collegues){
 
 async function renderDashboard(){
   if(isPharmacien()){ renderPharmacienDashboard(); return; }
+  $("dashBody").innerHTML=LOADING_HTML;
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu } = S;
@@ -2329,6 +2452,7 @@ function exportCSV(){
    ADMIN - GESTION DES UTILISATEURS
    ===================================================================== */
 async function loadUsers(){
+  $("usersBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+errMsg(error)); return; }
   USERS_CACHE=data||[];
@@ -2474,7 +2598,7 @@ function onUserSpecialtySelectChange(id,value){
 async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
   if(error) toast("Échec : "+errMsg(error),true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
 async function setRole(id,role,selectEl){
-  if(role==="admin" && !confirm("Promouvoir ce praticien au rôle Administrateur ?\n\nIl aura alors accès à la gestion de tous les utilisateurs, sites, campagnes et à l'ensemble des consultations, tous sites confondus.")){
+  if(role==="admin" && !(await confirmModal("Promouvoir ce praticien au rôle Administrateur ?<br><br>Il aura alors accès à la gestion de tous les utilisateurs, sites, campagnes et à l'ensemble des consultations, tous sites confondus.",{title:"Promotion en administrateur",okLabel:"Promouvoir"}))){
     if(selectEl) selectEl.value="agent";
     return;
   }
@@ -2494,7 +2618,7 @@ async function onUserCampagneChange(id){
 async function deleteUser(id){
   const u=USERS_CACHE.find(x=>x.id===id);
   const label=u?(`${u.prenom||""} ${u.nom||""}`.trim()||u.email||"cet utilisateur"):"cet utilisateur";
-  if(!confirm(`Supprimer définitivement le profil de "${label}" ?\n\nCette personne perdra tout accès à l'application. Ses consultations déjà enregistrées seront conservées. Cette action est irréversible.`)) return;
+  if(!(await confirmModal(`Supprimer définitivement le profil de "${esc(label)}" ?<br><br>Cette personne perdra tout accès à l'application. Ses consultations déjà enregistrées seront conservées. Cette action est irréversible.`,{title:"Supprimer l'utilisateur",okLabel:"Supprimer"}))) return;
   const {data,error}=await sb.from("profiles").delete().eq("id",id).select();
   if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); loadUsers(); return; }
@@ -2509,6 +2633,7 @@ async function deleteUser(id){
    qui ne peut jamais toucher qu'aux 3 colonnes de délivrance.
    ===================================================================== */
 async function loadDispensation(){
+  $("dispensationBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("consultations")
     .select("id,numero_consultation,created_at,prenom,nom,medicaments,medecin_nom,site_id")
     .order("created_at",{ascending:false})
@@ -2617,7 +2742,7 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
    ===================================================================== */
 async function renderPharmacienDashboard(){
   const siteId=ME.site_id;
-  $("dashBody").innerHTML=`<div class="empty">Chargement…</div>`;
+  $("dashBody").innerHTML=LOADING_HTML;
   if(!siteId){ $("dashBody").innerHTML=`<div class="empty">Aucun site attribué pour l'instant.</div>`; return; }
 
   const [{data:stock},{data:consults},collegues] = await Promise.all([
@@ -2989,7 +3114,7 @@ async function updateStockQty(id){
 }
 
 async function deleteStockItem(id){
-  if(!confirm("Retirer ce médicament du stock ?")) return;
+  if(!(await confirmModal("Retirer ce médicament du stock ?",{title:"Retirer du stock",okLabel:"Retirer"}))) return;
   const {error}=await sb.from("stock_medicaments").delete().eq("id",id);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Retiré du stock");
@@ -3206,7 +3331,7 @@ async function updateCampagne(id){
 async function deleteCampagne(id){
   const c=CAMPAGNES.find(x=>x.id===id);
   const label=c?c.nom:"cette campagne";
-  if(!confirm(`Supprimer définitivement la campagne "${label}" ?\n\nLes sites qui lui sont rattachés seront conservés, mais deviendront "sans campagne". Les consultations ne sont jamais affectées. Cette action est irréversible.`)) return;
+  if(!(await confirmModal(`Supprimer définitivement la campagne "${esc(label)}" ?<br><br>Les sites qui lui sont rattachés seront conservés, mais deviendront "sans campagne". Les consultations ne sont jamais affectées. Cette action est irréversible.`,{title:"Supprimer la campagne",okLabel:"Supprimer"}))) return;
   const {data,error}=await sb.from("campagnes").delete().eq("id",id).select();
   if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }
@@ -3240,7 +3365,7 @@ async function updateSite(id){
 async function deleteSite(id){
   const s=SITES.find(x=>x.id===id);
   const label=s?s.nom:"ce site";
-  if(!confirm(`Supprimer définitivement le site "${label}" ?\n\nLes consultations et praticiens déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`)) return;
+  if(!(await confirmModal(`Supprimer définitivement le site "${esc(label)}" ?<br><br>Les consultations et praticiens déjà rattachés à ce site seront conservés, mais deviendront "sans site" (ils ne seront plus attribués nulle part). Cette action est irréversible.`,{title:"Supprimer le site",okLabel:"Supprimer"}))) return;
   const {data,error}=await sb.from("sites").delete().eq("id",id).select();
   if(error){ toast("Échec de la suppression : "+errMsg(error),true); return; }
   if(!data||!data.length){ toast("Suppression refusée par la base",true); return; }

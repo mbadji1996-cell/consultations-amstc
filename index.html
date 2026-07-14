@@ -1946,7 +1946,7 @@ function collegueCardHtml(collegues){
         <div>
           <div style="font-weight:600;font-size:13.5px">${nom}</div>
           <div class="rec-meta">${roleLabel}</div>
-          ${p.telephone?`<div class="rec-meta">📞 ${esc(p.telephone)}</div>`:""}
+          ${p.telephone?`<div class="rec-meta" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"></path></svg>${esc(p.telephone)}</div>`:""}
         </div>
       </div>`;
     }).join("")}
@@ -2069,7 +2069,7 @@ async function renderDashboard(){
     ${siteTableHtml}
 
     ${!total?`<div class="empty">Aucune donnée pour l'instant - les statistiques apparaîtront dès la première consultation enregistrée.</div>`:""}
-    ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark)">⚠ Affichage limité aux 1500 consultations les plus récentes - au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
+    ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark);display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Affichage limité aux 1500 consultations les plus récentes - au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
     <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
   `;
 
@@ -2546,7 +2546,7 @@ function renderUsers(){
 
       <div id="userEdit_${u.id}" class="${OPEN_USER_EDITS.has(u.id)?"":"hidden"}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
-        ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px">🔒 Compte protégé - le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
+        ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px;display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Compte protégé - le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
         <div class="row2" style="gap:10px">
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Rôle</label>
@@ -2559,7 +2559,7 @@ function renderUsers(){
           </div>
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Spécialité</label>
-            <select onchange="setSpecialite('${u.id}',this.value)">
+            <select onchange="setSpecialite('${u.id}',this.value,this)">
               <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
               <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
               <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
@@ -2582,7 +2582,7 @@ function renderUsers(){
           </div>
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Site</label>
-            <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value)">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
+            <select id="user_site_${u.id}" onchange="setSite('${u.id}',this.value,this)">${siteOptsForCampagne(u.campagne_id,u.site_id)}</select>
           </div>
         </div>
 
@@ -2591,7 +2591,7 @@ function renderUsers(){
           : u.super_admin
             ? '<div class="rec-meta" style="margin-top:12px">Aucune action possible sur ce compte protégé.</div>'
             : `<div class="rec-foot" style="margin-top:12px">
-                <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif})">${u.actif?"Désactiver":"Activer"}</button>
+                <button class="btn ${u.actif?"btn-danger":"btn-accent"} btn-sm" onclick="toggleActive('${u.id}',${!u.actif},this)">${u.actif?"Désactiver":"Activer"}</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Supprimer</button>
               </div>`}
       </div>
@@ -2608,11 +2608,12 @@ function toggleUserEdit(id){
   if(btn) btn.textContent = showing ? "Modifier" : "Fermer";
 }
 
-async function setSpecialite(id,value){
+async function setSpecialite(id,value,selectEl){
   const payload={ specialite:value };
   if(value!=="specialiste") payload.specialite_detail=null; // le détail n'a de sens que pour un spécialiste
+  if(selectEl) selectEl.disabled=true;
   const {error}=await sb.from("profiles").update(payload).eq("id",id);
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  if(error){ if(selectEl) selectEl.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   toast("Spécialité mise à jour");
   loadUsers();
 }
@@ -2627,8 +2628,12 @@ function onUserSpecialtySelectChange(id,value){
   $("specautre_"+id).classList.add("hidden");
   setSpecialiteDetail(id,value);
 }
-async function toggleActive(id,val){ const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
-  if(error) toast("Échec : "+errMsg(error),true); else { toast(val?"Compte activé":"Compte désactivé"); loadUsers(); } }
+async function toggleActive(id,val,btn){
+  if(btn) btn.disabled=true;
+  const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
+  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
+  toast(val?"Compte activé":"Compte désactivé"); loadUsers();
+}
 async function setRole(id,role,selectEl){
   if(role==="admin" && !(await confirmModal("Promouvoir ce praticien au rôle Administrateur ?<br><br>Il aura alors accès à la gestion de tous les utilisateurs, sites, campagnes et à l'ensemble des consultations, tous sites confondus.",{title:"Promotion en administrateur",okLabel:"Promouvoir"}))){
     if(selectEl) selectEl.value="agent";
@@ -2636,8 +2641,12 @@ async function setRole(id,role,selectEl){
   }
   const {error}=await sb.from("profiles").update({role}).eq("id",id);
   if(error) toast("Échec : "+errMsg(error),true); else { toast("Rôle mis à jour"); loadUsers(); } }
-async function setSite(id,site_id){ const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
-  if(error) toast("Échec : "+errMsg(error),true); else { toast("Site attribué"); loadUsers(); } }
+async function setSite(id,site_id,selectEl){
+  if(selectEl) selectEl.disabled=true;
+  const {error}=await sb.from("profiles").update({site_id:site_id||null}).eq("id",id);
+  if(error){ if(selectEl) selectEl.disabled=false; toast("Échec : "+errMsg(error),true); return; }
+  toast("Site attribué"); loadUsers();
+}
 // Changer la campagne d'un utilisateur réinitialise son site (l'ancien site n'a probablement plus de sens
 // dans la nouvelle campagne) - l'admin choisit ensuite explicitement le nouveau site dans la liste filtrée.
 async function onUserCampagneChange(id){
@@ -2997,7 +3006,7 @@ function toggleStockEdit(id){
   disable(false);
   $("stockqte_"+id)?.focus();
   $("stockactions_"+id).innerHTML=`
-    <button class="btn btn-primary btn-sm" onclick="updateStockQty('${id}')">Enregistrer</button>
+    <button class="btn btn-primary btn-sm" onclick="updateStockQty('${id}',this)">Enregistrer</button>
     <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${id}')">Supprimer</button>
     <button class="btn btn-ghost btn-sm" onclick="loadStock()">Annuler</button>`;
 }
@@ -3137,15 +3146,16 @@ async function addStockItem(btn){
   loadStock();
 }
 
-async function updateStockQty(id){
+async function updateStockQty(id,btn){
   const qte=parseInt($("stockqte_"+id).value)||0;
   const unite=$("stockunite_"+id).value;
   const seuil_alerte=parseInt($("stockseuil_"+id).value)||0;
+  if(btn) btn.disabled=true;
   const {error}=await sb.from("stock_medicaments").update({
     quantite:qte, unite, seuil_alerte, updated_at:new Date().toISOString(),
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   }).eq("id",id);
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   toast("Stock mis à jour");
   loadStock();
 }
@@ -3219,7 +3229,7 @@ function siteListHtml(sites){
           <option value="true"${s.actif?" selected":""}>Actif</option>
           <option value="false"${!s.actif?" selected":""}>Inactif</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}')">Enregistrer</button>
+        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}',this)">Enregistrer</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -3277,7 +3287,7 @@ function campagneCardHtml(c){
           <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
       </div>
       <div class="actions" style="margin:8px 0 14px">
-        <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}')">Enregistrer</button>
+        <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
         <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
         ${c.archivee
           ? `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',false)">Désarchiver</button>
@@ -3351,7 +3361,7 @@ async function addCampagne(btn){
   if(inserted && inserted[0]) $("campcard_"+inserted[0].id)?.scrollIntoView({behavior:"smooth",block:"start"});
 }
 
-async function updateCampagne(id){
+async function updateCampagne(id,btn){
   const nom=$("cp_nom_"+id).value.trim();
   const lieu=$("cp_lieu_"+id).value.trim();
   const date_debut=$("cp_debut_"+id).value||null;
@@ -3359,8 +3369,9 @@ async function updateCampagne(id){
   const actif=$("cp_actif_"+id).value==="true";
   if(!nom){ toast("Le nom de la campagne ne peut pas être vide",true); return; }
   if(date_debut && date_fin && date_fin<date_debut){ toast("La date de fin ne peut pas précéder la date de début",true); return; }
+  if(btn) btn.disabled=true;
   const {error}=await sb.from("campagnes").update({nom,lieu:lieu||null,date_debut,date_fin,actif}).eq("id",id);
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne mise à jour");
@@ -3391,12 +3402,13 @@ async function addSite(campagneId,btn){
   renderCampagnes(); buildTabsSiteFilter(); toast("Site ajouté");
 }
 
-async function updateSite(id){
+async function updateSite(id,btn){
   const nom=$("site_nom_"+id).value.trim();
   const actif=$("site_actif_"+id).value==="true";
   if(!nom){ toast("Le nom du site ne peut pas être vide",true); return; }
+  if(btn) btn.disabled=true;
   const {error}=await sb.from("sites").update({nom,actif}).eq("id",id);
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
   renderCampagnes(); buildTabsSiteFilter(); toast("Site mis à jour");
 }

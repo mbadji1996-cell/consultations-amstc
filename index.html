@@ -157,12 +157,11 @@
     margin: 0 auto;
   }
   .navtab svg{width:21px;height:21px;min-width:21px;min-height:21px;flex-shrink:0;display:block}
-  /* :not(.navtab-icon) est indispensable : .navtab-icon est aussi un <span>, et sans cette
-     exclusion cette règle écrase son "display:flex" (déclaré ligne 145) - ce qui cassait le
-     centrage de l'icône à l'intérieur du badge rond (elle se retrouvait collée en haut). */
+  /* Étiquette texte sous l'icône : masquée (icônes seules), mais toujours présente dans le DOM
+     pour title/aria-label - :not(.navtab-icon) reste nécessaire pour ne pas viser ce <span>-là. */
   .navtab span:not(.navtab-icon) {
-  display: block; /* Au lieu de none */
-  font-size: 10px; /* Taille réduite pour ne pas encombrer */
+  display: none;
+  font-size: 10px;
   color: #fff;
   margin-top: 2px;
 }
@@ -249,7 +248,7 @@
       border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(6,68,28,.05);
       padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
     .navtab{padding:10px 4px}
-    .navtab span:not(.navtab-icon){display:block;font-size:11px;font-weight:600}
+    .navtab span:not(.navtab-icon){display:none;font-size:11px;font-weight:600}
     .navtab svg{width:21px;height:21px}
     .navtab-icon{width:34px;height:34px;border-radius:11px}
     .content{margin-left:120px;padding:24px 32px 32px;max-width:1180px}

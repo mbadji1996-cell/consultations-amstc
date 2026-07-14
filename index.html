@@ -202,6 +202,9 @@
   .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .dstat-icon-g{background:var(--green-50);color:var(--green-700)}
   .dstat-icon-o{background:#fff3de;color:var(--orange-dark)}
+  /* Empile le chiffre et son libellé (b + span sont inline par défaut et se retrouvaient
+     collés l'un à l'autre sans cette règle, ex. "16Consultations au total"). */
+  .dstat-text{display:flex;flex-direction:column;gap:3px}
   .dstat b{font-size:24px;font-weight:800;color:var(--green-900);line-height:1}
   .dstat span{font-size:11.5px;color:var(--muted);font-weight:600}
 
@@ -771,7 +774,7 @@
         <div class="stat-row" style="margin-bottom:16px">
           <div class="dstat">
             <div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div>
-            <div><b id="pharmaAdminDeliveredCount">-</b><span>Médicaments délivrés au total</span></div>
+            <div class="dstat-text"><b id="pharmaAdminDeliveredCount">-</b><span>Médicaments délivrés au total</span></div>
           </div>
         </div>
         <fieldset>
@@ -1841,7 +1844,7 @@ async function renderDashboard(){
 
   const statCard=(icon,tone,value,label)=>`<div class="dstat">
     <div class="dstat-icon dstat-icon-${tone}">${svg(icon)}</div>
-    <div><b>${value}</b><span>${label}</span></div>
+    <div class="dstat-text"><b>${value}</b><span>${label}</span></div>
   </div>`;
 
   const statsHtml=`<div class="stat-row">
@@ -2654,10 +2657,10 @@ async function renderPharmacienDashboard(){
       <div class="dash-greeting-date">${dateLong} · Pharmacie de ${esc(siteName(siteId))}</div>
     </div>
     <div class="stat-row">
-      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div><div><b>${stockItems.length}</b><span>Articles en stock</span></div></div>
-      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div></div>
-      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div></div>
-      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div><b>${lowStock.length}</b><span>Alertes stock bas</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div><div class="dstat-text"><b>${stockItems.length}</b><span>Articles en stock</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div class="dstat-text"><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="dstat-text"><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div></div>
+      <div class="dstat"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div class="dstat-text"><b>${lowStock.length}</b><span>Alertes stock bas</span></div></div>
     </div>
     ${collegueCardHtml(collegues)}
     ${catEntries.length?`<div class="dash-card"><div class="dash-card-head"><span>Stock par catégorie</span></div>

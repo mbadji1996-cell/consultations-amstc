@@ -596,6 +596,7 @@
           <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v63</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
+        <button id="menuChangeSpecialite" class="hidden" onclick="openChangeSpecialiteModal()">Changer mon domaine</button>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
     </div>
@@ -651,6 +652,21 @@
     </div>
   </div>
 
+  <!-- Modale "Changer mon domaine" (RG3) : self-service, mais sans effet immédiat sur la
+       session en cours - le nouveau domaine ne s'applique qu'à la prochaine connexion. -->
+  <div id="changeSpecialiteModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="changeSpecialiteModalTitle" onclick="if(event.target===this) closeChangeSpecialiteModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
+      <h2 id="changeSpecialiteModalTitle" style="font-size:18px;margin-bottom:10px">Changer mon domaine</h2>
+      <p class="rec-meta" style="margin-bottom:16px">Ce changement sera pris en compte à votre <b>prochaine connexion</b> ; la session en cours n'est pas affectée.</p>
+      <div id="changeSpecialiteAlert"></div>
+      <div id="changeSpecialiteWrap"></div>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="saveChangeSpecialite()">Enregistrer</button>
+        <button class="btn btn-ghost" onclick="closeChangeSpecialiteModal()">Fermer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modale de confirmation générique (remplace les confirm() natifs du navigateur) -->
   <div id="confirmModalOverlay" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalTitle" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1002;display:flex;align-items:center;justify-content:center;padding:20px">
     <div class="confirm-modal-box">
@@ -665,17 +681,19 @@
 
   <div class="tabs" id="tabs"></div>
 
-  <!-- Sélection du site par l'agent - une seule fois, avant de démarrer -->
+  <!-- Écran d'accueil de session - domaine (une seule fois, tant qu'il n'est pas choisi)
+       et site d'affectation (redemandé à chaque connexion) -->
   <div class="content hidden" id="siteSelectScreen" style="max-width:460px">
     <fieldset>
-      <legend>Choix de votre site de consultation</legend>
-      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
-        Sélectionnez le site où vous exercez. Ce choix est <b>définitif</b> une fois confirmé ;
-        seul un administrateur pourra le modifier ensuite.
-      </p>
+      <legend>Avant de commencer</legend>
       <div id="siteSelectAlert"></div>
+      <div id="onboardSpecialiteWrap" class="hidden"></div>
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
+        Sélectionnez le site où vous exercez aujourd'hui. Ce choix vous sera de nouveau
+        demandé à chaque connexion.
+      </p>
       <div id="siteSelectDynamic"></div>
-      <button class="btn btn-primary btn-block" id="siteSelectBtn" onclick="confirmSiteSelection()">Confirmer mon site</button>
+      <button class="btn btn-primary btn-block" id="siteSelectBtn" onclick="confirmSiteSelection()">Confirmer</button>
     </fieldset>
   </div>
 
@@ -922,6 +940,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_9j8QN9IEROZen5ecVuWwkQ_V3ySs699";
 
 const QUEUE_KEY = "amstc_queue";
 const CACHE_KEY = "amstc_cache_list";
+const SITE_CONFIRMED_KEY = "amstc_site_confirmed"; // sessionStorage - RG4 (site reconfirmé à chaque connexion)
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let ME = null;            // profil courant {id,prenom,nom,role,site_id,actif}
@@ -1061,7 +1080,7 @@ async function doGoogle(){
   // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app
 }
 
-async function doLogout(){ await sb.auth.signOut(); location.reload(); }
+async function doLogout(){ sessionStorage.removeItem(SITE_CONFIRMED_KEY); await sb.auth.signOut(); location.reload(); }
 
 /* ---------- Modale "Mon profil" (prénom, nom, photo) ---------- */
 let PROFILE_AVATAR_BLOB=null; // photo compressée en attente d'envoi, tant que "Enregistrer" n'a pas été cliqué
@@ -1082,6 +1101,34 @@ function openProfileModal(){
 function closeProfileModal(){
   $("profileModalOverlay").classList.add("hidden");
   document.body.style.overflow="";
+}
+
+/* ---------- Modale "Changer mon domaine" (RG3) ---------- */
+function openChangeSpecialiteModal(){
+  $("changeSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("changespec",ME.specialite||"",ME.specialite_detail||"");
+  $("changeSpecialiteAlert").innerHTML="";
+  $("changeSpecialiteModalOverlay").classList.remove("hidden");
+  $("menuPop")?.classList.add("hidden");
+  document.body.style.overflow="hidden";
+}
+function closeChangeSpecialiteModal(){
+  $("changeSpecialiteModalOverlay").classList.add("hidden");
+  document.body.style.overflow="";
+}
+async function saveChangeSpecialite(){
+  const fields=readSpecialiteFields("changespec","changeSpecialiteAlert");
+  if(!fields) return;
+  // Aucun changement réel : rien à enregistrer, juste refermer.
+  if(fields.specialite===ME.specialite && fields.specialite_detail===(ME.specialite_detail||null)){
+    closeChangeSpecialiteModal();
+    return;
+  }
+  const {error}=await sb.from("profiles").update(fields).eq("id",ME.id);
+  if(error){ alertIn("changeSpecialiteAlert","err","Échec : "+errMsg(error)); return; }
+  // Volontairement : on ne touche ni à ME.specialite ni à l'UI courante (onglets, formulaire...)
+  // - RG3 impose que le changement ne soit effectif qu'après déconnexion/reconnexion.
+  closeChangeSpecialiteModal();
+  toast("Domaine mis à jour - effectif à votre prochaine connexion");
 }
 
 /* ---------- Modale de confirmation générique ----------
@@ -1232,8 +1279,13 @@ async function enterApp(){
   }
   $("siteLabel").textContent=ME.role==="admin"?"Espace administrateur":siteName(ME.site_id);
 
-  // Un agent sans site attribué doit d'abord choisir le sien (et sa campagne si besoin), une seule fois.
-  if(ME.role==="agent" && !ME.site_id){
+  // RG2 : domaine obligatoire une seule fois (tant qu'il n'a jamais été choisi).
+  // RG4 : le site est redemandé à chaque connexion, même s'il est déjà attribué -
+  // sessionStorage (et non une simple variable JS) pour ne pas le redemander en boucle
+  // à chaque rechargement de page pendant la même session, tout en le redemandant bien
+  // à la prochaine connexion (nouvel onglet/nouvelle session).
+  const siteAlreadyConfirmedThisSession = sessionStorage.getItem(SITE_CONFIRMED_KEY)==="1";
+  if(ME.role==="agent" && (!ME.specialite || !siteAlreadyConfirmedThisSession)){
     $("tabs").classList.add("hidden");
     $("mainContent").classList.add("hidden");
     $("siteSelectScreen").classList.remove("hidden");
@@ -1249,12 +1301,25 @@ async function enterApp(){
   updateSync();
 }
 
-// Construit l'écran de choix de site selon la situation de l'agent :
+// Construit l'écran d'accueil de session : le domaine (une seule fois, tant qu'il
+// n'est pas encore choisi - RG2) puis le site, selon la situation de l'agent :
 // - campagne déjà imposée par l'admin -> uniquement le choix du site, filtré sur cette campagne
 // - aucune campagne imposée mais des campagnes existent -> l'agent choisit sa campagne puis son site
 // - aucune campagne dans le système -> comportement historique, liste plate de tous les sites
+// Dans tous les cas, le site déjà attribué (le cas échéant) est présélectionné par confort,
+// mais reste modifiable - RG4 impose de le proposer à nouveau à chaque connexion.
 function setupSiteSelectScreen(){
+  const needsSpecialite = !ME.specialite;
+  const specWrap=$("onboardSpecialiteWrap");
+  specWrap.classList.toggle("hidden", !needsSpecialite);
+  if(needsSpecialite){
+    specWrap.innerHTML=`
+      <div class="alert alert-info" style="margin-bottom:14px">Choisissez votre domaine d'exercice avant de continuer. Vous pourrez le modifier plus tard depuis le menu de votre compte (effectif à votre prochaine connexion).</div>
+      ${buildSpecialiteFieldsHtml("onboard","","")}`;
+  }
+
   const wrap=$("siteSelectDynamic");
+  const currentSiteId=ME.site_id||"";
   if(ME.campagne_id){
     const c=CAMPAGNES.find(x=>x.id===ME.campagne_id);
     const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id);
@@ -1262,7 +1327,7 @@ function setupSiteSelectScreen(){
       <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"-")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
       <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
-          ${opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
+          ${opts.map(s=>`<option value="${s.id}"${s.id===currentSiteId?" selected":""}>${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   } else if(CAMPAGNES.length){
     wrap.innerHTML=`
@@ -1277,7 +1342,7 @@ function setupSiteSelectScreen(){
     wrap.innerHTML=`
       <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
-          ${SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
+          ${SITES.map(s=>`<option value="${s.id}"${s.id===currentSiteId?" selected":""}>${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   }
 }
@@ -1293,9 +1358,17 @@ function onSiteSelectCampagneChange(){
 }
 
 async function confirmSiteSelection(){
+  const payload={};
+  // RG2 : domaine obligatoire tant qu'il n'a jamais été choisi (une seule fois dans la vie du compte)
+  if(!ME.specialite){
+    const specFields=readSpecialiteFields("onboard","siteSelectAlert");
+    if(!specFields) return;
+    payload.specialite=specFields.specialite;
+    payload.specialite_detail=specFields.specialite_detail;
+  }
   const site_id=$("siteSelectInput")?.value;
   if(!site_id){ alertIn("siteSelectAlert","err","Veuillez sélectionner un site."); return; }
-  const payload={ site_id };
+  payload.site_id=site_id;
   const campSel=$("siteSelectCampagne");
   if(campSel){
     if(!campSel.value){ alertIn("siteSelectAlert","err","Veuillez d'abord sélectionner une campagne."); return; }
@@ -1303,9 +1376,13 @@ async function confirmSiteSelection(){
   }
   $("siteSelectBtn").disabled=true; $("siteSelectBtn").textContent="Confirmation…";
   const {error}=await sb.from("profiles").update(payload).eq("id",ME.id);
-  $("siteSelectBtn").disabled=false; $("siteSelectBtn").textContent="Confirmer mon site";
+  $("siteSelectBtn").disabled=false; $("siteSelectBtn").textContent="Confirmer";
   if(error){ alertIn("siteSelectAlert","err","Échec : "+errMsg(error)); return; }
   toast("Site confirmé");
+  // RG4 : le site est redemandé à chaque connexion, mais pas en boucle immédiatement après
+  // l'avoir déjà confirmé pendant cette même session - ce marqueur ne survit pas à un
+  // rechargement de page complet (fermeture d'onglet, nouvelle connexion...).
+  sessionStorage.setItem(SITE_CONFIRMED_KEY,"1");
   await enterApp(); // recharge le profil à jour et poursuit normalement
 }
 
@@ -1347,6 +1424,50 @@ function specialtySelectOptions(currentValue){
 }
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
 
+/* ---------- Choix du domaine d'exercice (spécialité fonctionnelle) -----------
+   Bloc réutilisé à deux endroits : l'écran d'accueil obligatoire (première connexion
+   sans domaine choisi) et la modale "Changer mon domaine" accessible plus tard depuis
+   le menu du compte. `prefix` évite toute collision d'id entre les deux usages. */
+function buildSpecialiteFieldsHtml(prefix,currentSpecialite,currentDetail){
+  const isAutre = !!currentDetail && !SPECIALTY_LIST.includes(currentDetail);
+  return `
+    <div class="field"><label for="${prefix}Specialite">Domaine d'exercice <span class="req">*</span></label>
+      <select id="${prefix}Specialite" onchange="onSpecialiteFieldChange('${prefix}')">
+        <option value="">- Sélectionner -</option>
+        <option value="generaliste"${currentSpecialite==="generaliste"?" selected":""}>Généraliste</option>
+        <option value="dentiste"${currentSpecialite==="dentiste"?" selected":""}>Dentiste</option>
+        <option value="specialiste"${currentSpecialite==="specialiste"?" selected":""}>Spécialiste</option>
+        <option value="pharmacien"${currentSpecialite==="pharmacien"?" selected":""}>Pharmacien</option>
+      </select>
+    </div>
+    <div class="field ${currentSpecialite==="specialiste"?"":"hidden"}" id="${prefix}SpecialiteDetailWrap">
+      <label for="${prefix}SpecialiteDetail">Sous-spécialité</label>
+      <select id="${prefix}SpecialiteDetail" onchange="onSpecialiteDetailChange('${prefix}')">${specialtySelectOptions(currentDetail||"")}</select>
+      <input type="text" id="${prefix}SpecialiteDetailAutre" value="${isAutre?esc(currentDetail):""}" placeholder="Précisez la spécialité" style="margin-top:6px" class="${isAutre?"":"hidden"}">
+    </div>`;
+}
+function onSpecialiteFieldChange(prefix){
+  const val=$(prefix+"Specialite").value;
+  $(prefix+"SpecialiteDetailWrap").classList.toggle("hidden", val!=="specialiste");
+}
+function onSpecialiteDetailChange(prefix){
+  const sel=$(prefix+"SpecialiteDetail").value;
+  $(prefix+"SpecialiteDetailAutre").classList.toggle("hidden", sel!=="__autre__");
+  if(sel==="__autre__") $(prefix+"SpecialiteDetailAutre").focus();
+}
+// Lit + valide le domaine choisi ; retourne null si incomplet (et affiche l'erreur via alertFn).
+function readSpecialiteFields(prefix,alertElId){
+  const specialite=$(prefix+"Specialite").value;
+  if(!specialite){ alertIn(alertElId,"err","Veuillez choisir votre domaine d'exercice."); return null; }
+  let specialite_detail=null;
+  if(specialite==="specialiste"){
+    const sel=$(prefix+"SpecialiteDetail").value;
+    specialite_detail = sel==="__autre__" ? ($(prefix+"SpecialiteDetailAutre").value.trim()||null) : (sel||null);
+    if(!specialite_detail){ alertIn(alertElId,"err","Veuillez préciser votre sous-spécialité."); return null; }
+  }
+  return { specialite, specialite_detail };
+}
+
 // Listes de référence pour le stock pharmacie - inspirées d'un devis réel de campagne médicale AMSTC
 const STOCK_CATEGORIES=["Injectables","Soins infirmiers","Antalgiques / AINS","Antibiotiques","IPP / Antiacides",
   "Antiparasitaires","Antihistaminiques","Antihypertenseurs","Fer / Acide folique / Vitamines","Antitussifs",
@@ -1366,6 +1487,7 @@ function stockTypeSelect(id,current){
 function isPharmacien(){ return ME.role!=="admin" && ME.specialite==="pharmacien"; }
 
 function buildTabs(){
+  $("menuChangeSpecialite").classList.toggle("hidden", ME.role!=="agent"); // RG3 : réservé aux praticiens
   let tabs;
   if(ME.role==="admin"){
     tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Pharmacie"]];
@@ -2534,7 +2656,7 @@ function renderUsers(){
     return;
   }
   $("usersBody").innerHTML=data.map(u=>{
-    const spec=u.specialite||"generaliste";
+    const spec=u.specialite||""; // RG1 : plus de valeur par défaut "généraliste" pré-sélectionnée
     const nomAffiche=(esc(u.prenom||"")+" "+esc(u.nom||"")).trim()||'<span style="color:var(--muted);font-weight:400">(sans nom)</span>';
     const avatar = avatarHtml(u,40);
     const prof=professionLabel(u);
@@ -2572,6 +2694,7 @@ function renderUsers(){
           <div class="field" style="margin-bottom:0">
             <label style="font-size:12px">Spécialité</label>
             <select onchange="setSpecialite('${u.id}',this.value,this)">
+              <option value=""${spec===""?" selected":""}>- Sélectionner -</option>
               <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
               <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
               <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
@@ -2621,7 +2744,7 @@ function toggleUserEdit(id){
 }
 
 async function setSpecialite(id,value,selectEl){
-  const payload={ specialite:value };
+  const payload={ specialite:value||null };
   if(value!=="specialiste") payload.specialite_detail=null; // le détail n'a de sens que pour un spécialiste
   if(selectEl) selectEl.disabled=true;
   const {error}=await sb.from("profiles").update(payload).eq("id",id);

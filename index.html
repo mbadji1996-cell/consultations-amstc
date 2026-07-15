@@ -708,7 +708,7 @@
       <div class="field hidden" id="typePickerWrap">
         <label for="c_type">Type de consultation</label>
         <select id="c_type" onchange="onConsultTypeChange()">
-          <option value="generaliste">Généraliste</option>
+          <option value="generaliste">Médecin</option>
           <option value="dentiste">Dentiste</option>
           <option value="specialiste">Spécialiste</option>
         </select>
@@ -1389,7 +1389,7 @@ async function confirmSiteSelection(){
 /* =====================================================================
    ONGLETS SELON LE RÔLE
    ===================================================================== */
-const SPEC_LABELS={generaliste:"Généraliste",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
+const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
 const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
 function professionLabel(p){
   if(!p || !p.profession_declaree) return "";
@@ -1434,7 +1434,7 @@ function buildSpecialiteFieldsHtml(prefix,currentSpecialite,currentDetail){
     <div class="field"><label for="${prefix}Specialite">Domaine d'exercice <span class="req">*</span></label>
       <select id="${prefix}Specialite" onchange="onSpecialiteFieldChange('${prefix}')">
         <option value="">- Sélectionner -</option>
-        <option value="generaliste"${currentSpecialite==="generaliste"?" selected":""}>Généraliste</option>
+        <option value="generaliste"${currentSpecialite==="generaliste"?" selected":""}>Médecin</option>
         <option value="dentiste"${currentSpecialite==="dentiste"?" selected":""}>Dentiste</option>
         <option value="specialiste"${currentSpecialite==="specialiste"?" selected":""}>Spécialiste</option>
         <option value="pharmacien"${currentSpecialite==="pharmacien"?" selected":""}>Pharmacien</option>
@@ -1890,7 +1890,7 @@ function renderList(){
     const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
-    const typeLabel=SPEC_LABELS[r.type_consultation]||"Généraliste";
+    const typeLabel=SPEC_LABELS[r.type_consultation]||"Médecin";
     const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
     return `<div class="rec">
       <div class="rec-top">
@@ -2230,7 +2230,7 @@ async function renderDashboard(){
     killChart("type");
     CHARTS.type=new Chart($("dashTypeChart"),{
       type:"bar",
-      data:{ labels:["Généraliste","Dentiste","Spécialiste"],
+      data:{ labels:["Médecin","Dentiste","Spécialiste"],
         datasets:[{ data:[typeCounts.generaliste,typeCounts.dentiste,typeCounts.specialiste], backgroundColor:[green,orange,green900], borderRadius:4 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
@@ -2695,7 +2695,7 @@ function renderUsers(){
             <label style="font-size:12px">Spécialité</label>
             <select onchange="setSpecialite('${u.id}',this.value,this)">
               <option value=""${spec===""?" selected":""}>- Sélectionner -</option>
-              <option value="generaliste"${spec==="generaliste"?" selected":""}>Généraliste</option>
+              <option value="generaliste"${spec==="generaliste"?" selected":""}>Médecin</option>
               <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
               <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
               <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>

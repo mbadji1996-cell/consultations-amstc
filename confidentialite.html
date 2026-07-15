@@ -7,16 +7,22 @@
 <meta name="robots" content="index,follow">
 <link rel="icon" type="image/png" href="./icon.png">
 <title>Politique de confidentialité - Consultations AMSTC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --green-900:#06441C; --green-700:#17763B; --green-500:#2ea038; --green-50:#eef6f0;
     --gold:#F8B718; --orange:#D19914;
     --ink:#182019; --muted:#5f6b62; --line:#e3e9e5; --bg:#f5f8f6; --white:#fff;
     --gradient-brand-rich:linear-gradient(135deg,#17763B 0%,#06441C 65%,#03260f 100%);
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-display:'Sora',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  body{font-family:var(--font-body);
     background:var(--bg);color:var(--ink);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,.brand b{font-family:var(--font-display);}
   .hero{background:var(--gradient-brand-rich);color:#fff;padding:34px 20px 30px;position:relative;overflow:hidden}
   .hero::after{content:"";position:absolute;top:-40%;right:-8%;width:200px;height:200px;border-radius:50%;
     background:linear-gradient(135deg,var(--gold),var(--orange));opacity:.16;pointer-events:none}

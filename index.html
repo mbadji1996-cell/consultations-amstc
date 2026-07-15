@@ -7,6 +7,11 @@
 <link rel="icon" type="image/png" href="./icon.png">
 <link rel="apple-touch-icon" href="./icon.png">
 <title>Consultations AMSTC</title>
+<!-- Polices modernes (Inter pour le texte courant, Sora pour les titres/gros chiffres) -
+     chargées en amont, avec repli sur les polices système si hors connexion. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --green-900:#06441C; --green-700:#17763B; --green-500:#2ea038; --green-50:#eef6f0;
@@ -20,10 +25,17 @@
     --gradient-brand:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 100%);
     --gradient-brand-rich:linear-gradient(135deg,var(--green-700) 0%,var(--green-900) 65%,#03260f 100%);
     --gradient-gold:linear-gradient(135deg,var(--gold) 0%,var(--orange) 55%,var(--orange-dark) 100%);
+    /* Inter (texte courant) + Sora (titres/gros chiffres) - repli sur les polices système
+       si la police ne peut pas se charger (première visite hors connexion). */
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-display:'Sora',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  body{font-family:var(--font-body);
     background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  h1,h2,.dash-greeting-title,.dstat b,.stat b,.brand-mark,.brand-txt h1,.topbar-title,.rec-name{
+    font-family:var(--font-display);
+  }
   button{font-family:inherit;cursor:pointer}
   input,select,textarea{font-family:inherit}
   .hidden{display:none!important}
@@ -2079,7 +2091,7 @@ async function renderDashboard(){
   }
 
   const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
-  Chart.defaults.font.family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+  Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
   Chart.defaults.color="#5f6b62";
 
   if(total){
@@ -2841,6 +2853,8 @@ async function renderPharmacienDashboard(){
   `;
 
   if(typeof Chart==="undefined") return;
+  Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+  Chart.defaults.color="#5f6b62";
   const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
   if(catEntries.length){
     killChart("pharmaCat");

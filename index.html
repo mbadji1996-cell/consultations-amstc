@@ -615,7 +615,7 @@
       <div class="field"><label for="profile_prenom">Prénom</label><input type="text" id="profile_prenom"></div>
       <div class="field"><label for="profile_nom">Nom</label><input type="text" id="profile_nom"></div>
       <div class="field"><label for="profile_telephone">Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
-      <div class="field"><label for="profile_profession">Profession</label>
+      <div class="field"><label for="profile_profession">Profession affichée (intitulé uniquement)</label>
         <select id="profile_profession" onchange="onProfileProfessionChange()">
           <option value="">- Choisir -</option>
           <option value="medecin">Médecin</option>
@@ -624,6 +624,7 @@
           <option value="infirmier">Infirmier</option>
           <option value="specialiste">Spécialiste</option>
         </select>
+        <p class="rec-meta" style="margin-top:6px">Ceci n'est qu'un intitulé affiché sur votre badge et vos cartes - cela ne change ni votre formulaire ni vos onglets. Pour changer votre domaine d'exercice réel, utilisez « Changer mon domaine » dans le menu de votre compte.</p>
       </div>
       <div class="field hidden" id="profileProfessionDetailWrap">
         <label for="profile_profession_detail">Spécialité</label>
@@ -657,6 +658,7 @@
   <div id="changeSpecialiteModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="changeSpecialiteModalTitle" onclick="if(event.target===this) closeChangeSpecialiteModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 id="changeSpecialiteModalTitle" style="font-size:18px;margin-bottom:10px">Changer mon domaine</h2>
+      <p class="rec-meta" style="margin-bottom:10px">C'est ici (et seulement ici) que se change le domaine qui détermine votre formulaire et vos onglets - pas dans « Mon profil ».</p>
       <p class="rec-meta" style="margin-bottom:16px">Ce changement sera pris en compte à votre <b>prochaine connexion</b> ; la session en cours n'est pas affectée.</p>
       <div id="changeSpecialiteAlert"></div>
       <div id="changeSpecialiteWrap"></div>

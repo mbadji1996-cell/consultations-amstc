@@ -450,6 +450,15 @@
   .confirm-modal-box p{ font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:20px; }
   .btn-danger-solid{ background:var(--danger);color:#fff; }
   .btn-danger-solid:hover{ background:#a52f21; }
+
+  /* 9 · Une case à cocher placée dans un .toolbar (ex. "Afficher aussi les prescriptions déjà
+     délivrées") héritait de .toolbar input{width:auto;flex:1;min-width:140px} - même spécificité
+     que la règle de taille des cases à cocher mais déclarée après elle, donc gagnante : la case
+     s'étirait sur toute la largeur disponible au lieu de rester un petit carré. Cette règle plus
+     spécifique reprend la main, sur PC comme sur mobile. */
+  .toolbar input[type="checkbox"],.toolbar input[type="radio"]{
+    width:16px;height:16px;flex:0 0 16px;min-width:0;
+  }
 </style>
 </head>
 <body>

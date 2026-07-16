@@ -849,16 +849,21 @@
     <!-- ADMIN: campagnes + leurs sites, dans un même onglet -->
     <div class="panel" id="panel-campagnes">
       <div id="campagnesAlert"></div>
-      <fieldset><legend>Créer une campagne</legend>
-        <div class="field"><label for="cp_nom">Nom de la campagne <span class="req">*</span></label>
-          <input type="text" id="cp_nom" placeholder="Ex : Campagne Ramadan 2026"></div>
-        <div class="field"><label for="cp_lieu">Lieu</label><input type="text" id="cp_lieu" placeholder="Ex : Dakar et environs"></div>
-        <div class="row2">
-          <div class="field"><label for="cp_debut">Date de début</label><input type="date" id="cp_debut"></div>
-          <div class="field"><label for="cp_fin">Date de fin</label><input type="date" id="cp_fin"></div>
+      <div class="rec" style="margin-bottom:16px">
+        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between" id="createCampagneToggleBtn" onclick="toggleCreateCampagneForm()">
+          <span>Créer une campagne</span><span id="createCampagneChevron">▾</span>
+        </button>
+        <div id="createCampagneBody" class="hidden" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+          <div class="field"><label for="cp_nom">Nom de la campagne <span class="req">*</span></label>
+            <input type="text" id="cp_nom" placeholder="Ex : Campagne Ramadan 2026"></div>
+          <div class="field"><label for="cp_lieu">Lieu</label><input type="text" id="cp_lieu" placeholder="Ex : Dakar et environs"></div>
+          <div class="row2">
+            <div class="field"><label for="cp_debut">Date de début</label><input type="date" id="cp_debut"></div>
+            <div class="field"><label for="cp_fin">Date de fin</label><input type="date" id="cp_fin"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addCampagne(this)">Créer la campagne</button>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="addCampagne(this)">Créer la campagne</button>
-      </fieldset>
+      </div>
       <div class="subnav">
         <button class="subnav-btn active" id="campSubTab-actives" onclick="switchCampagnesSubTab('actives')">Campagnes actives</button>
         <button class="subnav-btn" id="campSubTab-archivees" onclick="switchCampagnesSubTab('archivees')">Archives</button>
@@ -3551,6 +3556,14 @@ function toggleCampagneDetails(id){
   if(btn) btn.textContent = showing ? "Détails" : "Masquer";
 }
 
+// Formulaire "Créer une campagne" : replié par défaut pour ne pas encombrer l'écran
+// au-dessus de la liste des campagnes existantes.
+function toggleCreateCampagneForm(){
+  const el=$("createCampagneBody"); if(!el) return;
+  el.classList.toggle("hidden");
+  $("createCampagneChevron").textContent = el.classList.contains("hidden") ? "▾" : "▴";
+}
+
 async function archiveCampagne(id,archivee){
   const {error}=await sb.from("campagnes").update({archivee}).eq("id",id);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
@@ -3581,6 +3594,7 @@ async function addCampagne(btn){
   const {data:inserted,error}=await sb.from("campagnes").insert({nom,lieu:lieu||null,date_debut,date_fin}).select();
   if(error){ if(btn) btn.disabled=false; alertIn("campagnesAlert","err","Échec : "+errMsg(error)); return; }
   $("cp_nom").value=""; $("cp_lieu").value=""; $("cp_debut").value=""; $("cp_fin").value="";
+  $("createCampagneBody").classList.add("hidden"); $("createCampagneChevron").textContent="▾"; // referme, la tâche est faite
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne créée - ajoutez ses sites juste en dessous");

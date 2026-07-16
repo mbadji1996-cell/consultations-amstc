@@ -1,85 +1,35 @@
 -- ============================================================================
--- RLS : restreindre l'écriture sur stock_medicaments au pharmacien en chef
--- À exécuter dans Supabase → SQL Editor
+-- RLS : écriture sur stock_medicaments réservée au pharmacien en chef
 -- ============================================================================
-
--- ----------------------------------------------------------------------------
--- ÉTAPE 1 — Inspecter les politiques existantes sur stock_medicaments
--- (à faire AVANT toute chose, pour connaître les noms réels à supprimer :
---  une politique permissive déjà en place laissée active annule les nouvelles
---  restrictions, car les politiques RLS d'une même commande se combinent en OU)
--- ----------------------------------------------------------------------------
-select policyname, cmd, roles, qual, with_check
-from pg_policies
-where schemaname = 'public'
-  and tablename = 'stock_medicaments';
-
-
--- ----------------------------------------------------------------------------
--- ÉTAPE 2 — Supprimer les anciennes politiques d'écriture (INSERT/UPDATE/DELETE)
--- Remplacez "nom_de_la_politique" par les noms réels obtenus à l'étape 1.
--- Ne touchez PAS aux politiques de lecture (SELECT) : elles doivent rester
--- ouvertes à tous les pharmaciens (+ admin) du site pour l'onglet Stock en
--- lecture seule et pour la vérification de disponibilité en Délivrances.
--- ----------------------------------------------------------------------------
--- drop policy if exists "nom_de_la_politique_insert" on stock_medicaments;
--- drop policy if exists "nom_de_la_politique_update" on stock_medicaments;
--- drop policy if exists "nom_de_la_politique_delete" on stock_medicaments;
-
-
--- ----------------------------------------------------------------------------
--- ÉTAPE 3 — Nouvelles politiques : seul le pharmacien en chef du site peut
--- ajouter, modifier ou supprimer un article de son site.
--- ----------------------------------------------------------------------------
-alter table stock_medicaments enable row level security;
-
-create policy "stock_insert_pharmacien_chef"
-on stock_medicaments
-for insert
-to authenticated
-with check (
-  exists (
-    select 1 from sites s
-    where s.id = stock_medicaments.site_id
-      and s.pharmacien_chef_id = auth.uid()
-  )
-);
-
-create policy "stock_update_pharmacien_chef"
-on stock_medicaments
-for update
-to authenticated
-using (
-  exists (
-    select 1 from sites s
-    where s.id = stock_medicaments.site_id
-      and s.pharmacien_chef_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1 from sites s
-    where s.id = stock_medicaments.site_id
-      and s.pharmacien_chef_id = auth.uid()
-  )
-);
-
-create policy "stock_delete_pharmacien_chef"
-on stock_medicaments
-for delete
-to authenticated
-using (
-  exists (
-    select 1 from sites s
-    where s.id = stock_medicaments.site_id
-      and s.pharmacien_chef_id = auth.uid()
-  )
-);
-
--- ----------------------------------------------------------------------------
--- Vérification après coup : reconnecté en tant que pharmacien NON chef d'un
--- site, une tentative d'insert/update/delete sur stock_medicaments doit
--- échouer avec une erreur RLS ("new row violates row-level security policy").
--- Reconnecté en tant que pharmacien en chef, les mêmes actions doivent
--- fonctionner normalement.
--- ----------------------------------------------------------------------------
+--
+-- STATUT : déjà en place et vérifié le 2026-07-16. Aucune action nécessaire.
+--
+-- La base contient déjà exactement les politiques requises :
+--   - stock_insertion_chef  (INSERT) → with_check : is_chief_pharmacien(site_id)
+--   - stock_maj_chef        (UPDATE) → using/with_check : is_chief_pharmacien(site_id)
+--   - stock_suppression_chef(DELETE) → using : is_chief_pharmacien(site_id)
+--   - stock_lecture         (SELECT) → admin OU même site (lecture seule pour
+--                                       les pharmaciens non-chefs, comme voulu)
+--
+-- Et la fonction sous-jacente fait bien la bonne vérification :
+--
+--   CREATE OR REPLACE FUNCTION public.is_chief_pharmacien(p_site_id uuid)
+--    RETURNS boolean
+--    LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
+--   AS $function$
+--     select exists(select 1 from public.sites where id = p_site_id and pharmacien_chef_id = auth.uid());
+--   $function$
+--
+-- Combiné à la restriction côté interface (commit 418d6e2 : bouton "Modifier"
+-- masqué pour les non-chefs), la protection est donc effective aux deux niveaux
+-- - même un contournement de l'UI (ex. console navigateur) serait bloqué par
+-- ces politiques.
+--
+-- Requêtes utilisées pour vérifier ci-dessus, à réutiliser si le schéma change :
+--
+--   select policyname, cmd, roles, qual, with_check
+--   from pg_policies
+--   where schemaname = 'public' and tablename = 'stock_medicaments';
+--
+--   select prosrc from pg_proc where proname = 'is_chief_pharmacien';
+-- ============================================================================

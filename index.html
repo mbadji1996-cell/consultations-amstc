@@ -711,6 +711,21 @@
 
       <!-- ===== GÉNÉRALISTE (également utilisé par le DENTISTE - même formulaire) ===== -->
       <div id="type_generaliste_fields">
+        <div class="field hidden" id="acteDentaireWrap">
+          <label for="c_acte_dentaire">Acte dentaire <span class="req">*</span></label>
+          <select id="c_acte_dentaire" onchange="onActeDentaireChange()">
+            <option value="">- Sélectionner -</option>
+            <option value="Consultation / Contrôle">Consultation / Contrôle</option>
+            <option value="Détartrage">Détartrage</option>
+            <option value="Soin de carie (obturation)">Soin de carie (obturation)</option>
+            <option value="Extraction dentaire">Extraction dentaire</option>
+            <option value="Dévitalisation (traitement de canal)">Dévitalisation (traitement de canal)</option>
+            <option value="Pose de prothèse / bridge">Pose de prothèse / bridge</option>
+            <option value="Chirurgie buccale">Chirurgie buccale</option>
+            <option value="__autre__">Autre…</option>
+          </select>
+          <input type="text" id="c_acte_dentaire_autre" class="hidden" placeholder="Précisez l'acte" style="margin-top:8px">
+        </div>
         <fieldset>
           <legend>Constantes vitales</legend>
           <div class="constants">
@@ -1571,6 +1586,12 @@ function onConsultTypeChange(){
   // enregistré change, pour que l'agent sache quel rôle il exerce (badge ci-dessus).
   $("type_generaliste_fields").classList.toggle("hidden", t==="specialiste");
   $("type_specialiste_fields").classList.toggle("hidden", t!=="specialiste");
+  $("acteDentaireWrap").classList.toggle("hidden", t!=="dentiste");
+}
+function onActeDentaireChange(){
+  const sel=$("c_acte_dentaire").value;
+  $("c_acte_dentaire_autre").classList.toggle("hidden", sel!=="__autre__");
+  if(sel==="__autre__") $("c_acte_dentaire_autre").focus();
 }
 
 function onCSpecialiteMedSelectChange(){
@@ -1758,6 +1779,11 @@ async function saveConsultation(){
     if(!rec.signes) missing.push("signes cliniques");
     if(!rec.diagnostic) missing.push("diagnostic");
     if(!rec.conduite) missing.push("conduite à tenir (médicament, note, ou \"pas de traitement\")");
+    if(type==="dentiste"){
+      const sel=$("c_acte_dentaire").value;
+      rec.acte_dentaire = sel==="__autre__" ? ($("c_acte_dentaire_autre").value.trim()||null) : (sel||null);
+      if(!rec.acte_dentaire) missing.push("acte dentaire");
+    }
   }
 
   if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
@@ -1821,6 +1847,8 @@ function resetForm(){
   if($("c_conduite_notes_spec")){ $("c_conduite_notes_spec").disabled=false; $("c_conduite_notes_spec").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
   if($("c_refere_vers")){ $("c_refere_vers").value=""; $("referMotifWrap")?.classList.add("hidden"); }
   if($("c_refere_motif")) $("c_refere_motif").value="";
+  if($("c_acte_dentaire")) $("c_acte_dentaire").value="";
+  if($("c_acte_dentaire_autre")){ $("c_acte_dentaire_autre").value=""; $("c_acte_dentaire_autre").classList.add("hidden"); }
 }
 
 function currentRows(){
@@ -1849,11 +1877,16 @@ function renderList(){
     const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
-    const typeLabel=SPEC_LABELS[r.type_consultation]||"Médecin";
+    // Le badge affiche l'information la plus distinctive disponible : la spécialité précise
+    // pour un spécialiste, l'acte réalisé pour un dentiste - plutôt que le type générique
+    // ("Spécialiste"/"Dentiste"), qui à lui seul ne différencie pas grand-chose d'une carte à l'autre.
+    let typeLabel=SPEC_LABELS[r.type_consultation]||"Médecin";
+    if(r.type_consultation==="specialiste" && r.specialite_medicale) typeLabel=r.specialite_medicale;
+    else if(r.type_consultation==="dentiste" && r.acte_dentaire) typeLabel=r.acte_dentaire;
     const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
     return `<div class="rec">
       <div class="rec-top">
-        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-type" style="margin-left:4px">${typeLabel}</span></div>
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-type" style="margin-left:4px">${esc(typeLabel)}</span></div>
           <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site}${medecin} · ${d}</div>
           ${numero}</div>
         ${tag}

@@ -610,7 +610,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v63</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v64</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -963,6 +963,9 @@ const SUPABASE_ANON_KEY = "sb_publishable_9j8QN9IEROZen5ecVuWwkQ_V3ySs699";
 const QUEUE_KEY = "amstc_queue";
 const CACHE_KEY = "amstc_cache_list";
 const SITE_CONFIRMED_KEY = "amstc_site_confirmed"; // sessionStorage - RG4 (site reconfirmé à chaque connexion)
+const PROFILE_CACHE_KEY = "amstc_profile_cache";
+const SITES_CACHE_KEY = "amstc_sites_cache";
+const CAMPAGNES_CACHE_KEY = "amstc_campagnes_cache";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let ME = null;            // profil courant {id,prenom,nom,role,site_id,actif}
@@ -1021,6 +1024,19 @@ function getQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]"
 function setQueue(q){ localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); updateSync(); }
 function getCache(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||"[]");}catch{return[];} }
 function setCache(l){ localStorage.setItem(CACHE_KEY,JSON.stringify(l)); }
+
+/* ---------- reprise hors connexion (profil, sites, campagnes) ----------
+   Permet à un agent déjà connecté avec succès au moins une fois sur cet appareil de rouvrir
+   l'app hors connexion, au lieu d'être bloqué à l'écran de connexion. Le cache est TOUJOURS
+   réécrit après chaque chargement réussi en ligne (jamais utilisé par préférence quand le
+   réseau existe) - il ne peut donc pas devenir une source de données périmées pendant une
+   session en ligne normale ; il ne sert qu'en dernier recours, hors connexion. */
+function getCachedProfile(){ try{return JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY)||"null");}catch{return null;} }
+function setCachedProfile(p){ try{localStorage.setItem(PROFILE_CACHE_KEY,JSON.stringify(p));}catch{} }
+function getCachedSites(){ try{return JSON.parse(localStorage.getItem(SITES_CACHE_KEY)||"null");}catch{return null;} }
+function setCachedSites(s){ try{localStorage.setItem(SITES_CACHE_KEY,JSON.stringify(s));}catch{} }
+function getCachedCampagnes(){ try{return JSON.parse(localStorage.getItem(CAMPAGNES_CACHE_KEY)||"null");}catch{return null;} }
+function setCachedCampagnes(c){ try{localStorage.setItem(CAMPAGNES_CACHE_KEY,JSON.stringify(c));}catch{} }
 
 /* ---------- statut de synchronisation (élément signature) ---------- */
 function updateSync(){
@@ -1239,11 +1255,39 @@ async function saveProfile(){
 
 
 async function loadProfile(){
+  // Hors connexion : on retombe directement sur la dernière copie locale d'un accès réussi -
+  // ni sb.auth.getUser() ni la requête profil n'aboutiraient de toute façon (voir refreshData()
+  // pour ce même principe déjà appliqué aux consultations).
+  if(!navigator.onLine){
+    return getCachedProfile(); // null si cet appareil ne s'est jamais connecté avec succès
+  }
   const {data:{user}}=await sb.auth.getUser();
   if(!user) return null;
   const {data,error}=await sb.from("profiles").select("*").eq("id",user.id).single();
-  if(error||!data) return null;
-  data.email=user.email; return data;
+  if(error||!data){
+    // Réseau signalé disponible mais requête en échec (ex. coupure au mauvais moment) : on
+    // tente le cache avant d'afficher "compte en attente" à tort à cause d'un simple aléa.
+    return getCachedProfile();
+  }
+  data.email=user.email;
+  setCachedProfile(data); // toujours réécrit après un chargement réussi - jamais périmé en ligne
+  return data;
+}
+
+// Sites/campagnes avec le même principe de repli hors connexion que loadProfile() ci-dessus.
+async function loadSitesWithFallback(){
+  if(navigator.onLine){
+    const {data,error}=await sb.from("sites").select("*").order("nom");
+    if(!error){ const sites=data||[]; setCachedSites(sites); return sites; }
+  }
+  return getCachedSites()||[];
+}
+async function loadCampagnesWithFallback(){
+  if(navigator.onLine){
+    const {data,error}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
+    if(!error){ const campagnes=data||[]; setCachedCampagnes(campagnes); return campagnes; }
+  }
+  return getCachedCampagnes()||[];
 }
 
 async function enterApp(){
@@ -1253,13 +1297,11 @@ async function enterApp(){
   resetIdleTimer(); // démarre la surveillance d'inactivité dès qu'un compte actif est connecté
 
   // charge les sites (nécessaire pour libellés + filtres + attribution)
-  const {data:sites}=await sb.from("sites").select("*").order("nom");
-  SITES=sites||[];
+  SITES=await loadSitesWithFallback();
 
   // charge les campagnes - nécessaire pour tous les rôles désormais :
   // l'admin les gère, l'agent en a besoin pour choisir campagne puis site en cascade
-  const {data:campagnes}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
-  CAMPAGNES=campagnes||[];
+  CAMPAGNES=await loadCampagnesWithFallback();
 
   $("authScreen").classList.add("hidden");
   $("appScreen").classList.remove("hidden");
@@ -3751,8 +3793,15 @@ $("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule
   if(isRecoveryUrl()){ IS_RECOVERY=true; showResetPassword(); }
   await new Promise(r=>setTimeout(r,150)); // laisse une chance à l'événement Supabase de confirmer
   if(IS_RECOVERY) return;
-  const {data:{session}}=await sb.auth.getSession();
-  if(session) await enterApp();
+  // getSession() lit d'abord le stockage local (pas forcément un appel réseau), mais on reste
+  // prudent : si elle échoue quand même hors connexion, on retente via le profil mis en cache
+  // (loadProfile() sait déjà reprendre dessus) plutôt que de bloquer l'agent à l'écran de connexion.
+  let session=null;
+  try{
+    const {data}=await sb.auth.getSession();
+    session=data?.session;
+  }catch(e){ /* ignoré volontairement, voir repli ci-dessous */ }
+  if(session || (!navigator.onLine && getCachedProfile())) await enterApp();
 })();
 </script>
 </body>

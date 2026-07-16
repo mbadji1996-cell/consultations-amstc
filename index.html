@@ -883,7 +883,7 @@
             <input type="file" id="stockImportFile" accept=".xlsx,.xls,.csv" style="margin-top:10px;display:block" onchange="handleStockImportFile(event)">
             <div id="stockImportPreview" class="hidden" style="margin-top:14px"></div>
           </fieldset>
-          <fieldset><legend>Ajouter un article au stock</legend>
+          <fieldset id="addStockFieldset" class="hidden"><legend>Ajouter un article au stock</legend>
             <div class="row2">
               <div class="field"><label for="stock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="stock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
               <div class="field"><label for="stock_type">Type d'article</label><select id="stock_type"></select></div>
@@ -3169,7 +3169,11 @@ function isChiefPharmacien(){
 
 async function loadStock(){
   const siteId=currentStockSiteId();
-  $("importStockFieldset")?.classList.toggle("hidden", !isChiefPharmacien());
+  // Seul le pharmacien en chef du site peut faire évoluer le stock (import Excel, ajout manuel,
+  // modification d'un article existant) - les autres pharmaciens du site ont une vue lecture seule.
+  const isChief=isChiefPharmacien();
+  $("importStockFieldset")?.classList.toggle("hidden", !isChief);
+  $("addStockFieldset")?.classList.toggle("hidden", !isChief);
   if(!siteId){ $("stockBody").innerHTML=`<div class="empty">Aucun site attribué.</div>`; return; }
   $("stockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
@@ -3179,6 +3183,7 @@ async function loadStock(){
 
 function renderStock(items){
   if(!items.length){ $("stockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
+  const isChief=isChiefPharmacien();
   const groups={};
   items.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
   const cats=Object.keys(groups).sort();
@@ -3197,7 +3202,7 @@ function renderStock(items){
             <td>${stockUnitSelect("stockunite_"+it.id, it.unite, true)}</td>
             <td><input type="number" min="0" value="${it.seuil_alerte||0}" id="stockseuil_${it.id}" disabled style="width:55px;padding:6px 8px"></td>
             <td id="stockactions_${it.id}">
-              <button class="btn btn-ghost btn-sm" onclick="toggleStockEdit('${it.id}')">Modifier</button>
+              ${isChief?`<button class="btn btn-ghost btn-sm" onclick="toggleStockEdit('${it.id}')">Modifier</button>`:""}
             </td>
           </tr>`;
         }).join("")}

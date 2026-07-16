@@ -596,7 +596,6 @@
           <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v63</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
-        <button id="menuChangeSpecialite" class="hidden" onclick="openChangeSpecialiteModal()">Changer mon domaine</button>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
     </div>
@@ -606,6 +605,7 @@
   <div id="profileModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle" onclick="if(event.target===this) closeProfileModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
       <h2 id="profileModalTitle" style="font-size:18px;margin-bottom:16px">Mon profil</h2>
+      <div id="profileAlert"></div>
       <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:16px">
         <div id="profileAvatarPreview" style="width:80px;height:80px;border-radius:50%;background:var(--green-50);color:var(--green-700);
           display:flex;align-items:center;justify-content:center;font-weight:700;font-size:26px;overflow:hidden;margin-bottom:10px"></div>
@@ -615,20 +615,9 @@
       <div class="field"><label for="profile_prenom">Prénom</label><input type="text" id="profile_prenom"></div>
       <div class="field"><label for="profile_nom">Nom</label><input type="text" id="profile_nom"></div>
       <div class="field"><label for="profile_telephone">Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
-      <div class="field"><label for="profile_profession">Profession affichée (intitulé uniquement)</label>
-        <select id="profile_profession" onchange="onProfileProfessionChange()">
-          <option value="">- Choisir -</option>
-          <option value="medecin">Médecin</option>
-          <option value="pharmacien">Pharmacien</option>
-          <option value="dentiste">Dentiste</option>
-          <option value="infirmier">Infirmier</option>
-          <option value="specialiste">Spécialiste</option>
-        </select>
-        <p class="rec-meta" style="margin-top:6px">Ceci n'est qu'un intitulé affiché sur votre badge et vos cartes - cela ne change ni votre formulaire ni vos onglets. Pour changer votre domaine d'exercice réel, utilisez « Changer mon domaine » dans le menu de votre compte.</p>
-      </div>
-      <div class="field hidden" id="profileProfessionDetailWrap">
-        <label for="profile_profession_detail">Spécialité</label>
-        <select id="profile_profession_detail"></select>
+      <div id="profileSpecialiteSection" class="hidden">
+        <div id="profileSpecialiteWrap"></div>
+        <p class="rec-meta" style="margin:-6px 0 16px">Détermine votre formulaire et vos onglets - effectif à votre <b>prochaine connexion</b>, pas immédiatement.</p>
       </div>
       <div class="field"><label for="profile_niveau">Niveau d'étude</label>
         <select id="profile_niveau">
@@ -649,22 +638,6 @@
       <div class="actions">
         <button class="btn btn-primary" onclick="saveProfile()">Enregistrer</button>
         <button class="btn btn-ghost" onclick="closeProfileModal()">Fermer</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modale "Changer mon domaine" (RG3) : self-service, mais sans effet immédiat sur la
-       session en cours - le nouveau domaine ne s'applique qu'à la prochaine connexion. -->
-  <div id="changeSpecialiteModalOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="changeSpecialiteModalTitle" onclick="if(event.target===this) closeChangeSpecialiteModal()" style="position:fixed;inset:0;background:rgba(6,68,28,.45);z-index:1001;display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:380px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain">
-      <h2 id="changeSpecialiteModalTitle" style="font-size:18px;margin-bottom:10px">Changer mon domaine</h2>
-      <p class="rec-meta" style="margin-bottom:10px">C'est ici (et seulement ici) que se change le domaine qui détermine votre formulaire et vos onglets - pas dans « Mon profil ».</p>
-      <p class="rec-meta" style="margin-bottom:16px">Ce changement sera pris en compte à votre <b>prochaine connexion</b> ; la session en cours n'est pas affectée.</p>
-      <div id="changeSpecialiteAlert"></div>
-      <div id="changeSpecialiteWrap"></div>
-      <div class="actions">
-        <button class="btn btn-primary" onclick="saveChangeSpecialite()">Enregistrer</button>
-        <button class="btn btn-ghost" onclick="closeChangeSpecialiteModal()">Fermer</button>
       </div>
     </div>
   </div>
@@ -1088,12 +1061,17 @@ async function doLogout(){ sessionStorage.removeItem(SITE_CONFIRMED_KEY); await 
 let PROFILE_AVATAR_BLOB=null; // photo compressée en attente d'envoi, tant que "Enregistrer" n'a pas été cliqué
 
 function openProfileModal(){
+  $("profileAlert").innerHTML="";
   $("profile_prenom").value=ME.prenom||"";
   $("profile_nom").value=ME.nom||"";
   $("profile_telephone").value=ME.telephone||"";
   $("profile_niveau").value=ME.niveau_etude||"";
-  $("profile_profession").value=ME.profession_declaree||"";
-  onProfileProfessionChange(ME.profession_declaree_detail);
+  // Le domaine d'exercice (fonctionnel) n'a de sens que pour un praticien - l'admin n'en a pas.
+  const showSpecialite=ME.role==="agent";
+  $("profileSpecialiteSection").classList.toggle("hidden", !showSpecialite);
+  if(showSpecialite){
+    $("profileSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("profile",ME.specialite||"",ME.specialite_detail||"");
+  }
   PROFILE_AVATAR_BLOB=null;
   renderProfileAvatarPreview(ME.avatar_url);
   $("profileModalOverlay").classList.remove("hidden");
@@ -1103,34 +1081,6 @@ function openProfileModal(){
 function closeProfileModal(){
   $("profileModalOverlay").classList.add("hidden");
   document.body.style.overflow="";
-}
-
-/* ---------- Modale "Changer mon domaine" (RG3) ---------- */
-function openChangeSpecialiteModal(){
-  $("changeSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("changespec",ME.specialite||"",ME.specialite_detail||"");
-  $("changeSpecialiteAlert").innerHTML="";
-  $("changeSpecialiteModalOverlay").classList.remove("hidden");
-  $("menuPop")?.classList.add("hidden");
-  document.body.style.overflow="hidden";
-}
-function closeChangeSpecialiteModal(){
-  $("changeSpecialiteModalOverlay").classList.add("hidden");
-  document.body.style.overflow="";
-}
-async function saveChangeSpecialite(){
-  const fields=readSpecialiteFields("changespec","changeSpecialiteAlert");
-  if(!fields) return;
-  // Aucun changement réel : rien à enregistrer, juste refermer.
-  if(fields.specialite===ME.specialite && fields.specialite_detail===(ME.specialite_detail||null)){
-    closeChangeSpecialiteModal();
-    return;
-  }
-  const {error}=await sb.from("profiles").update(fields).eq("id",ME.id);
-  if(error){ alertIn("changeSpecialiteAlert","err","Échec : "+errMsg(error)); return; }
-  // Volontairement : on ne touche ni à ME.specialite ni à l'UI courante (onglets, formulaire...)
-  // - RG3 impose que le changement ne soit effectif qu'après déconnexion/reconnexion.
-  closeChangeSpecialiteModal();
-  toast("Domaine mis à jour - effectif à votre prochaine connexion");
 }
 
 /* ---------- Modale de confirmation générique ----------
@@ -1169,14 +1119,6 @@ function confirmModal(message,opts={}){
   });
 }
 
-function onProfileProfessionChange(currentDetail){
-  const isSpecialiste=$("profile_profession").value==="specialiste";
-  $("profileProfessionDetailWrap").classList.toggle("hidden", !isSpecialiste);
-  if(isSpecialiste){
-    $("profile_profession_detail").innerHTML=specialtySelectOptions(currentDetail||"");
-  }
-}
-
 function renderProfileAvatarPreview(url){
   const box=$("profileAvatarPreview");
   box.innerHTML = url
@@ -1213,13 +1155,16 @@ async function saveProfile(){
   const nom=$("profile_nom").value.trim();
   const telephone=$("profile_telephone").value.trim()||null;
   const niveau_etude=$("profile_niveau").value||null;
-  const profession_declaree=$("profile_profession").value||null;
-  let profession_declaree_detail=null;
-  if(profession_declaree==="specialiste"){
-    const sel=$("profile_profession_detail").value;
-    profession_declaree_detail = sel==="__autre__" ? null : (sel||null);
-  }
   let avatar_url=ME.avatar_url||null;
+
+  // Domaine d'exercice (fonctionnel) - fusionné ici avec le reste du profil, mais son effet
+  // reste différé à la prochaine connexion (voir plus bas : jamais assigné à ME en mémoire).
+  let specialiteFields=null;
+  const showSpecialite=ME.role==="agent";
+  if(showSpecialite){
+    specialiteFields=readSpecialiteFields("profile","profileAlert");
+    if(!specialiteFields) return;
+  }
 
   if(PROFILE_AVATAR_BLOB){
     const path=`${ME.id}/avatar.jpg`;
@@ -1229,15 +1174,19 @@ async function saveProfile(){
     avatar_url=pub.publicUrl+"?t="+Date.now(); // évite que le navigateur affiche l'ancienne photo en cache
   }
 
-  const {error}=await sb.from("profiles").update({
-    prenom, nom, avatar_url, telephone, niveau_etude, profession_declaree, profession_declaree_detail,
-  }).eq("id",ME.id);
-  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  const payload={ prenom, nom, avatar_url, telephone, niveau_etude };
+  const specialiteChanged = specialiteFields && (specialiteFields.specialite!==ME.specialite || specialiteFields.specialite_detail!==(ME.specialite_detail||null));
+  if(specialiteFields) Object.assign(payload, specialiteFields);
 
-  Object.assign(ME,{prenom,nom,avatar_url,telephone,niveau_etude,profession_declaree,profession_declaree_detail});
+  const {error}=await sb.from("profiles").update(payload).eq("id",ME.id);
+  if(error){ alertIn("profileAlert","err","Échec : "+errMsg(error)); return; }
+
+  // Volontairement : specialite/specialite_detail ne sont jamais assignés à ME ici, ni l'UI
+  // rebâtie pour eux - le nouveau domaine ne doit prendre effet qu'après reconnexion.
+  Object.assign(ME,{prenom,nom,avatar_url,telephone,niveau_etude});
   $("menuName").textContent=`${prenom} ${nom}`.trim()||ME.email;
   closeProfileModal();
-  toast("Profil mis à jour");
+  toast(specialiteChanged ? "Profil mis à jour - le nouveau domaine sera effectif à votre prochaine connexion" : "Profil mis à jour");
   if(CURRENT_TAB==="dashboard") renderDashboard();
 }
 
@@ -1392,10 +1341,12 @@ async function confirmSiteSelection(){
    ONGLETS SELON LE RÔLE
    ===================================================================== */
 const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
-const PROFESSION_LABELS={medecin:"Médecin",pharmacien:"Pharmacien",dentiste:"Dentiste",infirmier:"Infirmier",specialiste:"Spécialiste"};
+// Libellé affiché (badge, cartes collègues, panneau admin) - dérivé du domaine d'exercice
+// réel (specialite), fusionné avec lui depuis "Mon profil" : plus de champ "profession"
+// distinct qui pouvait afficher un intitulé sans rapport avec le formulaire réellement utilisé.
 function professionLabel(p){
-  if(!p || !p.profession_declaree) return "";
-  return (PROFESSION_LABELS[p.profession_declaree]||"")+(p.profession_declaree==="specialiste"&&p.profession_declaree_detail?" - "+esc(p.profession_declaree_detail):"");
+  if(!p || !p.specialite) return "";
+  return (SPEC_LABELS[p.specialite]||"")+(p.specialite==="specialiste"&&p.specialite_detail?" - "+esc(p.specialite_detail):"");
 }
 
 // Icônes de la barre de navigation (traits fins, cohérentes avec le reste de l'app)
@@ -1489,7 +1440,6 @@ function stockTypeSelect(id,current){
 function isPharmacien(){ return ME.role!=="admin" && ME.specialite==="pharmacien"; }
 
 function buildTabs(){
-  $("menuChangeSpecialite").classList.toggle("hidden", ME.role!=="agent"); // RG3 : réservé aux praticiens
   let tabs;
   if(ME.role==="admin"){
     tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Pharmacie"]];
@@ -2064,7 +2014,7 @@ function computeDashboardStats(){
 async function loadCollegues(siteId){
   const sid = siteId!==undefined ? siteId : ME.site_id;
   if(!sid) return [];
-  const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url,telephone,profession_declaree,profession_declaree_detail")
+  const {data}=await sb.from("profiles").select("id,prenom,nom,role,specialite,specialite_detail,avatar_url,telephone")
     .eq("site_id",sid).eq("actif",true).neq("id",ME.id);
   return data||[];
 }

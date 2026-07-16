@@ -40,20 +40,25 @@
   input,select,textarea{font-family:inherit}
   .hidden{display:none!important}
 
-  /* ---------- AUTH ---------- */
-  #authScreen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .auth-wrap{width:100%;max-width:1020px;display:flex;flex-direction:column;gap:24px}
-  .auth-hero{position:relative;overflow:hidden;border-radius:22px;color:#fff;min-height:360px;
-    display:flex;align-items:flex-end}
-  .auth-hero-slides{position:absolute;inset:0}
+  /* ---------- AUTH ----------
+     La photo (diaporama) et son voile vert couvrent tout l'écran ; la carte de
+     connexion flotte par-dessus comme une carte à part entière (ombre marquée),
+     et le bloc de bienvenue est posé directement sur la photo, sans encadré propre. */
+  #authScreen{position:relative;overflow:hidden;min-height:100dvh;display:flex;align-items:center;justify-content:center}
+  .auth-bg-slides{position:absolute;inset:0;z-index:0}
   .auth-hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;
     opacity:0;transition:opacity 1.4s ease}
   .auth-hero-slide.active{opacity:1}
-  .auth-hero-overlay{position:absolute;inset:0;
+  .auth-bg-overlay{position:absolute;inset:0;z-index:0;
     background:linear-gradient(165deg,rgba(3,30,12,.94) 8%,rgba(6,68,28,.72) 45%,rgba(6,68,28,.88) 100%)}
-  .auth-hero-overlay::after{content:"";position:absolute;top:-30%;right:-10%;width:260px;height:260px;
-    border-radius:50%;background:var(--gradient-gold);opacity:.16;pointer-events:none}
-  .auth-hero-content{position:relative;padding:30px 26px;width:100%}
+  .auth-bg-overlay::after{content:"";position:absolute;top:-15%;right:-8%;width:340px;height:340px;
+    border-radius:50%;background:var(--gradient-gold);opacity:.14;pointer-events:none}
+  /* Petit décor "étincelle" discret, dans un coin - purement esthétique. */
+  .auth-sparkle{position:absolute;right:6%;bottom:8%;z-index:1;color:rgba(255,255,255,.55);
+    font-size:22px;pointer-events:none;line-height:1}
+  .auth-wrap{position:relative;z-index:1;width:100%;max-width:1080px;display:flex;flex-direction:column;gap:28px;padding:28px 20px}
+  .auth-hero{color:#fff;display:flex;align-items:center}
+  .auth-hero-content{width:100%}
   .auth-hero-badge{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;
     padding:10px 16px;margin-bottom:18px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
   .auth-hero-badge img{height:38px;width:auto;display:block}
@@ -63,14 +68,15 @@
   .auth-hero-feature{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);
     backdrop-filter:blur(2px);padding:8px 13px;border-radius:var(--radius-full);font-size:12.5px;font-weight:600}
   .auth-hero-feature svg{width:15px;height:15px;flex-shrink:0}
-  .auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+  .auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
+    box-shadow:0 30px 70px rgba(0,0,0,.35),0 10px 26px rgba(0,0,0,.22);
     width:100%;max-width:400px;margin:0 auto;padding:32px 28px}
   @media(min-width:860px){
-    .auth-wrap{flex-direction:row;align-items:stretch;gap:32px}
-    .auth-hero{flex:1.15;min-height:auto;align-items:center}
-    .auth-hero-content{padding:0 44px}
+    .auth-wrap{flex-direction:row;align-items:center;gap:48px;padding:40px}
+    .auth-hero{flex:1.15}
+    .auth-hero-content{padding:0 20px}
     .auth-hero h1{font-size:26px}
-    .auth-card{flex:1;max-width:420px;align-self:center;margin:0}
+    .auth-card{flex:0 0 400px;max-width:420px;margin:0}
   }
   .brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
   .brand-mark{width:44px;height:44px;border-radius:12px;background:var(--green-700);color:#fff;
@@ -449,16 +455,17 @@
 
 <!-- ============ AUTH ============ -->
 <div id="authScreen">
+  <div class="auth-bg-slides">
+    <div class="auth-hero-slide active" style="background-image:url('./hero1.jpg')"></div>
+    <div class="auth-hero-slide" style="background-image:url('./hero2.jpg')"></div>
+    <div class="auth-hero-slide" style="background-image:url('./hero3.jpg')"></div>
+    <div class="auth-hero-slide" style="background-image:url('./hero4.jpg')"></div>
+    <div class="auth-hero-slide" style="background-image:url('./hero5.jpg')"></div>
+  </div>
+  <div class="auth-bg-overlay"></div>
+  <div class="auth-sparkle" aria-hidden="true">✦</div>
   <div class="auth-wrap">
     <div class="auth-hero">
-      <div class="auth-hero-slides">
-        <div class="auth-hero-slide active" style="background-image:url('./hero1.jpg')"></div>
-        <div class="auth-hero-slide" style="background-image:url('./hero2.jpg')"></div>
-        <div class="auth-hero-slide" style="background-image:url('./hero3.jpg')"></div>
-        <div class="auth-hero-slide" style="background-image:url('./hero4.jpg')"></div>
-        <div class="auth-hero-slide" style="background-image:url('./hero5.jpg')"></div>
-      </div>
-      <div class="auth-hero-overlay"></div>
       <div class="auth-hero-content">
         <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh"></div>
         <h1>Bienvenue sur la plateforme de gestion des consultations de l'Association Médico-Sociale des Talibés Cheikh (AMSTC)</h1>

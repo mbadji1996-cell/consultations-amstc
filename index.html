@@ -205,6 +205,10 @@
   .constants .field{margin-bottom:0}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
   .med-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:flex-end}
+  .diag-picker{border:1px solid var(--line);border-radius:var(--radius-sm);max-height:230px;overflow-y:auto;background:var(--white)}
+  .diag-picker label{display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:400;font-size:14px;
+    margin-bottom:0;border-bottom:1px solid var(--line)}
+  .diag-picker label:last-child{border-bottom:none}
 
   /* ---------- TABLEAU DE BORD : bandeau, cartes de stats, cartes de contenu ---------- */
   .dash-greeting{background:var(--gradient-brand-rich);border-radius:18px;position:relative;overflow:hidden;
@@ -358,9 +362,6 @@
     #panel-form .actions .btn{ flex:1; }   /* les deux boutons se partagent la largeur */
   }
 
-  /* 7 · Badge de type de consultation : couleur neutre, distincte du vert
-     « synchronisé » (tag-sent), pour ne pas brouiller le sens des couleurs d'état. */
-  .tag-type{ background:#eceff0; color:var(--green-900); }
 
   /* 8 · Liens légaux (Confidentialité / CGU) en bas de la carte de connexion */
   .auth-legal{
@@ -706,26 +707,13 @@
         <div class="field"><label for="c_age">Âge (années) <span class="req">*</span></label><input type="number" id="c_age" min="0" max="150"></div>
       </div>
       <div class="field"><label for="c_adresse">Adresse</label><input type="text" id="c_adresse" placeholder="Quartier / localité"></div>
+      <div class="field"><label for="c_telephone_patient">Téléphone <span style="font-weight:400;color:var(--muted)">(facultatif)</span></label>
+        <input type="tel" id="c_telephone_patient" placeholder="Ex : 77 123 45 67"></div>
       <div class="field"><label for="c_motifs">Motifs de consultation <span class="req">*</span></label>
         <textarea id="c_motifs" placeholder="Raisons de la visite"></textarea></div>
 
       <!-- ===== GÉNÉRALISTE (également utilisé par le DENTISTE - même formulaire) ===== -->
       <div id="type_generaliste_fields">
-        <div class="field hidden" id="acteDentaireWrap">
-          <label for="c_acte_dentaire">Acte dentaire <span class="req">*</span></label>
-          <select id="c_acte_dentaire" onchange="onActeDentaireChange()">
-            <option value="">- Sélectionner -</option>
-            <option value="Consultation / Contrôle">Consultation / Contrôle</option>
-            <option value="Détartrage">Détartrage</option>
-            <option value="Soin de carie (obturation)">Soin de carie (obturation)</option>
-            <option value="Extraction dentaire">Extraction dentaire</option>
-            <option value="Dévitalisation (traitement de canal)">Dévitalisation (traitement de canal)</option>
-            <option value="Pose de prothèse / bridge">Pose de prothèse / bridge</option>
-            <option value="Chirurgie buccale">Chirurgie buccale</option>
-            <option value="__autre__">Autre…</option>
-          </select>
-          <input type="text" id="c_acte_dentaire_autre" class="hidden" placeholder="Précisez l'acte" style="margin-top:8px">
-        </div>
         <fieldset>
           <legend>Constantes vitales</legend>
           <div class="constants">
@@ -740,8 +728,16 @@
           <textarea id="c_antecedents" placeholder="Antécédents, allergies, maladies chroniques…"></textarea></div>
         <div class="field"><label for="c_signes">Signes cliniques <span class="req">*</span></label>
           <textarea id="c_signes" placeholder="Résultats de l'examen clinique"></textarea></div>
-        <div class="field"><label for="c_diagnostic">Diagnostic <span class="req">*</span></label>
-          <textarea id="c_diagnostic" placeholder="Diagnostic principal"></textarea></div>
+        <div class="field">
+          <label>Diagnostic <span class="req">*</span></label>
+          <div id="diagPickerWrap">
+            <div class="diag-picker" id="diagPicker"></div>
+            <div class="field hidden" id="diagAutreWrap" style="margin-top:8px">
+              <input type="text" id="c_diagnostic_autre" placeholder="Précisez le(s) diagnostic(s) supplémentaire(s)">
+            </div>
+          </div>
+          <textarea id="c_diagnostic_texte" class="hidden" placeholder="Diagnostic dentaire (ex : carie, gingivite…)"></textarea>
+        </div>
         <div class="field"><label for="c_explorations">Explorations complémentaires demandées</label>
           <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
         <div class="field">
@@ -752,6 +748,21 @@
             <input type="checkbox" id="c_pas_traitement" onchange="onPasTraitementChange('generaliste')"> Pas de traitement nécessaire
           </label>
           <textarea id="c_conduite_notes" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
+        </div>
+        <div class="field hidden" id="acteDentaireWrap">
+          <label for="c_acte_dentaire">Acte dentaire <span class="req">*</span></label>
+          <select id="c_acte_dentaire" onchange="onActeDentaireChange()">
+            <option value="">- Sélectionner -</option>
+            <option value="Consultation / Contrôle">Consultation / Contrôle</option>
+            <option value="Détartrage">Détartrage</option>
+            <option value="Soin de carie (obturation)">Soin de carie (obturation)</option>
+            <option value="Extraction dentaire">Extraction dentaire</option>
+            <option value="Dévitalisation (traitement de canal)">Dévitalisation (traitement de canal)</option>
+            <option value="Pose de prothèse / bridge">Pose de prothèse / bridge</option>
+            <option value="Chirurgie buccale">Chirurgie buccale</option>
+            <option value="__autre__">Autre…</option>
+          </select>
+          <input type="text" id="c_acte_dentaire_autre" class="hidden" placeholder="Précisez l'acte" style="margin-top:8px">
         </div>
       </div>
 
@@ -1397,6 +1408,43 @@ function specialtySelectOptions(currentValue){
     SPECIALTY_LIST.map(s=>`<option value="${esc(s)}"${s===currentValue?" selected":""}>${esc(s)}</option>`).join("")+
     `<option value="__autre__"${(!known&&currentValue)?" selected":""}>Autre…</option>`;
 }
+
+// Pathologies courantes proposées pour le diagnostic (généraliste) - choix multiple, triées par
+// ordre alphabétique français. Ajouter ici toute nouvelle pathologie utile pour qu'elle apparaisse
+// automatiquement à sa place dans la liste, sans avoir à re-trier à la main.
+const DIAGNOSTIC_LIST=["Paludisme","Hypertension artérielle","Diabète","Ulcère Gastro-Duodénal",
+  "Dermatoses (Dermatites, eczéma et autres affections cutanées)","Allergies (rhinite allergique, urticaire)",
+  "Asthme","Anémie","Lombalgie","Arthrose et douleurs articulaires","Gastro-entérites",
+  "Pneumonies et autres affections respiratoires","Drépanocytose","Infections urinaires",
+  "Parasitoses intestinales","Reflux gastro-œsophagien (RGO)","Malnutrition","Fièvre typhoïde",
+  "Hépatites virales","Épilepsie","Troubles anxieux et dépression"].sort((a,b)=>a.localeCompare(b,"fr"));
+
+function diagPickerHtml(){
+  return DIAGNOSTIC_LIST.map(d=>`<label><input type="checkbox" class="diag-check" value="${esc(d)}" onchange="onDiagCheckChange()">${esc(d)}</label>`).join("")
+    +`<label><input type="checkbox" id="diag_autre_check" onchange="onDiagCheckChange()">Autres (préciser)</label>`;
+}
+function onDiagCheckChange(){
+  $("diagAutreWrap").classList.toggle("hidden", !$("diag_autre_check").checked);
+}
+// Sérialise la sélection en une chaîne unique (colonne "diagnostic" existante, texte libre) -
+// pas de nouvelle colonne nécessaire ; countTop() sait re-scinder cette chaîne pour les statistiques.
+function readDiagnosticSelection(){
+  const checked=[...document.querySelectorAll(".diag-check:checked")].map(c=>c.value);
+  if($("diag_autre_check").checked){
+    const autre=$("c_diagnostic_autre").value.trim();
+    if(autre) checked.push(autre);
+  }
+  // "; " et non ", " : plusieurs libellés contiennent déjà une virgule entre parenthèses
+  // (ex. "Dermatoses (Dermatites, eczéma...)") - un séparateur différent évite toute ambiguïté
+  // au moment de re-scinder la chaîne (countTop, pour les statistiques).
+  return checked.join("; ");
+}
+function resetDiagnosticPicker(){
+  document.querySelectorAll(".diag-check").forEach(c=>c.checked=false);
+  if($("diag_autre_check")) $("diag_autre_check").checked=false;
+  if($("c_diagnostic_autre")) $("c_diagnostic_autre").value="";
+  $("diagAutreWrap")?.classList.add("hidden");
+}
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
 
 /* ---------- Choix du domaine d'exercice (spécialité fonctionnelle) -----------
@@ -1587,6 +1635,12 @@ function onConsultTypeChange(){
   $("type_generaliste_fields").classList.toggle("hidden", t==="specialiste");
   $("type_specialiste_fields").classList.toggle("hidden", t!=="specialiste");
   $("acteDentaireWrap").classList.toggle("hidden", t!=="dentiste");
+  // Diagnostic : liste de pathologies à cocher pour le généraliste (dont la liste proposée est
+  // pertinente) ; texte libre pour le dentiste, dont les diagnostics n'ont rien à voir avec cette
+  // liste de médecine générale.
+  const isDentiste=t==="dentiste";
+  $("diagPickerWrap").classList.toggle("hidden", isDentiste);
+  $("c_diagnostic_texte").classList.toggle("hidden", !isDentiste);
 }
 function onActeDentaireChange(){
   const sel=$("c_acte_dentaire").value;
@@ -1731,6 +1785,7 @@ async function saveConsultation(){
     prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
     sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
     adresse:$("c_adresse").value.trim(),
+    telephone_patient:$("c_telephone_patient").value.trim()||null,
     motifs:$("c_motifs").value.trim(),
     ta:null, temperature:null, fc:null, taille:null, poids:null, antecedents:"",
     signes:"", diagnostic:"", explorations:null, conduite:"", medicaments:[],
@@ -1769,7 +1824,7 @@ async function saveConsultation(){
     rec.poids=$("c_poids").value?parseFloat($("c_poids").value):null;
     rec.antecedents=$("c_antecedents").value.trim();
     rec.signes=$("c_signes").value.trim();
-    rec.diagnostic=$("c_diagnostic").value.trim();
+    rec.diagnostic = type==="dentiste" ? $("c_diagnostic_texte").value.trim() : readDiagnosticSelection();
     rec.explorations=$("c_explorations").value.trim()||null;
     rec.medicaments=readMedRows("generaliste");
     { const notes=$("c_conduite_notes").value.trim();
@@ -1830,9 +1885,10 @@ async function flushQueue(){
 }
 
 function resetForm(){
-  ["prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic","explorations","conduite_notes",
+  ["prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic_texte","explorations","conduite_notes",
    "signes_spec","diagnostic_spec","explorations_spec","conduite_notes_spec"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
+  resetDiagnosticPicker();
   // Pour un vrai agent spécialiste, ce champ est en lecture seule et pré-rempli par l'admin - on ne l'efface pas.
   if(!$("c_specialite_med").readOnly) $("c_specialite_med").value="";
   if($("c_specialite_med_select")){ $("c_specialite_med_select").value=""; }
@@ -1874,27 +1930,39 @@ function renderList(){
     const tag=r._queued?`<span class="tag tag-queue">À envoyer</span>`:`<span class="tag tag-sent">Synchronisée</span>`;
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
     const medecin=ME.role==="admin"&&r.medecin_nom?` · Praticien : ${esc(r.medecin_nom)}`:"";
-    const numero=r.numero_consultation?`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)}</div>`:"";
-    const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    const sexeLabel=r.sexe==="M"?"Masculin":r.sexe==="F"?"Féminin":(r.sexe||"?");
+    // Pas de badge à côté du nom (donnait l'impression que le patient était lui-même
+    // "Médecin"/"Dentiste") : le type de consultation est une simple ligne d'information
+    // dans le corps de la carte, avec le détail le plus parlant quand il est disponible.
+    let typeLine;
+    if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
+    else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else typeLine="Consultation Médecine Générale";
+    const motifsLine=r.motifs?`<div class="rec-diag"><b>Motifs :</b> ${esc(r.motifs)}</div>`:"";
+    const signesLine=r.signes?`<div class="rec-diag"><b>Signes :</b> ${esc(r.signes)}</div>`:"";
+    const diagLine=r.diagnostic?`<div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>`:"";
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
-    // Le badge affiche l'information la plus distinctive disponible : la spécialité précise
-    // pour un spécialiste, l'acte réalisé pour un dentiste - plutôt que le type générique
-    // ("Spécialiste"/"Dentiste"), qui à lui seul ne différencie pas grand-chose d'une carte à l'autre.
-    let typeLabel=SPEC_LABELS[r.type_consultation]||"Médecin";
-    if(r.type_consultation==="specialiste" && r.specialite_medicale) typeLabel=r.specialite_medicale;
-    else if(r.type_consultation==="dentiste" && r.acte_dentaire) typeLabel=r.acte_dentaire;
-    const diagLabel=r.type_consultation==="dentiste"?"Acte":"Diagnostic";
+    const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    const telLine=r.telephone_patient?`<div class="rec-meta"><b>Tel :</b> ${esc(r.telephone_patient)}</div>`:"";
+    const numeroDate=r.numero_consultation
+      ? `<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)} - ${d}</div>`
+      : `<div class="rec-meta">${d}</div>`;
     return `<div class="rec">
       <div class="rec-top">
-        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)} <span class="tag tag-type" style="margin-left:4px">${esc(typeLabel)}</span></div>
-          <div class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans${site}${medecin} · ${d}</div>
-          ${numero}</div>
+        <div>
+          <div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          ${numeroDate}
+          <div class="rec-meta">${r.age??"?"} ans · ${esc(sexeLabel)}${site}${medecin}</div>
+          <div class="rec-meta" style="margin-top:2px">${typeLine}</div>
+        </div>
         ${tag}
       </div>
-      <div class="rec-diag"><b>${diagLabel} :</b> ${esc(r.diagnostic)}</div>
-      <div class="rec-meta">${esc((r.motifs||"").slice(0,120))}${(r.motifs||"").length>120?"…":""}</div>
+      ${motifsLine}
+      ${signesLine}
+      ${diagLine}
       ${traitement}
       ${explo}
+      ${telLine}
       <div class="rec-foot">
         <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>
       </div>
@@ -1938,9 +2006,16 @@ function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id];
 
 const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
 const bracketLabel=([a,b])=>b>=200?`${a}+`:`${a}-${b}`;
-function countTop(list,field,n=5){
+function countTop(list,field,n=5,splitMulti=false){
   const map={};
-  list.forEach(r=>{ const v=(r[field]||"").trim(); if(!v) return; map[v]=(map[v]||0)+1; });
+  list.forEach(r=>{
+    const raw=(r[field]||"").trim(); if(!raw) return;
+    // Un diagnostic peut désormais regrouper plusieurs pathologies ("; " - voir
+    // readDiagnosticSelection) : chacune doit compter pour elle-même dans les statistiques,
+    // plutôt que la chaîne combinée entière ne compter que comme une seule valeur à part.
+    const values=splitMulti ? raw.split("; ").map(v=>v.trim()).filter(Boolean) : [raw];
+    values.forEach(v=>{ map[v]=(map[v]||0)+1; });
+  });
   return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,n);
 }
 
@@ -1970,7 +2045,7 @@ function computeDashboardStats(){
   const ages=rows.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
   const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
   const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
-  const topDiag=countTop(rows,"diagnostic");
+  const topDiag=countTop(rows,"diagnostic",5,true);
 
   const days=[]; for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(now.getDate()-i); d.setHours(0,0,0,0); days.push(d); }
   const trendCounts=days.map(d=>rows.filter(r=>isSameDay(new Date(r.created_at),d)).length);
@@ -1994,7 +2069,7 @@ function computeDashboardStats(){
       const f=rs.filter(r=>r.sexe==="F").length, m=rs.filter(r=>r.sexe==="M").length;
       const as=rs.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
       const moy=as.length?Math.round(as.reduce((a,b)=>a+b,0)/as.length):null;
-      const top=countTop(rs,"diagnostic",1);
+      const top=countTop(rs,"diagnostic",1,true);
       return { nom:s.nom, n, pctF:n?Math.round(f/n*100):null, pctM:n?Math.round(m/n*100):null, moy, topPath:top.length?top[0][0]:null };
     });
   }
@@ -2596,7 +2671,7 @@ async function downloadFullBackup(){
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
-  const cols=["numero_consultation","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
+  const cols=["numero_consultation","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
   const rowsForExport=rows.map(r=>{
     const meds=Array.isArray(r.medicaments)?r.medicaments:[];
     const resume=meds.map(m=>`${m.nom}${m.posologie?" ("+m.posologie+")":""}${m.quantite?" x"+m.quantite:""} [${m.delivre?"délivré":"en attente"}]`).join("; ");
@@ -3628,6 +3703,8 @@ sb.auth.onAuthStateChange((event)=>{
 })();
 
 /* ---------- démarrage ---------- */
+$("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule fois
+
 (async function(){
   updateSync();
   if(localStorage.getItem("amstc_auto_logout")){

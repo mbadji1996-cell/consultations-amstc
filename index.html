@@ -232,6 +232,28 @@
   .dstat-text{display:flex;flex-direction:column;gap:3px}
   .dstat b{font-size:24px;font-weight:800;color:var(--green-900);line-height:1}
   .dstat span{font-size:11.5px;color:var(--muted);font-weight:600}
+  /* Cartes KPI accentuées : liseré coloré + chiffre assorti + icône teintée, chaque
+     indicateur ayant sa propre couleur pour se repérer d'un coup d'œil (style carte
+     de statistique moderne). Les cartes sans data-accent gardent le rendu neutre. */
+  .dstat[data-accent]{border-width:1.5px;border-style:solid}
+  .dstat[data-accent="green"]{border-color:#17763B}
+  .dstat[data-accent="green"] b{color:#17763B}
+  .dstat[data-accent="green"] .dstat-icon{background:#eef6f0;color:#17763B}
+  .dstat[data-accent="gold"]{border-color:#D19914}
+  .dstat[data-accent="gold"] b{color:#AA7B11}
+  .dstat[data-accent="gold"] .dstat-icon{background:#fdf1d6;color:#AA7B11}
+  .dstat[data-accent="teal"]{border-color:#0E9F8A}
+  .dstat[data-accent="teal"] b{color:#0B7E6E}
+  .dstat[data-accent="teal"] .dstat-icon{background:#e6f6f3;color:#0B7E6E}
+  .dstat[data-accent="blue"]{border-color:#2E6FD8}
+  .dstat[data-accent="blue"] b{color:#2E6FD8}
+  .dstat[data-accent="blue"] .dstat-icon{background:#e9f0fc;color:#2E6FD8}
+  .dstat[data-accent="red"]{border-color:#C0392B}
+  .dstat[data-accent="red"] b{color:#C0392B}
+  .dstat[data-accent="red"] .dstat-icon{background:#fdecea;color:#C0392B}
+  .dstat[data-accent="purple"]{border-color:#7A4DD8}
+  .dstat[data-accent="purple"] b{color:#7A4DD8}
+  .dstat[data-accent="purple"] .dstat-icon{background:#f1ecfb;color:#7A4DD8}
 
   /* ---------- CARDS / LIST ---------- */
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
@@ -918,8 +940,8 @@
       <!-- Vue ADMIN : aperçu en lecture seule, aucune action possible ici -->
       <div id="pharmaAdminOverview" class="hidden">
         <div class="stat-row" style="margin-bottom:16px">
-          <div class="dstat">
-            <div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div>
+          <div class="dstat" data-accent="green">
+            <div class="dstat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div>
             <div class="dstat-text"><b id="pharmaAdminDeliveredCount">-</b><span>Médicaments délivrés au total</span></div>
           </div>
         </div>
@@ -2058,6 +2080,45 @@ let CHARTS={}; // instances Chart.js actives, détruites/recréées à chaque re
 // réutilisée par le tableau de bord général et celui du pharmacien (au lieu de deux copies
 // locales qui pourraient diverger silencieusement d'une future palette).
 const CHART_GREEN="#17763B", CHART_GREEN900="#06441C", CHART_ORANGE="#F8B718", CHART_GRID="#e3e9e5";
+// Palette multi-teintes pour les graphiques à catégories (pathologies, spécialités, stock...) :
+// une couleur par barre plutôt qu'une seule teinte uniforme, alignée sur les accents des cartes KPI.
+const CHART_PALETTE=["#17763B","#F8B718","#0E9F8A","#2E6FD8","#C0392B","#7A4DD8","#D19914","#2EA038"];
+function chartColors(n){ return Array.from({length:n},(_,i)=>CHART_PALETTE[i%CHART_PALETTE.length]); }
+
+// Réglages Chart.js partagés par les deux tableaux de bord (général et pharmacien) :
+// légendes à puces rondes, infobulles aux couleurs de la marque, animation douce
+// (désactivée si l'utilisateur préfère réduire les animations).
+function applyChartDefaults(){
+  Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
+  Chart.defaults.color="#5f6b62";
+  Chart.defaults.plugins.legend.labels.usePointStyle=true;
+  Chart.defaults.plugins.legend.labels.boxWidth=8;
+  Chart.defaults.plugins.legend.labels.boxHeight=8;
+  Chart.defaults.plugins.tooltip.backgroundColor="#06441C";
+  Chart.defaults.plugins.tooltip.padding=10;
+  Chart.defaults.plugins.tooltip.cornerRadius=8;
+  Chart.defaults.plugins.tooltip.displayColors=false;
+  Chart.defaults.animation.duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 700;
+  Chart.defaults.animation.easing="easeOutQuart";
+}
+
+// Anime les chiffres des cartes KPI de 0 vers leur valeur (comptage rapide) - respecte
+// prefers-reduced-motion, et ne touche qu'aux éléments marqués data-countup (les valeurs
+// non numériques comme "-" ne le sont jamais).
+function animateCountUps(scope){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  (scope||document).querySelectorAll("[data-countup]").forEach(el=>{
+    const target=parseFloat(el.dataset.countup);
+    if(isNaN(target)||target<=0) return;
+    const dur=700, t0=performance.now();
+    const step=now=>{
+      const p=Math.min(1,(now-t0)/dur), eased=1-Math.pow(1-p,3);
+      el.textContent=Math.round(target*eased);
+      if(p<1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
 function killChart(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
 
 const AGE_BRACKETS=[[0,4],[5,9],[10,14],[15,19],[20,29],[30,39],[40,49],[50,59],[60,69],[70,200]];
@@ -2247,17 +2308,19 @@ async function renderDashboard(){
     <div class="dash-greeting-date">${dateLong}</div>
   </div>`;
 
-  const statCard=(icon,tone,value,label)=>`<div class="dstat">
-    <div class="dstat-icon dstat-icon-${tone}">${svg(icon)}</div>
-    <div class="dstat-text"><b>${value}</b><span>${label}</span></div>
+  // Chaque indicateur a sa couleur d'accent (liseré + chiffre + icône) ; les valeurs
+  // numériques sont marquées data-countup pour l'animation de comptage à l'affichage.
+  const statCard=(icon,accent,value,label)=>`<div class="dstat" data-accent="${accent}">
+    <div class="dstat-icon">${svg(icon)}</div>
+    <div class="dstat-text"><b${typeof value==="number"?` data-countup="${value}"`:""}>${value}</b><span>${label}</span></div>
   </div>`;
 
   const statsHtml=`<div class="stat-row">
-    ${statCard(ICON_USERS,"g",total,ME.role==="admin"?"Consultations au total":"Mes consultations")}
-    ${statCard(ICON_CALENDAR,"o",today,"Aujourd'hui")}
-    ${statCard(ICON_TREND,"g",semaine,"7 derniers jours")}
-    ${statCard(ICON_USER,"o",ageMoyen??"-","Âge moyen (ans)")}
-    ${statCard(ICON_FLASK,"g",explorations,"Explorations demandées")}
+    ${statCard(ICON_USERS,"green",total,ME.role==="admin"?"Consultations au total":"Mes consultations")}
+    ${statCard(ICON_CALENDAR,"gold",today,"Aujourd'hui")}
+    ${statCard(ICON_TREND,"teal",semaine,"7 derniers jours")}
+    ${statCard(ICON_USER,"blue",ageMoyen??"-","Âge moyen (ans)")}
+    ${statCard(ICON_FLASK,"purple",explorations,"Explorations demandées")}
   </div>`;
 
   const cardOpen=(icon,title)=>`<div class="dash-card"><div class="dash-card-head">${svg(icon)}<span>${title}</span></div>`;
@@ -2329,6 +2392,7 @@ async function renderDashboard(){
     ${LIST.length>=1500?`<p class="rec-meta" style="margin-top:8px;color:var(--orange-dark);display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>Affichage limité aux 1500 consultations les plus récentes - au-delà, les chiffres ci-dessus ne couvrent plus tout l'historique.</p>`:""}
     <p id="chartFallbackNote" class="rec-meta hidden" style="margin-top:8px">Les graphiques nécessitent une connexion au premier chargement ; les chiffres ci-dessus restent fiables même hors ligne.</p>
   `;
+  animateCountUps($("dashBody"));
 
   if(typeof Chart==="undefined"){
     $("chartFallbackNote")?.classList.remove("hidden");
@@ -2336,15 +2400,15 @@ async function renderDashboard(){
   }
 
   const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
-  Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
-  Chart.defaults.color="#5f6b62";
+  applyChartDefaults();
 
   if(total){
     killChart("trend");
     CHARTS.trend=new Chart($("dashTrendChart"),{
       type:"line",
       data:{ labels:trendLabels, datasets:[{ label:"Consultations", data:trendCounts,
-        borderColor:green, backgroundColor:"rgba(46,160,56,.12)", fill:true, tension:.3, pointRadius:3 }] },
+        borderColor:green, backgroundColor:"rgba(46,160,56,.14)", fill:true, tension:.35,
+        borderWidth:2.5, pointRadius:0, pointHoverRadius:5, pointBackgroundColor:green }] },
       options:{ responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, x:{ grid:{display:false} } } }
@@ -2354,7 +2418,7 @@ async function renderDashboard(){
     CHARTS.type=new Chart($("dashTypeChart"),{
       type:"bar",
       data:{ labels:["Médecin","Dentiste","Spécialiste"],
-        datasets:[{ data:[typeCounts.generaliste,typeCounts.dentiste,typeCounts.specialiste], backgroundColor:[green,orange,green900], borderRadius:4 }] },
+        datasets:[{ data:[typeCounts.generaliste,typeCounts.dentiste,typeCounts.specialiste], backgroundColor:[green,orange,"#0E9F8A"], borderRadius:6, maxBarThickness:26 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -2365,7 +2429,7 @@ async function renderDashboard(){
     killChart("specialite");
     CHARTS.specialite=new Chart($("dashSpecialiteChart"),{
       type:"bar",
-      data:{ labels:specialiteBreakdown.map(([l])=>l), datasets:[{ data:specialiteBreakdown.map(([,c])=>c), backgroundColor:orange, borderRadius:4 }] },
+      data:{ labels:specialiteBreakdown.map(([l])=>l), datasets:[{ data:specialiteBreakdown.map(([,c])=>c), backgroundColor:chartColors(specialiteBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -2376,7 +2440,7 @@ async function renderDashboard(){
     killChart("medDelivered");
     CHARTS.medDelivered=new Chart($("dashMedDeliveredChart"),{
       type:"bar",
-      data:{ labels:medDeliveredBreakdown.map(([l])=>l), datasets:[{ data:medDeliveredBreakdown.map(([,c])=>c), backgroundColor:green900, borderRadius:4 }] },
+      data:{ labels:medDeliveredBreakdown.map(([l])=>l), datasets:[{ data:medDeliveredBreakdown.map(([,c])=>c), backgroundColor:chartColors(medDeliveredBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -2387,8 +2451,8 @@ async function renderDashboard(){
     killChart("sex");
     CHARTS.sex=new Chart($("dashSexChart"),{
       type:"doughnut",
-      data:{ labels:["Féminin","Masculin"], datasets:[{ data:[femmes,hommes], backgroundColor:[orange,green], borderWidth:0 }] },
-      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:"bottom" } } }
+      data:{ labels:["Féminin","Masculin"], datasets:[{ data:[femmes,hommes], backgroundColor:[orange,green], borderWidth:2, borderColor:"#fff", hoverOffset:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:"68%", plugins:{ legend:{ position:"bottom" } } }
     });
   }
 
@@ -2417,7 +2481,7 @@ async function renderDashboard(){
     killChart("diag");
     CHARTS.diag=new Chart($("dashDiagChart"),{
       type:"bar",
-      data:{ labels:topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:topDiag.map(([,c])=>c), backgroundColor:green, borderRadius:4 }] },
+      data:{ labels:topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:topDiag.map(([,c])=>c), backgroundColor:chartColors(topDiag.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -3082,10 +3146,10 @@ async function renderPharmacienDashboard(){
       <div class="dash-greeting-date">${dateLong} · Pharmacie de ${esc(siteName(siteId))}</div>
     </div>
     <div class="stat-row">
-      <div class="dstat" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('stock')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('stock')}"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div><div class="dstat-text"><b>${stockItems.length}</b><span>Articles en stock</span></div></div>
-      <div class="dstat" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('delivrances',true)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('delivrances',true)}"><div class="dstat-icon dstat-icon-g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div class="dstat-text"><b>${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div></div>
-      <div class="dstat" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('delivrances',false)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('delivrances',false)}"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="dstat-text"><b>${Math.round(totalPending)}</b><span>Unités en attente</span></div></div>
-      <div class="dstat" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('stock')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('stock')}"><div class="dstat-icon dstat-icon-o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div class="dstat-text"><b>${lowStock.length}</b><span>Alertes stock bas</span></div></div>
+      <div class="dstat" data-accent="green" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('stock')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('stock')}"><div class="dstat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg></div><div class="dstat-text"><b data-countup="${stockItems.length}">${stockItems.length}</b><span>Articles en stock</span></div></div>
+      <div class="dstat" data-accent="teal" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('delivrances',true)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('delivrances',true)}"><div class="dstat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></div><div class="dstat-text"><b data-countup="${Math.round(totalDelivered)}">${Math.round(totalDelivered)}</b><span>Unités délivrées (total)</span></div></div>
+      <div class="dstat" data-accent="gold" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('delivrances',false)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('delivrances',false)}"><div class="dstat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><div class="dstat-text"><b data-countup="${Math.round(totalPending)}">${Math.round(totalPending)}</b><span>Unités en attente</span></div></div>
+      <div class="dstat" data-accent="red" style="cursor:pointer" role="button" tabindex="0" onclick="goToPharmaSubTab('stock')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();goToPharmaSubTab('stock')}"><div class="dstat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div><div class="dstat-text"><b data-countup="${lowStock.length}">${lowStock.length}</b><span>Alertes stock bas</span></div></div>
     </div>
     ${collegueCardHtml(collegues)}
     ${catEntries.length?`<div class="dash-card"><div class="dash-card-head"><span>Stock par catégorie</span></div>
@@ -3097,16 +3161,16 @@ async function renderPharmacienDashboard(){
       </div>`:""}
     ${!stockItems.length?`<div class="empty">Aucun article en stock pour l'instant - allez dans l'onglet Pharmacie pour en ajouter.</div>`:""}
   `;
+  animateCountUps($("dashBody"));
 
   if(typeof Chart==="undefined") return;
-  Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
-  Chart.defaults.color="#5f6b62";
-  const green=CHART_GREEN, green900=CHART_GREEN900, orange=CHART_ORANGE, grid=CHART_GRID;
+  applyChartDefaults();
+  const grid=CHART_GRID;
   if(catEntries.length){
     killChart("pharmaCat");
     CHARTS.pharmaCat=new Chart($("dashPharmaCatChart"),{
       type:"bar",
-      data:{ labels:catEntries.map(([l])=>l), datasets:[{ data:catEntries.map(([,c])=>c), backgroundColor:green, borderRadius:4 }] },
+      data:{ labels:catEntries.map(([l])=>l), datasets:[{ data:catEntries.map(([,c])=>c), backgroundColor:chartColors(catEntries.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
     });
@@ -3115,7 +3179,7 @@ async function renderPharmacienDashboard(){
     killChart("pharmaDeliv");
     CHARTS.pharmaDeliv=new Chart($("dashPharmaDelivChart"),{
       type:"bar",
-      data:{ labels:topDelivered.map(([l])=>l), datasets:[{ data:topDelivered.map(([,c])=>c), backgroundColor:orange, borderRadius:4 }] },
+      data:{ labels:topDelivered.map(([l])=>l), datasets:[{ data:topDelivered.map(([,c])=>c), backgroundColor:chartColors(topDelivered.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
     });

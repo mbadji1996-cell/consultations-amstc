@@ -547,6 +547,8 @@
         <div class="field"><label for="suNom">Nom</label><input type="text" id="suNom"></div>
       </div>
       <div class="field"><label for="suEmail">Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
+      <div class="field"><label for="suTelephone">Numéro de téléphone (WhatsApp)</label>
+        <input type="tel" id="suTelephone" autocomplete="tel" placeholder="Ex : 77 123 45 67"></div>
       <div class="field"><label for="suPass">Mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
         <div class="pwd-wrap"><input type="password" id="suPass" autocomplete="new-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('suPass',this)" aria-label="Afficher le mot de passe">
@@ -1117,12 +1119,18 @@ async function doLogin(){
 async function doSignup(){
   const prenom=$("suPrenom").value.trim(), nom=$("suNom").value.trim();
   const email=$("suEmail").value.trim(), pass=$("suPass").value;
-  if(!prenom||!nom||!email||!pass){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  const telephone=$("suTelephone").value.trim();
+  if(!prenom||!nom||!email||!pass||!telephone){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
   if(pass.length<6){ alertIn("signupAlert","err","Le mot de passe doit faire au moins 6 caractères."); return; }
   $("signupBtn").disabled=true; $("signupBtn").textContent="Création…";
-  const {error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom}}});
+  const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom,telephone}}});
   $("signupBtn").disabled=false; $("signupBtn").textContent="Créer le compte";
   if(error){ alertIn("signupAlert","err","Échec : "+errMsg(error)); return; }
+  // Le profil est créé côté serveur (trigger) à partir des métadonnées ci-dessus ; si ce
+  // trigger ne recopie pas le téléphone, on complète directement la colonne du profil tant
+  // que la session d'inscription est active (même droit d'auto-modification que "Mon profil").
+  // Meilleur effort : un échec ici ne doit pas faire échouer une inscription déjà réussie.
+  if(data?.user){ await sb.from("profiles").update({telephone}).eq("id",data.user.id); }
   showLogin();
   alertIn("loginAlert","ok","Compte créé. Il doit être activé par un administrateur avant utilisation.");
 }

@@ -480,6 +480,27 @@
   .toolbar input[type="checkbox"],.toolbar input[type="radio"]{
     width:16px;height:16px;flex:0 0 16px;min-width:0;
   }
+
+  /* 10 · Guide d'utilisation : sections dépliables en <details>/<summary> natifs
+     (accessibles clavier/lecteur d'écran sans JavaScript), habillées comme des cartes. */
+  .aide-sec{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden}
+  .aide-sec summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;
+    font-size:14.5px;color:var(--green-900);display:flex;align-items:center;
+    justify-content:space-between;gap:10px}
+  .aide-sec summary::-webkit-details-marker{display:none}
+  .aide-sec summary::after{content:"▾";color:var(--muted);flex-shrink:0;transition:transform .2s}
+  .aide-sec[open] summary::after{transform:rotate(180deg)}
+  .aide-sec[open] summary{border-bottom:1px solid var(--line)}
+  .aide-sec summary:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+  .aide-body{padding:14px 16px;font-size:14px;line-height:1.65}
+  .aide-body p{margin-bottom:10px}
+  .aide-body p:last-child{margin-bottom:0}
+  .aide-body ul{margin:0 0 12px 20px}
+  .aide-body li{margin-bottom:6px}
+  .aide-body b{color:var(--green-900)}
+  .aide-note{background:#fff6e6;border:1px solid #f6d99a;color:#7a4d05;
+    border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;margin:10px 0}
 </style>
 </head>
 <body>
@@ -636,6 +657,7 @@
           <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v65</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
+        <button onclick="openAide()">Guide d'utilisation</button>
         <button onclick="doLogout()">Se déconnecter</button>
       </div>
     </div>
@@ -958,6 +980,17 @@
         </fieldset>
         <p class="rec-meta">Le détail des prescriptions et la gestion du stock sont réservés aux comptes Pharmacien, pour ne pas interférer avec leur travail.</p>
       </div>
+    </div>
+
+    <!-- AIDE : guide d'utilisation en sections dépliables, accessible à tous les rôles
+         depuis le menu du compte - le contenu est filtré selon le rôle (renderAide). -->
+    <div class="panel" id="panel-aide">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
+        <h2 style="font-size:19px">Guide d'utilisation</h2>
+        <button class="btn btn-ghost btn-sm" onclick="closeAide()">← Retour</button>
+      </div>
+      <p class="rec-meta" style="margin-bottom:14px">Touchez une section pour la déplier. Ce guide s'adapte automatiquement à votre rôle.</p>
+      <div id="aideBody"></div>
     </div>
   </div>
 </div>
@@ -3809,6 +3842,150 @@ async function deleteSite(id){
 function buildTabsSiteFilter(){
   if(ME.role==="admin"){ $("siteFilter").innerHTML=`<option value="">Tous les sites</option>`+
     SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join(""); }
+}
+
+/* =====================================================================
+   GUIDE D'UTILISATION - sections dépliables, contenu filtré selon le rôle
+   ===================================================================== */
+let AIDE_RETURN_TAB=null; // onglet d'où le guide a été ouvert, pour le bouton Retour
+
+function openAide(){
+  $("menuPop")?.classList.add("hidden");
+  AIDE_RETURN_TAB=CURRENT_TAB;
+  renderAide();
+  switchTab("aide");
+}
+function closeAide(){
+  const fallback = ME.role==="admin" ? "dashboard" : (isPharmacien() ? "dashboard" : "form");
+  switchTab(AIDE_RETURN_TAB && AIDE_RETURN_TAB!=="aide" ? AIDE_RETURN_TAB : fallback);
+}
+
+function renderAide(){
+  const isAdmin=ME.role==="admin";
+  const isPharma=isPharmacien();
+  const isPraticien=ME.role==="agent" && !isPharma; // médecin, dentiste ou spécialiste
+  const sections=[
+
+    { show:true, titre:"Premiers pas : compte et connexion", corps:`
+      <p><b>Créer un compte :</b> renseignez prénom, nom, adresse e-mail, numéro de téléphone (WhatsApp) et un mot de passe d'au moins 6 caractères. Vous pouvez aussi utiliser <b>Continuer avec Google</b>.</p>
+      <p>Après l'inscription, votre compte doit être <b>activé par un administrateur</b> avant de pouvoir être utilisé. Tant qu'il ne l'est pas, un message « Compte en attente » s'affiche à la connexion.</p>
+      <ul>
+        <li><b>Première connexion :</b> vous choisissez votre <b>domaine d'exercice</b> (Médecin, Dentiste, Spécialiste avec sa sous-spécialité, ou Pharmacien). Ce choix détermine votre formulaire et vos onglets. Il n'est demandé qu'une seule fois, et reste modifiable plus tard depuis « Mon profil ».</li>
+        <li><b>À chaque connexion :</b> vous confirmez le <b>site où vous exercez aujourd'hui</b> (pré-rempli sur votre dernier site, modifiable). Cela permet de changer de site d'un jour à l'autre pendant une campagne.</li>
+        <li><b>Mot de passe oublié :</b> depuis l'écran de connexion, un lien de réinitialisation vous est envoyé par e-mail.</li>
+      </ul>`},
+
+    { show:isPraticien||isAdmin, titre:"Saisir une nouvelle consultation", corps:`
+      <p>L'onglet <b>Nouvelle consultation</b> ${isAdmin?"vous demande d'abord de choisir le <b>site</b> et le <b>type de consultation</b> (Médecin, Dentiste ou Spécialiste), puisqu'en tant qu'administrateur vous n'avez pas de rôle fixe":"affiche directement le formulaire correspondant à votre domaine d'exercice"}.</p>
+      <ul>
+        <li><b>Identité du patient :</b> prénom, nom, sexe et âge sont obligatoires ; l'adresse et le téléphone sont facultatifs.</li>
+        <li><b>Motifs de consultation :</b> obligatoires - la raison de la visite.</li>
+        <li><b>Constantes vitales</b> (tension, température, fréquence cardiaque, taille, poids) : facultatives.</li>
+        <li><b>Signes cliniques :</b> obligatoires - le résultat de votre examen.</li>
+        <li><b>Diagnostic (Médecin) :</b> cochez une ou <b>plusieurs pathologies</b> dans la liste ; « Autres (préciser) » permet d'ajouter un diagnostic hors liste en texte libre.</li>
+        <li><b>Dentiste :</b> le diagnostic est en texte libre, et l'<b>acte dentaire</b> réalisé (détartrage, extraction...) est obligatoire, en bas du formulaire.</li>
+        <li><b>Spécialiste :</b> la spécialité médicale est rattachée à la consultation (fixée par l'administrateur pour un agent spécialiste).</li>
+        <li><b>Traitement :</b> ajoutez des médicaments soit depuis le <b>stock du site</b> (la quantité exacte sera fixée par le pharmacien à la délivrance), soit « hors stock » en texte libre. Si aucun traitement n'est nécessaire, cochez la case dédiée. Une note libre (recommandations, suivi) peut compléter.</li>
+      </ul>
+      <p>Chaque consultation reçoit immédiatement un numéro unique <b>AMSTC-XXXXXXXX</b>, même hors connexion.</p>`},
+
+    { show:isPraticien||isAdmin, titre:"Référer un patient à un confrère", corps:`
+      <p>Si d'autres praticiens sont rattachés à votre site, un encart <b>« Référer ce patient à un confrère »</b> apparaît en bas du formulaire de consultation.</p>
+      <ul>
+        <li>Choisissez le confrère (sa spécialité est affichée) et indiquez le <b>motif</b> de la référence.</li>
+        <li>Le confrère voit alors un <b>badge rouge</b> sur l'icône de son tableau de bord, et une carte <b>« Patients qui vous sont référés »</b> y liste les patients en attente.</li>
+        <li>Depuis cette carte, <b>« Commencer la consultation »</b> pré-remplit l'identité du patient dans son formulaire ; <b>« Marquer comme traité »</b> retire simplement la référence.</li>
+      </ul>`},
+
+    { show:isPraticien||isAdmin, titre:"Consulter, rechercher et exporter les consultations", corps:`
+      <p>L'onglet <b>${isAdmin?"Consultations":"Mes consultations"}</b> liste ${isAdmin?"toutes les consultations, tous praticiens confondus, avec un filtre par site et le nom du praticien sur chaque fiche":"vos consultations"}, de la plus récente à la plus ancienne.</p>
+      <ul>
+        <li>Chaque fiche affiche le numéro AMSTC, la date, l'âge et le sexe du patient, le type de consultation, puis motifs, signes, diagnostic, traitement, explorations et téléphone.</li>
+        <li><b>Statut :</b> « Synchronisée » = enregistrée sur le serveur ; « À envoyer » = encore en attente de réseau (voir la section hors connexion).</li>
+        <li><b>Recherche :</b> par nom du patient, numéro AMSTC, diagnostic ou motifs.</li>
+        <li><b>Exporter CSV :</b> télécharge la liste affichée avec toutes les colonnes, ouvrable dans Excel.</li>
+        <li><b>Supprimer :</b> définitif, avec confirmation - nécessite une connexion internet.</li>
+      </ul>`},
+
+    { show:true, titre:"Travailler hors connexion", corps:`
+      <p>L'application est conçue pour le terrain : une fois chargée, elle <b>fonctionne sans internet</b>.</p>
+      <ul>
+        <li>Les consultations saisies hors ligne sont marquées <b>« À envoyer »</b> et un compteur apparaît dans la barre du haut. Elles sont <b>synchronisées automatiquement</b> dès le retour du réseau - vous n'avez rien à faire.</li>
+        <li>Vous pouvez <b>rouvrir l'app hors connexion</b> si vous vous êtes déjà connecté avec succès au moins une fois sur cet appareil : vous retrouvez votre espace avec les dernières données connues.</li>
+        <li>L'indicateur <b>En ligne / Hors ligne</b> est toujours visible dans la barre du haut.</li>
+      </ul>
+      <div class="aide-note">Limites : la toute première connexion d'un compte, la suppression d'une consultation déjà synchronisée et les actions d'administration nécessitent une connexion internet.</div>`},
+
+    { show:true, titre:"Tableau de bord et rapports", corps:`
+      ${isPharma?`<p>Votre tableau de bord est dédié à la <b>pharmacie</b> : articles en stock, unités délivrées, unités en attente et alertes de stock bas - chaque carte est <b>cliquable</b> et vous amène directement à la partie concernée. Les graphiques montrent le stock par catégorie et les médicaments les plus délivrés.</p>`
+      :`<p>Le tableau de bord présente ${isAdmin?"l'ensemble de l'activité, tous sites confondus":"votre activité"} : chiffres clés (total, aujourd'hui, 7 derniers jours, âge moyen, explorations), puis des graphiques - évolution sur 14 jours, répartition par type de praticien${isAdmin?" et par spécialité":""}, répartition par sexe, pyramide des âges et pathologies les plus fréquentes.</p>`}
+      ${isAdmin?`<ul>
+        <li><b>Filtre par campagne :</b> restreint tous les chiffres et graphiques à une campagne précise.</li>
+        <li><b>Statistiques par site</b> et aperçu de toutes les campagnes actives.</li>
+        <li><b>Sauvegarde complète (JSON) :</b> exporte toutes les tables pour archivage.</li>
+      </ul>`:""}
+      ${!isPharma?`<p><b>Rapports PDF et Word :</b> les boutons de téléchargement génèrent un rapport reprenant exactement les chiffres et graphiques affichés à l'écran au moment du clic.</p>`:""}`},
+
+    { show:isPharma||isAdmin, titre:"Pharmacie : délivrances", corps:`
+      ${isAdmin?`<p>En tant qu'administrateur, l'onglet Pharmacie vous donne un <b>aperçu en lecture seule</b> : total des médicaments délivrés, stock global toutes campagnes, et stock détaillé par site. La gestion elle-même est réservée aux comptes Pharmacien.</p>`
+      :`<p>L'onglet <b>Pharmacie › Délivrances</b> liste les prescriptions liées au stock, patient par patient. Par défaut, seules celles <b>en attente</b> s'affichent ; une case permet d'afficher aussi celles déjà délivrées.</p>
+      <ul>
+        <li>Pour délivrer : indiquez la <b>quantité</b> et l'<b>unité</b> remises, puis « Délivré ». Le <b>stock est ajusté automatiquement</b> si l'article est retrouvé (par lien direct, ou par nom pour les anciennes prescriptions).</li>
+        <li>Une délivrance peut être <b>annulée</b> : la quantité est alors restituée au stock.</li>
+      </ul>`}`},
+
+    { show:isPharma, titre:"Pharmacie : gestion du stock", corps:`
+      <p>L'onglet <b>Pharmacie › Stock</b> affiche les articles de votre site, groupés par catégorie, avec une alerte <b>« Stock bas »</b> quand la quantité passe sous le seuil défini.</p>
+      <p>Tous les pharmaciens du site peuvent <b>consulter</b> le stock ; seule sa <b>modification</b> est réservée au <b>pharmacien en chef</b> du site (désigné par l'administrateur) :</p>
+      <ul>
+        <li><b>Ajouter un article :</b> nom, type (médicament, consommable, matériel), catégorie, quantité, unité et seuil d'alerte.</li>
+        <li><b>Modifier / Supprimer :</b> bouton « Modifier » sur chaque ligne pour ajuster quantité, unité et seuil à tout moment (réassorts, corrections...).</li>
+        <li><b>Importer depuis Excel :</b> téléchargez d'abord le <b>modèle</b> (colonnes : Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte), remplissez-le, puis importez. Les lignes correspondant à un article déjà en stock vous sont présentées une par une : <b>ajouter à l'existant</b>, <b>remplacer</b>, ou <b>ignorer</b>.</li>
+      </ul>
+      <div class="aide-note">La délivrance ajuste le stock par correspondance de nom pour les anciennes prescriptions : gardez des noms d'articles cohérents et vérifiez vos chiffres régulièrement.</div>`},
+
+    { show:true, titre:"Mon profil", corps:`
+      <p>Depuis le menu de votre compte (icône en haut à droite) › <b>Mon profil</b> :</p>
+      <ul>
+        <li><b>Photo :</b> recadrée et compressée automatiquement, visible par l'administrateur et vos collègues de site.</li>
+        <li><b>Prénom, nom, téléphone, niveau d'étude.</b></li>
+        ${!isAdmin?`<li><b>Domaine d'exercice :</b> modifiable ici, mais le changement ne prend effet qu'à votre <b>prochaine connexion</b> - la session en cours n'est pas affectée.</li>`:""}
+      </ul>`},
+
+    { show:isAdmin, titre:"Administration : utilisateurs", corps:`
+      <p>L'onglet <b>Utilisateurs</b> liste tous les comptes, avec recherche par nom ou e-mail. Touchez une carte pour la déplier :</p>
+      <ul>
+        <li><b>Activer / Désactiver :</b> un compte nouvellement inscrit doit être activé ici avant de pouvoir travailler.</li>
+        <li><b>Rôle :</b> Praticien ou Admin - la promotion en administrateur demande une confirmation explicite.</li>
+        <li><b>Spécialité :</b> Médecin, Dentiste, Spécialiste (avec sous-spécialité) ou Pharmacien. Vous pouvez corriger à tout moment le domaine choisi par l'utilisateur.</li>
+        <li><b>Campagne puis site :</b> changer la campagne réinitialise le site (à re-choisir dans la liste filtrée).</li>
+        <li><b>Supprimer :</b> retire l'accès de la personne ; ses consultations déjà enregistrées sont conservées.</li>
+      </ul>
+      <div class="aide-note">Le compte protégé (super-administrateur) ne peut être ni rétrogradé ni désactivé, même par un autre administrateur.</div>`},
+
+    { show:isAdmin, titre:"Administration : campagnes et sites", corps:`
+      <p>L'onglet <b>Campagnes</b> regroupe chaque campagne avec ses sites, modifiables sur place :</p>
+      <ul>
+        <li><b>Créer une campagne :</b> volet dépliable en haut (nom, lieu, dates de début et fin).</li>
+        <li><b>Détails :</b> modifier nom, lieu, dates, statut (Active / Terminée) ; <b>Archiver</b> déplace la campagne dans l'onglet Archives (désarchivable, ou supprimable définitivement depuis là).</li>
+        <li><b>Sites :</b> ajout, renommage, activation et suppression directement sous chaque campagne ; les <b>sites autonomes</b> (sans campagne) ont leur propre bloc.</li>
+        <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - seul habilité à modifier le stock de ce site.</li>
+        <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
+      </ul>`},
+
+    { show:true, titre:"Sécurité et bonnes pratiques", corps:`
+      <ul>
+        <li><b>Déconnexion automatique :</b> après <b>30 minutes</b> sans aucune activité, vous êtes déconnecté - protection pour un appareil laissé sans surveillance.</li>
+        <li><b>Appareil partagé :</b> déconnectez-vous explicitement en fin de service (menu du compte › Se déconnecter) : cela efface les données du compte conservées sur l'appareil, sans toucher aux consultations en attente d'envoi.</li>
+        <li><b>Confidentialité :</b> les données saisies relèvent du <b>secret médical</b>. Ne partagez jamais vos identifiants, et n'accédez qu'aux données nécessaires à votre mission.</li>
+        <li>Les liens <b>Confidentialité</b> et <b>Conditions d'utilisation</b> en bas de l'écran de connexion détaillent le traitement des données.</li>
+      </ul>`},
+
+  ].filter(s=>s.show);
+
+  $("aideBody").innerHTML=sections.map(s=>
+    `<details class="aide-sec"><summary>${s.titre}</summary><div class="aide-body">${s.corps}</div></details>`
+  ).join("");
 }
 
 /* ---------- menu / événements réseau ---------- */

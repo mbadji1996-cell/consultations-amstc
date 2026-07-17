@@ -224,9 +224,8 @@
   .dash-card-head span{font-weight:700;font-size:14.5px;color:var(--green-900)}
   .dstat{background:#fff;border-radius:var(--radius-lg);padding:15px;box-shadow:var(--shadow-lg);
     border:1px solid rgba(6,68,28,.05);display:flex;flex-direction:column;gap:10px}
-  .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .dstat-icon-g{background:var(--green-50);color:var(--green-700)}
-  .dstat-icon-o{background:#fff3de;color:var(--orange-dark)}
+  .dstat-icon{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    background:var(--green-50);color:var(--green-700)} /* teinte par défaut, surchargée par [data-accent] */
   /* Empile le chiffre et son libellé (b + span sont inline par défaut et se retrouvaient
      collés l'un à l'autre sans cette règle, ex. "16Consultations au total"). */
   .dstat-text{display:flex;flex-direction:column;gap:3px}
@@ -632,7 +631,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v64</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v65</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="doLogout()">Se déconnecter</button>
@@ -1140,7 +1139,17 @@ async function doGoogle(){
   // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app
 }
 
-async function doLogout(){ sessionStorage.removeItem(SITE_CONFIRMED_KEY); await sb.auth.signOut(); location.reload(); }
+async function doLogout(){
+  sessionStorage.removeItem(SITE_CONFIRMED_KEY);
+  // Une déconnexion explicite doit aussi retirer les données mises en cache pour la reprise
+  // hors connexion (profil, sites, campagnes, consultations) : sans cela, rouvrir l'app hors
+  // ligne ré-entrerait dans le compte pourtant déconnecté. La file d'attente d'envoi
+  // (QUEUE_KEY) est volontairement conservée : la vider détruirait des consultations saisies
+  // mais pas encore synchronisées.
+  [PROFILE_CACHE_KEY,SITES_CACHE_KEY,CAMPAGNES_CACHE_KEY,CACHE_KEY].forEach(k=>localStorage.removeItem(k));
+  await sb.auth.signOut();
+  location.reload();
+}
 
 /* ---------- Modale "Mon profil" (prénom, nom, photo) ---------- */
 let PROFILE_AVATAR_BLOB=null; // photo compressée en attente d'envoi, tant que "Enregistrer" n'a pas été cliqué
@@ -1347,7 +1356,12 @@ async function enterApp(){
   // à chaque rechargement de page pendant la même session, tout en le redemandant bien
   // à la prochaine connexion (nouvel onglet/nouvelle session).
   const siteAlreadyConfirmedThisSession = sessionStorage.getItem(SITE_CONFIRMED_KEY)==="1";
-  if(ME.role==="agent" && (!ME.specialite || !siteAlreadyConfirmedThisSession)){
+  // Hors connexion, l'écran de re-choix du site est sauté quand le profil est déjà complet :
+  // le confirmer écrirait en base (impossible sans réseau) et bloquerait la reprise. On
+  // reprend avec le dernier site connu ; RG4 s'appliquera de nouveau à la prochaine
+  // connexion en ligne.
+  const offlineResume = !navigator.onLine && ME.specialite && ME.site_id;
+  if(ME.role==="agent" && !offlineResume && (!ME.specialite || !siteAlreadyConfirmedThisSession)){
     $("tabs").classList.add("hidden");
     $("mainContent").classList.add("hidden");
     $("siteSelectScreen").classList.remove("hidden");
@@ -1420,6 +1434,13 @@ function onSiteSelectCampagneChange(){
 }
 
 async function confirmSiteSelection(){
+  // Ce choix s'enregistre en base : sans réseau, mieux vaut le dire clairement tout de suite
+  // qu'échouer après coup. (Un profil déjà complet ne voit pas cet écran hors connexion -
+  // voir le saut "offlineResume" dans enterApp.)
+  if(!navigator.onLine){
+    alertIn("siteSelectAlert","err","Une connexion internet est nécessaire pour confirmer ce choix. Réessayez une fois connecté.");
+    return;
+  }
   const payload={};
   // RG2 : domaine obligatoire tant qu'il n'a jamais été choisi (une seule fois dans la vie du compte)
   if(!ME.specialite){
@@ -1660,7 +1681,10 @@ function buildTabs(){
 // Badge rouge sur l'icône Tableau de bord : seule façon, pour l'instant, de savoir
 // qu'un confrère nous a référé un patient sans avoir à penser à aller vérifier soi-même.
 async function refreshPendingReferencesCount(){
-  if(!ME || !ME.site_id){ updateReferenceBadge(0); return; }
+  // L'admin n'a pas de site fixe mais peut recevoir des références (il apparaît dans la liste
+  // des confrères) : ne pas le filtrer sur site_id, sinon son badge resterait toujours à zéro
+  // alors que la carte "Patients qui vous sont référés" s'affiche bien sur son tableau de bord.
+  if(!ME || (ME.role!=="admin" && !ME.site_id)){ updateReferenceBadge(0); return; }
   const {count,error}=await sb.from("consultations")
     .select("id",{count:"exact",head:true}).eq("refere_vers_id",ME.id).eq("refere_traite",false);
   if(error) return;
@@ -1825,7 +1849,9 @@ function switchTab(tab){
   if(tab==="dashboard") renderDashboard();
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
-  if(tab==="campagnes"){ refreshPharmaciensCache().then(renderCampagnes); renderCampagnes(); }
+  // Un seul rendu, après rafraîchissement du cache des pharmaciens (l'ancien double appel -
+  // rendu immédiat puis re-rendu au retour réseau - faisait flasher tout le panneau).
+  if(tab==="campagnes"){ $("campagnesBody").innerHTML=LOADING_HTML; refreshPharmaciensCache().catch(()=>{}).then(renderCampagnes); }
   if(tab==="dispensation") loadPharmacieTab();
 }
 

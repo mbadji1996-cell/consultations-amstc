@@ -3,7 +3,7 @@
    caches obsolètes chez les utilisateurs (voir aussi la stratégie réseau
    ci-dessous, qui limite déjà fortement le risque de rester bloqué sur une
    ancienne version même sans y penser). */
-const CACHE_VERSION = "amstc-v64";
+const CACHE_VERSION = "amstc-v65";
 const APP_SHELL = [
   "./",
   "./index.html",

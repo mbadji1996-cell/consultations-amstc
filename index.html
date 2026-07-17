@@ -3848,14 +3848,31 @@ function buildTabsSiteFilter(){
    GUIDE D'UTILISATION - sections dépliables, contenu filtré selon le rôle
    ===================================================================== */
 let AIDE_RETURN_TAB=null; // onglet d'où le guide a été ouvert, pour le bouton Retour
+let AIDE_RETURN_TO_GATE=false; // le guide a été ouvert depuis l'écran de choix du site
 
 function openAide(){
   $("menuPop")?.classList.add("hidden");
   AIDE_RETURN_TAB=CURRENT_TAB;
+  // Le panneau du guide vit dans le conteneur principal, masqué tant que l'écran de choix
+  // du site (domaine + site) est affiché : il faut donc échanger temporairement les deux,
+  // sinon le guide s'ouvre dans un conteneur invisible et rien ne s'affiche.
+  AIDE_RETURN_TO_GATE = !$("siteSelectScreen").classList.contains("hidden");
+  if(AIDE_RETURN_TO_GATE){
+    $("siteSelectScreen").classList.add("hidden");
+    $("mainContent").classList.remove("hidden");
+  }
   renderAide();
   switchTab("aide");
 }
 function closeAide(){
+  if(AIDE_RETURN_TO_GATE){
+    // Retour à l'écran de choix du site, dans l'état exact où on l'avait laissé.
+    AIDE_RETURN_TO_GATE=false;
+    $("panel-aide").classList.remove("active");
+    $("mainContent").classList.add("hidden");
+    $("siteSelectScreen").classList.remove("hidden");
+    return;
+  }
   const fallback = ME.role==="admin" ? "dashboard" : (isPharmacien() ? "dashboard" : "form");
   switchTab(AIDE_RETURN_TAB && AIDE_RETURN_TAB!=="aide" ? AIDE_RETURN_TAB : fallback);
 }

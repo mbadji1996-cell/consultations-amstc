@@ -896,6 +896,8 @@
         <button class="btn btn-ghost btn-sm" id="pdfReportBtn" onclick="downloadReportPDF()">Télécharger le rapport (PDF)</button>
         <button class="btn btn-ghost btn-sm" id="wordReportBtn" onclick="downloadReportWord()">Télécharger le rapport (Word)</button>
         <button class="btn btn-ghost btn-sm hidden" id="backupBtn" onclick="downloadFullBackup()">Sauvegarde complète (JSON)</button>
+        <button class="btn btn-accent btn-sm hidden" id="bulkActivateBtn" onclick="bulkSetActive(true,this)">Activer tous les comptes</button>
+        <button class="btn btn-danger btn-sm hidden" id="bulkDeactivateBtn" onclick="bulkSetActive(false,this)">Désactiver tous les comptes</button>
       </div>
       <div id="dashBody"></div>
     </div>
@@ -1711,6 +1713,8 @@ function buildTabs(){
   // filtre de campagne du tableau de bord - admin uniquement, s'il existe au moins une campagne
   $("dashCampagneFilter").classList.toggle("hidden", !(ME.role==="admin" && CAMPAGNES.length));
   $("backupBtn").classList.toggle("hidden", ME.role!=="admin");
+  $("bulkActivateBtn").classList.toggle("hidden", ME.role!=="admin");
+  $("bulkDeactivateBtn").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin" && CAMPAGNES.length){
     $("dashCampagneFilter").innerHTML=`<option value="">Toutes les campagnes</option>`+
       CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}${c.archivee?" (archivée)":""}</option>`).join("");
@@ -3065,6 +3069,47 @@ async function toggleActive(id,val,btn){
   const {error}=await sb.from("profiles").update({actif:val}).eq("id",id);
   if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   toast(val?"Compte activé":"Compte désactivé"); loadUsers();
+}
+
+// Activation / désactivation de masse depuis le tableau de bord admin.
+// Périmètres volontairement asymétriques :
+// - Activer : TOUS les comptes inactifs (cas typique : valider d'un coup les inscriptions
+//   en début de campagne) ;
+// - Désactiver : uniquement les comptes Praticien (role=agent). Jamais les administrateurs
+//   ni soi-même - sinon un clic pourrait verrouiller tout le monde dehors, y compris
+//   l'auteur du clic. Les admins se gèrent individuellement dans l'onglet Utilisateurs.
+async function bulkSetActive(active,btn){
+  if(ME.role!=="admin") return;
+  if(btn) btn.disabled=true;
+  try{
+    // Compte d'abord les comptes concernés, pour une confirmation chiffrée honnête.
+    let countQuery=sb.from("profiles").select("id",{count:"exact",head:true});
+    countQuery = active ? countQuery.eq("actif",false) : countQuery.eq("role","agent").eq("actif",true);
+    const {count,error:countErr}=await countQuery;
+    if(countErr){ toast("Échec : "+errMsg(countErr),true); return; }
+    if(!count){ toast(active?"Aucun compte inactif à activer":"Aucun compte praticien actif à désactiver"); return; }
+
+    const message = active
+      ? `Activer les <b>${count}</b> compte(s) actuellement inactif(s) ?<br><br>Toutes ces personnes pourront immédiatement se connecter et travailler.`
+      : `Désactiver les <b>${count}</b> compte(s) <b>praticien</b> actuellement actif(s) ?<br><br>Ces personnes ne pourront plus se connecter jusqu'à réactivation. Les comptes administrateur (dont le vôtre) ne sont pas concernés - gérez-les individuellement dans l'onglet Utilisateurs si besoin.`;
+    if(!(await confirmModal(message,{title:active?"Activer tous les comptes":"Désactiver tous les comptes",okLabel:active?"Tout activer":"Tout désactiver",danger:!active}))) return;
+
+    // .select() pour rapporter le nombre RÉELLEMENT modifié (la RLS peut protéger certains
+    // comptes, ex. super-admin) plutôt que de supposer que tout est passé.
+    let updQuery=sb.from("profiles").update({actif:active});
+    updQuery = active ? updQuery.eq("actif",false) : updQuery.eq("role","agent").eq("actif",true);
+    const {data,error}=await updQuery.select("id");
+    if(error){ toast("Échec : "+errMsg(error),true); return; }
+    const n=(data||[]).length;
+    if(n<count){
+      toast(`${n} compte(s) modifié(s) - ${count-n} n'ont pas pu l'être (comptes protégés)`,true);
+    } else {
+      toast(active?`${n} compte(s) activé(s)`:`${n} compte(s) praticien désactivé(s)`);
+    }
+    if(CURRENT_TAB==="users") loadUsers(); // rafraîchit la liste si elle est affichée
+  }finally{
+    if(btn) btn.disabled=false;
+  }
 }
 async function setRole(id,role,selectEl){
   if(role==="admin" && !(await confirmModal("Promouvoir ce praticien au rôle Administrateur ?<br><br>Il aura alors accès à la gestion de tous les utilisateurs, sites, campagnes et à l'ensemble des consultations, tous sites confondus.",{title:"Promotion en administrateur",okLabel:"Promouvoir"}))){

@@ -138,8 +138,12 @@
   .topbar{background:var(--gradient-brand-rich);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;
     position:sticky;top:0;z-index:20}
   .topbar .brand-mark{background:rgba(255,255,255,.16);width:34px;height:34px;font-size:13px;border-radius:9px}
-  .topbar-title{font-size:15px;font-weight:700;flex:1;line-height:1.15}
-  .topbar-title span{display:block;font-size:11px;font-weight:400;opacity:.85}
+  /* min-width:0 est indispensable sur un enfant flex pour que l'ellipse fonctionne ; sans elle,
+     un nom de site long faisait grossir la topbar (jusqu'à ~96px de haut sur mobile) au lieu
+     d'être tronqué proprement sur une ligne. */
+  .topbar-title{font-size:15px;font-weight:700;flex:1;line-height:1.15;min-width:0}
+  .topbar-title span{display:block;font-size:11px;font-weight:400;opacity:.85;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sync-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);padding:6px 11px;
     border-radius:var(--radius-full);font-size:12.5px;font-weight:600;white-space:nowrap}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -293,9 +297,13 @@
 
   /* ---------- GRAND ÉCRAN : barre latérale au lieu de la barre du bas, mise en page élargie ---------- */
   @media(min-width:900px){
-    .tabs{position:fixed;top:64px;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
+    /* top:0 + padding haut (au lieu d'un top:64px figé) : la topbar opaque (sticky, z-index:20)
+       recouvre le haut de la barre, quel que soit sa hauteur réelle - l'ancien top fixe laissait
+       une bande de fond de page visible entre les deux (topbar ~58px < 64px). Le z-index:15
+       est indispensable ici : la valeur mobile (999) ferait passer la barre PAR-DESSUS la topbar. */
+    .tabs{position:fixed;top:0;left:0;right:auto;bottom:0;width:120px;flex-direction:column;
       border-top:none;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(6,68,28,.05);
-      padding:16px 0;justify-content:flex-start;gap:4px;overflow-y:auto}
+      padding:78px 0 16px;justify-content:flex-start;gap:4px;overflow-y:auto;z-index:15}
     .navtab{padding:10px 4px}
     .navtab span:not(.navtab-icon){display:none;font-size:11px;font-weight:600}
     .navtab svg{width:21px;height:21px}
@@ -466,7 +474,10 @@
      navigateur (rendu très daté et incohérent d'un système à l'autre) par un composant
      aux couleurs de l'application - même structure que la modale "Mon profil". */
   .confirm-modal-box{ background:#fff;border-radius:var(--radius-lg);padding:24px;width:100%;max-width:400px;
-    box-shadow:0 20px 50px rgba(6,68,28,.25); }
+    box-shadow:0 20px 50px rgba(6,68,28,.25);
+    /* comme la modale profil : un message long sur un écran bas (téléphone en paysage) doit
+       défiler à l'intérieur, sinon les boutons Confirmer/Annuler sortent de l'écran */
+    max-height:90vh;overflow-y:auto;overscroll-behavior:contain; }
   .confirm-modal-box h2{ font-size:17px;margin-bottom:10px; }
   .confirm-modal-box p{ font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:20px; }
   .btn-danger-solid{ background:var(--danger);color:#fff; }
@@ -674,7 +685,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v65</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v66</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button onclick="openAide()">Guide d'utilisation</button>
@@ -1543,9 +1554,12 @@ const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spéc
 // Libellé affiché (badge, cartes collègues, panneau admin) - dérivé du domaine d'exercice
 // réel (specialite), fusionné avec lui depuis "Mon profil" : plus de champ "profession"
 // distinct qui pouvait afficher un intitulé sans rapport avec le formulaire réellement utilisé.
+// Retourne du texte BRUT (non échappé) : l'appelant échappe avec esc() s'il injecte en
+// innerHTML - le menu du compte, lui, passe par textContent, où un texte pré-échappé
+// afficherait littéralement les entités (&amp;...) pour une sous-spécialité "Autre".
 function professionLabel(p){
   if(!p || !p.specialite) return "";
-  return (SPEC_LABELS[p.specialite]||"")+(p.specialite==="specialiste"&&p.specialite_detail?" - "+esc(p.specialite_detail):"");
+  return (SPEC_LABELS[p.specialite]||"")+(p.specialite==="specialiste"&&p.specialite_detail?" - "+p.specialite_detail:"");
 }
 
 // Icônes de la barre de navigation (traits fins, cohérentes avec le reste de l'app)
@@ -1764,7 +1778,10 @@ function updateReferenceBadge(n){
 }
 
 async function setupReferField(siteId){
-  const collegues=await loadCollegues(siteId);
+  // Les pharmaciens sont exclus des cibles de référence : les prescriptions leur parviennent
+  // déjà via l'onglet Délivrances, et leur tableau de bord (dédié pharmacie) n'affiche pas la
+  // carte des patients référés - une référence vers eux créerait un badge impossible à traiter.
+  const collegues=(await loadCollegues(siteId)).filter(p=>p.specialite!=="pharmacien");
   const fs=$("referFieldset"); if(!fs) return;
   if(!collegues.length){ fs.classList.add("hidden"); return; }
   fs.classList.remove("hidden");
@@ -2356,7 +2373,7 @@ function collegueCardHtml(collegues){
         ${avatar}
         <div>
           <div style="font-weight:600;font-size:13.5px">${nom}</div>
-          <div class="rec-meta">${roleLabel}</div>
+          <div class="rec-meta">${esc(roleLabel)}</div>
           ${p.telephone?`<div class="rec-meta" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"></path></svg>${esc(p.telephone)}</div>`:""}
         </div>
       </div>`;
@@ -2949,7 +2966,7 @@ function renderUsers(){
           ${avatar}
           <div>
             <div class="rec-name">${nomAffiche}</div>
-            <div class="rec-meta">${roleLabel} · ${esc(siteLabel)}</div>
+            <div class="rec-meta">${esc(roleLabel)} · ${esc(siteLabel)}</div>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0">
@@ -3179,11 +3196,21 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
   if(item){
     const delta=delivered?-qty:qty;
     const newQty=Math.max(0,Math.round(item.quantite+delta));
-    await sb.from("stock_medicaments").update({
+    // .select() pour vérifier qu'une ligne a RÉELLEMENT été modifiée : la RLS réserve
+    // l'écriture du stock au pharmacien en chef, et un UPDATE filtré par elle "réussit"
+    // avec 0 ligne touchée. Sans ce contrôle, un pharmacien non-chef voyait "stock ajusté
+    // automatiquement" alors que le stock n'avait pas bougé - chiffres faux en silence.
+    const {data:updData,error:updErr}=await sb.from("stock_medicaments").update({
       quantite:newQty, updated_at:new Date().toISOString(),
       updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
-    }).eq("id",item.id);
-    toast(delivered?`Délivré - stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée - stock restauré");
+    }).eq("id",item.id).select();
+    if(updErr || !updData || !updData.length){
+      toast(delivered
+        ? `Délivré, mais stock NON ajusté (modification réservée au pharmacien en chef) - signalez ${qty} ${med.nom} au chef de pharmacie`
+        : "Délivrance annulée, mais stock NON réajusté (réservé au pharmacien en chef) - signalez-le au chef de pharmacie", true);
+    } else {
+      toast(delivered?`Délivré - stock de "${item.nom}" ajusté automatiquement`:"Délivrance annulée - stock restauré");
+    }
   } else if(med && qty>0){
     toast(delivered?"Médicament marqué comme délivré (article de stock introuvable - vérifiez le stock manuellement)":"Délivrance annulée");
   } else {

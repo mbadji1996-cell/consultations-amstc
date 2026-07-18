@@ -3,12 +3,19 @@
    caches obsolètes chez les utilisateurs (voir aussi la stratégie réseau
    ci-dessous, qui limite déjà fortement le risque de rester bloqué sur une
    ancienne version même sans y penser). */
-const CACHE_VERSION = "amstc-v65";
+const CACHE_VERSION = "amstc-v66";
+// Toutes les bibliothèques CDN utilisées par l'app y figurent : sans elles, un utilisateur
+// qui rouvre l'app hors connexion sans les avoir jamais chargées perdrait les graphiques et
+// surtout les exports PDF/Word et l'import/export Excel (fonctions clés sur le terrain).
 const APP_SHELL = [
   "./",
   "./index.html",
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
   "https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js",
+  "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
+  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
 ];
 // Uniquement les ressources dont l'URL fige la version (ex. "@2", "@4.4.4") : leur contenu ne
 // change jamais pour une même URL, donc les servir depuis le cache sans repasser par le réseau
@@ -19,6 +26,10 @@ const APP_SHELL = [
 const IMMUTABLE_CACHE_FIRST = [
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
   "https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js",
+  "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
+  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
 ];
 
 self.addEventListener("install", (e) => {

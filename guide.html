@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide d'utilisation - Consultations AMSTC</title>
+<meta name="description" content="Guide d'utilisation et de navigation de la plateforme consultations-amstc.org : consultations, pharmacie, administration, mode hors connexion.">
+<link rel="canonical" href="https://consultations-amstc.org/guide.html">
+<link rel="icon" href="./icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F7F1;
+    --paper-raised:#FFFFFF;
+    --paper-alt:#ECEFE3;
+    --ink:#0B2E17;
+    --ink-soft:#48594E;
+    --ink-faint:#8A9E8F;
+    --line:rgba(6,68,28,0.14);
+    --line-strong:rgba(6,68,28,0.24);
+    --green:#17763B;
+    --green-deep:#06441C;
+    --gold:#F8B718;
+    --gold-deep:#AA7B11;
+    --slate:#46577A;
+    --slate-bg:#EEF1F7;
+    --teal:#0B7E6E;
+    --teal-bg:#E6F6F3;
+    --lock:#B23B3B;
+    --lock-bg:#FDEEEE;
+    --sidebar-bg:#06441C;
+    --sidebar-ink:rgba(255,255,255,0.68);
+    --sidebar-ink-strong:#FFFFFF;
+    --sidebar-line:rgba(255,255,255,0.12);
+    --shadow:0 1px 2px rgba(6,68,28,0.06), 0 8px 24px rgba(6,68,28,0.06);
+    --display:'Sora', sans-serif;
+    --body:'Inter', -apple-system, sans-serif;
+    --mono:'JetBrains Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--body);
+    line-height:1.6; font-size:15.5px; -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--green);}
+  h1,h2,h3,h4{font-family:var(--display); text-wrap:balance; margin:0; color:var(--ink);}
+  p{margin:0;}
+  ul,ol{margin:0; padding:0;}
+  code,kbd{font-family:var(--mono);}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.14em;
+    color:var(--gold-deep); display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{content:""; width:20px; height:1px; background:var(--gold-deep); flex-shrink:0;}
+
+  /* ===== Shell layout ===== */
+  .shell{display:grid; grid-template-columns:272px minmax(0,1fr); min-height:100vh;}
+  @media (max-width:900px){ .shell{grid-template-columns:1fr;} }
+
+  .toc{
+    background:var(--sidebar-bg); color:var(--sidebar-ink); padding:28px 22px 40px;
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  }
+  @media (max-width:900px){ .toc{position:static; height:auto; overflow-y:visible; padding:22px 20px 26px;} }
+
+  .toc-back{
+    display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:0.72rem;
+    text-transform:uppercase; letter-spacing:0.06em; color:var(--gold); text-decoration:none; margin-bottom:20px;
+  }
+  .toc-back:hover{opacity:0.75;}
+
+  .toc-brand{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .toc-mark{
+    width:34px; height:34px; border-radius:9px; background:rgba(248,183,24,0.16);
+    display:flex; align-items:center; justify-content:center; font-size:16px; color:var(--gold); flex-shrink:0;
+  }
+  .toc-brand-text{font-family:var(--display); font-weight:700; font-size:0.98rem; color:var(--sidebar-ink-strong); letter-spacing:-0.01em;}
+  .toc-brand-sub{font-family:var(--mono); font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--sidebar-ink); opacity:0.75;}
+
+  .toc-search-hint{
+    font-size:0.76rem; color:var(--sidebar-ink); background:rgba(255,255,255,0.06); border:1px solid var(--sidebar-line);
+    border-radius:8px; padding:8px 10px; margin:18px 0 22px; line-height:1.45;
+  }
+  .toc-search-hint kbd{
+    background:rgba(255,255,255,0.14); border-radius:4px; padding:1px 5px; font-size:0.72rem;
+  }
+
+  .toc-group{margin-bottom:22px;}
+  .toc-group-label{
+    font-family:var(--mono); font-size:0.64rem; text-transform:uppercase; letter-spacing:0.12em;
+    color:var(--sidebar-ink); opacity:0.6; margin-bottom:8px; display:block;
+  }
+  .toc nav ul{list-style:none; display:flex; flex-direction:column; gap:1px;}
+  .toc nav a{
+    display:block; padding:6px 10px; border-radius:7px; font-size:0.84rem; color:var(--sidebar-ink);
+    text-decoration:none; border-left:2px solid transparent; transition:background .12s ease, color .12s ease;
+  }
+  .toc nav a:hover{background:rgba(255,255,255,0.07); color:var(--sidebar-ink-strong);}
+  .toc nav a.active{background:rgba(248,183,24,0.12); color:var(--sidebar-ink-strong); border-left-color:var(--gold);}
+  .toc nav a.sub{padding-left:20px; font-size:0.79rem; opacity:0.9;}
+
+  main{padding:56px 48px 100px; max-width:900px;}
+  @media (max-width:640px){ main{padding:36px 20px 80px;} }
+
+  /* ===== Hero ===== */
+  .hero{margin-bottom:52px;}
+  .hero h1{font-size:clamp(1.9rem,4.2vw,2.5rem); font-weight:700; letter-spacing:-0.015em; margin:12px 0 14px; line-height:1.15;}
+  .hero-lede{font-size:1.04rem; color:var(--ink-soft); max-width:62ch; line-height:1.65;}
+
+  .legend{
+    display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:26px; padding:16px 18px;
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow);
+  }
+  .legend-item{display:flex; align-items:center; gap:7px; font-size:0.78rem; color:var(--ink-soft);}
+
+  /* ===== Badges ===== */
+  .badge{
+    font-family:var(--mono); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em;
+    padding:3px 8px; border-radius:999px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;
+  }
+  .badge.tous{background:var(--paper-alt); color:var(--green-deep);}
+  .badge.praticien{background:rgba(248,183,24,0.16); color:var(--gold-deep);}
+  .badge.pharma{background:var(--teal-bg); color:var(--teal);}
+  .badge.chef{background:rgba(23,118,59,0.12); color:var(--green);}
+  .badge.admin{background:var(--slate-bg); color:var(--slate);}
+  .badge.offline{background:var(--paper-alt); color:var(--ink-soft);}
+  .badge.online{background:var(--lock-bg); color:var(--lock);}
+
+  /* ===== Section chrome ===== */
+  .tier-section{margin-bottom:64px; scroll-margin-top:24px;}
+  .tier-head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:8px; padding-top:16px; border-top:3px solid var(--line-strong);}
+  .tier-head h2{font-size:1.55rem; font-weight:700; letter-spacing:-0.01em;}
+  .tier-num{font-family:var(--mono); font-size:0.85rem; color:var(--ink-faint);}
+  .tier-desc{color:var(--ink-soft); max-width:64ch; margin:10px 0 30px; font-size:0.95rem;}
+
+  .subsection{margin:38px 0 22px; scroll-margin-top:24px;}
+  .subsection h3{font-size:1.12rem; font-weight:700; margin-bottom:4px;}
+  .subsection-desc{color:var(--ink-soft); font-size:0.89rem; max-width:64ch; margin-bottom:16px;}
+
+  /* ===== Page card ===== */
+  .page-card{
+    background:var(--paper-raised); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:12px; box-shadow:var(--shadow); scroll-margin-top:24px; overflow:hidden;
+  }
+  .page-card > summary{
+    list-style:none; cursor:pointer; padding:15px 18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .page-card > summary::-webkit-details-marker{display:none;}
+  .page-card > summary .chev{
+    margin-left:auto; color:var(--ink-faint); font-size:0.75rem; transition:transform .15s ease; flex-shrink:0;
+  }
+  .page-card[open] > summary .chev{transform:rotate(90deg);}
+  .page-title{font-family:var(--display); font-weight:600; font-size:0.96rem; color:var(--ink);}
+  .page-path{font-family:var(--mono); font-size:0.72rem; color:var(--ink-faint);}
+  .page-badges{display:flex; gap:6px; flex-wrap:wrap;}
+
+  .page-body{padding:0 18px 18px; border-top:1px solid var(--line); margin-top:2px; padding-top:14px;}
+  .page-body p{font-size:0.88rem; color:var(--ink-soft); margin-bottom:10px;}
+  .page-body p:last-child{margin-bottom:0;}
+  .page-body strong{color:var(--ink); font-weight:600;}
+  .page-body ul{list-style:none; margin-bottom:10px;}
+  .page-body ul li{font-size:0.87rem; color:var(--ink-soft); padding-left:16px; position:relative; margin-bottom:6px;}
+  .page-body ul li::before{content:"•"; position:absolute; left:2px; color:var(--gold-deep);}
+  .page-body ol{margin:0 0 10px 18px;}
+  .page-body ol li{font-size:0.87rem; color:var(--ink-soft); margin-bottom:6px;}
+  .field-line{display:flex; gap:8px; font-size:0.85rem; margin-bottom:8px; align-items:baseline;}
+  .field-line:last-child{margin-bottom:0;}
+  .field-label{
+    font-family:var(--mono); font-size:0.64rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-faint);
+    flex-shrink:0; width:108px; padding-top:2px;
+  }
+  .field-val{color:var(--ink-soft); font-size:0.87rem;}
+  .field-val code{background:var(--paper-alt); padding:1px 6px; border-radius:5px; font-size:0.8rem; color:var(--ink);}
+
+  .note-box{
+    background:#FFF6E6; border:1px solid #F6D99A; border-radius:9px; padding:10px 13px;
+    font-size:0.83rem; color:#7A4D05; margin:10px 0;
+  }
+  .note-box strong{color:#7A4D05;}
+
+  /* ===== Nav map ===== */
+  .nav-map{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:16px 0 28px;}
+  .nav-map-col{background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:16px 18px; box-shadow:var(--shadow);}
+  .nav-map-col h4{font-family:var(--mono); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--gold-deep); margin-bottom:10px;}
+  .nav-map-col ul{list-style:none; display:flex; flex-direction:column; gap:6px;}
+  .nav-map-col li{font-size:0.86rem; color:var(--ink-soft);}
+  .nav-map-col li b{color:var(--ink); font-weight:600;}
+
+  /* ===== State cards ===== */
+  .state-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:16px 0 30px;}
+  .state-card{border:1px solid var(--line); border-radius:12px; padding:16px 18px; background:var(--paper-raised); box-shadow:var(--shadow);}
+  .state-card .dot{width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:7px;}
+  .state-card.ok .dot{background:var(--green);}
+  .state-card.grace .dot{background:var(--gold);}
+  .state-card.blocked .dot{background:var(--lock);}
+  .state-card h4{font-size:0.92rem; font-weight:700; margin-bottom:6px;}
+  .state-card p{font-size:0.84rem; color:var(--ink-soft);}
+
+  /* ===== FAQ ===== */
+  .faq-item{border-bottom:1px solid var(--line); padding:16px 0;}
+  .faq-item:first-child{padding-top:0;}
+  .faq-item:last-child{border-bottom:none;}
+  .faq-q{font-family:var(--display); font-weight:600; font-size:0.95rem; margin-bottom:6px; display:flex; gap:8px;}
+  .faq-q .qmark{color:var(--gold-deep); flex-shrink:0;}
+  .faq-a{font-size:0.88rem; color:var(--ink-soft); padding-left:20px;}
+  .faq-a strong{color:var(--ink);}
+
+  footer.page-footer{
+    margin-top:60px; padding-top:24px; border-top:1px solid var(--line);
+    font-size:0.78rem; color:var(--ink-faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+
+  ::selection{background:rgba(248,183,24,0.35);}
+
+  /* ===== Impression (export PDF) ===== */
+  @media print{
+    body{background:#fff; font-size:13px;}
+    .shell{display:block;}
+    .toc{display:none;}
+    main{max-width:none; padding:0 4mm;}
+    .hero{margin-bottom:28px;}
+    .page-card, .nav-map-col, .state-card, .legend{box-shadow:none; break-inside:avoid;}
+    .tier-head{break-after:avoid;}
+    .tier-section{margin-bottom:36px;}
+    .page-card > summary .chev{display:none;}
+    a{text-decoration:none; color:var(--green-deep);}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="toc">
+    <a href="./" class="toc-back">← Retour à l'application</a>
+
+    <div class="toc-brand">
+      <span class="toc-mark">✚</span>
+      <div>
+        <div class="toc-brand-text">Consultations AMSTC</div>
+        <div class="toc-brand-sub">Guide d'utilisation</div>
+      </div>
+    </div>
+
+    <div class="toc-search-hint">Utilisez <kbd>Ctrl</kbd>+<kbd>F</kbd> pour chercher un écran ou une action précise dans ce guide.</div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">Repères</span>
+      <nav><ul>
+        <li><a href="#legende" data-toc>Légende des badges</a></li>
+        <li><a href="#parcours" data-toc>Parcours rapides</a></li>
+      </ul></nav>
+    </div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">1 · Prise en main</span>
+      <nav><ul>
+        <li><a href="#demarrer" data-toc>Vue d'ensemble</a></li>
+        <li><a href="#demarrer-connexion" data-toc class="sub">Écran de connexion</a></li>
+        <li><a href="#demarrer-inscription" data-toc class="sub">Créer un compte</a></li>
+        <li><a href="#demarrer-session" data-toc class="sub">Démarrage de session</a></li>
+        <li><a href="#demarrer-navigation" data-toc class="sub">Se repérer dans l'app</a></li>
+      </ul></nav>
+    </div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">2 · Praticiens</span>
+      <nav><ul>
+        <li><a href="#praticien" data-toc>Vue d'ensemble</a></li>
+        <li><a href="#praticien-nouvelle" data-toc class="sub">Nouvelle consultation</a></li>
+        <li><a href="#praticien-referer" data-toc class="sub">Référer un patient</a></li>
+        <li><a href="#praticien-liste" data-toc class="sub">Mes consultations</a></li>
+        <li><a href="#praticien-dash" data-toc class="sub">Tableau de bord</a></li>
+      </ul></nav>
+    </div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">3 · Pharmacie</span>
+      <nav><ul>
+        <li><a href="#pharmacie" data-toc>Vue d'ensemble</a></li>
+        <li><a href="#pharmacie-dash" data-toc class="sub">Tableau de bord</a></li>
+        <li><a href="#pharmacie-delivrances" data-toc class="sub">Délivrances</a></li>
+        <li><a href="#pharmacie-stock" data-toc class="sub">Stock du site</a></li>
+      </ul></nav>
+    </div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">4 · Administration</span>
+      <nav><ul>
+        <li><a href="#admin" data-toc>Vue d'ensemble</a></li>
+        <li><a href="#admin-dash" data-toc class="sub">Tableau de bord global</a></li>
+        <li><a href="#admin-consultations" data-toc class="sub">Consultations</a></li>
+        <li><a href="#admin-utilisateurs" data-toc class="sub">Utilisateurs</a></li>
+        <li><a href="#admin-campagnes" data-toc class="sub">Campagnes &amp; sites</a></li>
+        <li><a href="#admin-pharmacie" data-toc class="sub">Pharmacie (aperçu)</a></li>
+      </ul></nav>
+    </div>
+
+    <div class="toc-group">
+      <span class="toc-group-label">5 · Au quotidien</span>
+      <nav><ul>
+        <li><a href="#profil" data-toc>Mon profil</a></li>
+        <li><a href="#horsligne" data-toc>Travailler hors connexion</a></li>
+        <li><a href="#securite" data-toc>Sécurité &amp; bonnes pratiques</a></li>
+      </ul></nav>
+    </div>
+  </aside>
+
+  <main>
+
+    <div class="hero">
+      <p class="eyebrow">Guide d'utilisation</p>
+      <h1>Se repérer sur consultations-amstc.org</h1>
+      <p class="hero-lede">
+        La plateforme de gestion des consultations des campagnes médico-sociales de l'AMSTC :
+        saisie des consultations, suivi de la pharmacie, statistiques de campagne — pensée pour
+        le terrain, y compris sans connexion internet. Ce guide couvre chaque écran, rôle par rôle.
+      </p>
+
+      <div class="legend" id="legende">
+        <div class="legend-item"><span class="badge tous">Tous</span> tous les comptes</div>
+        <div class="legend-item"><span class="badge praticien">Praticien</span> Médecin, Dentiste ou Spécialiste</div>
+        <div class="legend-item"><span class="badge pharma">Pharmacien</span> comptes Pharmacien</div>
+        <div class="legend-item"><span class="badge chef">Chef pharmacie</span> pharmacien en chef du site</div>
+        <div class="legend-item"><span class="badge admin">Admin</span> administrateurs</div>
+        <div class="legend-item"><span class="badge offline">✓ hors ligne</span> utilisable sans connexion</div>
+        <div class="legend-item"><span class="badge online">connexion requise</span> nécessite internet</div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PARCOURS RAPIDES -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="parcours">
+      <div class="tier-head"><h2>Parcours rapides</h2></div>
+      <p class="tier-desc">Les situations les plus fréquentes, avec le chemin direct vers la réponse.</p>
+
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Je crée mon compte</p>
+        <p class="faq-a">Écran de connexion → <strong>« Créer un compte »</strong> : prénom, nom, e-mail, téléphone (WhatsApp), domaine d'exercice, niveau d'étude, mot de passe. Le compte doit ensuite être <strong>activé par un administrateur</strong>.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> « Compte en attente » s'affiche à la connexion</p>
+        <p class="faq-a">Votre compte n'a pas encore été activé : contactez votre responsable de campagne (un administrateur doit l'activer dans l'onglet Utilisateurs).</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Une consultation reste « À envoyer »</p>
+        <p class="faq-a">Vérifiez l'indicateur <strong>En ligne / Hors ligne</strong> dans la barre du haut. La synchronisation est automatique dès le retour du réseau ; sinon, onglet Consultations → <strong>« Actualiser »</strong>.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Je veux changer mon domaine d'exercice (ex. passer Pharmacien)</p>
+        <p class="faq-a">Menu du compte → <strong>Mon profil</strong> → Domaine d'exercice → Enregistrer, puis <strong>déconnectez-vous et reconnectez-vous</strong> : le changement prend effet à la connexion suivante.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Je me suis trompé de site ce matin</p>
+        <p class="faq-a">Déconnectez-vous puis reconnectez-vous : le <strong>choix du site</strong> est proposé à chaque connexion, pré-rempli sur votre dernier site.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Un confrère m'a référé un patient, où le voir ?</p>
+        <p class="faq-a">Sur votre <strong>Tableau de bord</strong> : un badge rouge apparaît sur l'icône, et la carte <strong>« Patients qui vous sont référés »</strong> permet de commencer la consultation en un geste.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Je dois délivrer les médicaments d'une ordonnance</p>
+        <p class="faq-a">Onglet <strong>Pharmacie → Délivrances</strong> : saisissez la quantité et l'unité remises, touchez « Délivré » — le stock est ajusté automatiquement.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> Des médicaments viennent d'arriver, je dois mettre à jour le stock</p>
+        <p class="faq-a">Onglet <strong>Pharmacie → Stock</strong> (réservé au <strong>pharmacien en chef</strong> du site) : bouton « Modifier » sur chaque ligne, formulaire d'ajout, ou import Excel avec le modèle fourni.</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> J'ai oublié mon mot de passe</p>
+        <p class="faq-a">Écran de connexion → <strong>« Mot de passe oublié ? »</strong> : un lien de réinitialisation est envoyé par e-mail (vérifiez vos spams).</p>
+      </div>
+      <div class="faq-item">
+        <p class="faq-q"><span class="qmark">?</span> J'ai été déconnecté tout seul</p>
+        <p class="faq-a">Après <strong>30 minutes sans activité</strong>, la déconnexion est automatique pour protéger les données patients. Reconnectez-vous simplement.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 1. PRISE EN MAIN -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="demarrer">
+      <div class="tier-head"><span class="tier-num">1</span><h2>Prise en main</h2></div>
+      <p class="tier-desc">
+        L'application fonctionne dans le navigateur, sans installation, sur téléphone, tablette et
+        ordinateur. Sur mobile, « Ajouter à l'écran d'accueil » depuis le menu du navigateur la fait
+        apparaître comme une application classique.
+      </p>
+
+      <details class="page-card" id="demarrer-connexion" open>
+        <summary>
+          <span class="page-title">Écran de connexion</span>
+          <span class="page-path">consultations-amstc.org</span>
+          <span class="page-badges"><span class="badge tous">Tous</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Photo plein écran avec le message de bienvenue, et la carte de connexion :</p>
+          <ul>
+            <li><strong>Adresse e-mail + mot de passe</strong> → « Se connecter » ;</li>
+            <li><strong>« Continuer avec Google »</strong> : connexion via votre compte Google ;</li>
+            <li><strong>« Mot de passe oublié ? »</strong> : lien de réinitialisation envoyé par e-mail ;</li>
+            <li><strong>« Créer un compte »</strong> : ouvre le formulaire d'inscription ;</li>
+            <li>En bas : liens <strong>Confidentialité</strong>, <strong>Conditions d'utilisation</strong> et site officiel amstc.org.</li>
+          </ul>
+          <div class="field-line"><span class="field-label">Hors ligne</span><span class="field-val">La toute première connexion d'un compte nécessite internet ; ensuite, l'application peut être rouverte hors connexion sur le même appareil.</span></div>
+        </div>
+      </details>
+
+      <details class="page-card" id="demarrer-inscription">
+        <summary>
+          <span class="page-title">Créer un compte</span>
+          <span class="page-path">connexion → « Créer un compte »</span>
+          <span class="page-badges"><span class="badge tous">Tous</span><span class="badge online">connexion requise</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Le formulaire remplit votre profil <strong>complet dès l'inscription</strong> :</p>
+          <ol>
+            <li><strong>Prénom</strong> et <strong>Nom</strong> ;</li>
+            <li><strong>Adresse e-mail</strong> (votre identifiant de connexion) ;</li>
+            <li><strong>Numéro de téléphone (WhatsApp)</strong> ;</li>
+            <li><strong>Domaine d'exercice</strong> : Médecin, Dentiste, Spécialiste (avec sa sous-spécialité, ex. Cardiologie) ou Pharmacien — il détermine votre formulaire et vos onglets ;</li>
+            <li><strong>Niveau d'étude</strong> (Licence 1 à Professeur) ;</li>
+            <li><strong>Mot de passe</strong> d'au moins 6 caractères.</li>
+          </ol>
+          <div class="note-box"><strong>Activation :</strong> le compte doit être activé par un administrateur avant utilisation. Tant qu'il ne l'est pas, « Compte en attente » s'affiche à la connexion.</div>
+          <p>Une inscription via <strong>Google</strong> saute ce formulaire : le domaine d'exercice sera alors demandé à la première connexion.</p>
+        </div>
+      </details>
+
+      <details class="page-card" id="demarrer-session">
+        <summary>
+          <span class="page-title">Démarrage de session : domaine et site du jour</span>
+          <span class="page-path">après connexion</span>
+          <span class="page-badges"><span class="badge praticien">Praticien</span><span class="badge pharma">Pharmacien</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <div class="field-line"><span class="field-label">Domaine</span><span class="field-val">Demandé une seule fois, uniquement s'il n'a pas déjà été renseigné (inscription Google). Modifiable ensuite depuis Mon profil, avec effet à la reconnexion.</span></div>
+          <div class="field-line"><span class="field-label">Site du jour</span><span class="field-val">À chaque connexion, vous confirmez le site où vous exercez aujourd'hui — pré-rempli sur votre dernier site, modifiable. Si une campagne vous est assignée, seuls ses sites sont proposés.</span></div>
+          <div class="field-line"><span class="field-label">Hors ligne</span><span class="field-val">Un profil déjà complet saute cet écran hors connexion et reprend sur le dernier site connu.</span></div>
+        </div>
+      </details>
+
+      <div class="subsection" id="demarrer-navigation">
+        <h3>Se repérer dans l'application</h3>
+        <p class="subsection-desc">Trois zones permanentes, quel que soit le rôle.</p>
+      </div>
+
+      <div class="nav-map">
+        <div class="nav-map-col">
+          <h4>Barre du haut</h4>
+          <ul>
+            <li><b>Logo + site</b> — où vous exercez (ou « Espace administrateur »)</li>
+            <li><b>En ligne / Hors ligne</b> — état du réseau en temps réel</li>
+            <li><b>« N à envoyer »</b> — consultations en attente de synchronisation</li>
+            <li><b>Icône de compte</b> — ouvre le menu</li>
+          </ul>
+        </div>
+        <div class="nav-map-col">
+          <h4>Menu du compte</h4>
+          <ul>
+            <li><b>Mon profil</b> — photo, coordonnées, domaine</li>
+            <li><b>Guide d'utilisation</b> — ce guide, intégré à l'app</li>
+            <li><b>Se déconnecter</b></li>
+            <li>Rappel du rôle et de la version de l'app</li>
+          </ul>
+        </div>
+        <div class="nav-map-col">
+          <h4>Barre d'onglets</h4>
+          <ul>
+            <li><b>Mobile</b> — icônes en bas d'écran, onglet actif doré</li>
+            <li><b>Ordinateur</b> — barre latérale à gauche</li>
+            <li><b>Praticien</b> — Nouvelle consultation · Mes consultations · Tableau de bord</li>
+            <li><b>Pharmacien</b> — Tableau de bord · Pharmacie</li>
+            <li><b>Admin</b> — + Consultations · Utilisateurs · Campagnes</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 2. PRATICIENS -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="praticien">
+      <div class="tier-head"><span class="tier-num">2</span><h2>Praticiens : les consultations</h2></div>
+      <p class="tier-desc">
+        Médecins, dentistes et spécialistes saisissent leurs consultations dans un formulaire adapté
+        à leur domaine. Les administrateurs peuvent aussi saisir : ils choisissent alors le site et
+        le type de consultation à chaque saisie.
+      </p>
+
+      <details class="page-card" id="praticien-nouvelle" open>
+        <summary>
+          <span class="page-title">Nouvelle consultation</span>
+          <span class="page-path">onglet « Nouvelle consultation »</span>
+          <span class="page-badges"><span class="badge praticien">Praticien</span><span class="badge admin">Admin</span><span class="badge offline">✓ hors ligne</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p><strong>Identité du patient</strong> — prénom, nom, sexe et âge obligatoires ; adresse et téléphone facultatifs ; motifs de consultation obligatoires.</p>
+          <p><strong>Examen</strong> (Médecin et Dentiste) — constantes vitales facultatives (tension, température, fréquence cardiaque, taille, poids), antécédents, puis <strong>signes cliniques</strong> obligatoires et explorations complémentaires demandées.</p>
+          <div class="field-line"><span class="field-label">Médecin</span><span class="field-val">Diagnostic par <strong>liste à cocher</strong> : une ou plusieurs pathologies (Paludisme, Hypertension, Diabète, Asthme…) + « Autres (préciser) » en texte libre.</span></div>
+          <div class="field-line"><span class="field-label">Dentiste</span><span class="field-val">Diagnostic en texte libre + <strong>acte dentaire</strong> obligatoire en bas du formulaire (contrôle, détartrage, soin de carie, extraction, dévitalisation, prothèse, chirurgie, autre).</span></div>
+          <div class="field-line"><span class="field-label">Spécialiste</span><span class="field-val">La spécialité médicale est rattachée à la consultation (fixée par l'administrateur pour un agent spécialiste), avec signes, diagnostic et explorations dédiés.</span></div>
+          <p style="margin-top:10px;"><strong>Conduite à tenir / Traitement</strong> (obligatoire) :</p>
+          <ul>
+            <li>« + Ajouter un médicament » depuis le <strong>stock du site</strong> (quantités restantes affichées ; la quantité délivrée sera fixée par le pharmacien) ou hors stock en texte libre, avec la posologie (ex. <code>1cp×3/j</code>) ;</li>
+            <li>case <strong>« Pas de traitement nécessaire »</strong> si rien n'est prescrit ;</li>
+            <li>note libre facultative (recommandations, suivi).</li>
+          </ul>
+          <p>À l'enregistrement, un numéro unique <code>AMSTC-XXXXXXXX</code> est attribué immédiatement — même hors connexion. Les champs manquants sont listés précisément en cas d'oubli.</p>
+        </div>
+      </details>
+
+      <details class="page-card" id="praticien-referer">
+        <summary>
+          <span class="page-title">Référer un patient à un confrère</span>
+          <span class="page-path">bas du formulaire de consultation</span>
+          <span class="page-badges"><span class="badge praticien">Praticien</span><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Visible si d'autres praticiens sont rattachés au même site :</p>
+          <ol>
+            <li>Choisissez le confrère (sa spécialité est affichée) ;</li>
+            <li>Indiquez le <strong>motif</strong> de la référence ;</li>
+            <li>Enregistrez la consultation normalement.</li>
+          </ol>
+          <p>Le confrère voit un <strong>badge rouge</strong> sur son tableau de bord et la carte <strong>« Patients qui vous sont référés »</strong> : « Commencer la consultation » pré-remplit l'identité du patient dans son formulaire ; « Marquer comme traité » retire la référence.</p>
+        </div>
+      </details>
+
+      <details class="page-card" id="praticien-liste">
+        <summary>
+          <span class="page-title">Mes consultations</span>
+          <span class="page-path">onglet « Mes consultations »</span>
+          <span class="page-badges"><span class="badge praticien">Praticien</span><span class="badge offline">✓ hors ligne</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Chaque fiche affiche : nom du patient, numéro AMSTC et date, âge · sexe, type de consultation, puis <strong>Motifs, Signes, Diagnostic, Traitement, Explorations, Téléphone</strong>.</p>
+          <div class="field-line"><span class="field-label">Statuts</span><span class="field-val"><strong>Synchronisée</strong> = enregistrée sur le serveur · <strong>À envoyer</strong> = en attente de réseau (envoi automatique).</span></div>
+          <div class="field-line"><span class="field-label">Recherche</span><span class="field-val">Par nom, numéro AMSTC, diagnostic ou motifs.</span></div>
+          <div class="field-line"><span class="field-label">Exporter CSV</span><span class="field-val">Télécharge la liste affichée, ouvrable dans Excel.</span></div>
+          <div class="field-line"><span class="field-label">Supprimer</span><span class="field-val">Définitif, avec confirmation — <strong>connexion requise</strong>.</span></div>
+        </div>
+      </details>
+
+      <details class="page-card" id="praticien-dash">
+        <summary>
+          <span class="page-title">Tableau de bord &amp; rapports</span>
+          <span class="page-path">onglet « Tableau de bord »</span>
+          <span class="page-badges"><span class="badge praticien">Praticien</span><span class="badge offline">✓ hors ligne</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Cartes de chiffres clés (total, aujourd'hui, 7 derniers jours, âge moyen, explorations demandées), puis graphiques : évolution sur 14 jours, répartition par type de praticien, répartition par sexe, pyramide des âges, pathologies les plus fréquentes.</p>
+          <ul>
+            <li><strong>Rapports PDF / Word</strong> : reprennent exactement les chiffres et graphiques affichés au moment du clic ;</li>
+            <li><strong>Collègues de ce site</strong> : liste avec photo et téléphone ;</li>
+            <li>Les graphiques nécessitent une connexion au premier chargement ; les chiffres restent fiables hors ligne.</li>
+          </ul>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 3. PHARMACIE -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="pharmacie">
+      <div class="tier-head"><span class="tier-num">3</span><h2>Pharmacie</h2></div>
+      <p class="tier-desc">
+        Les comptes Pharmacien suivent les prescriptions des praticiens du site et gèrent le stock.
+        Tous les pharmaciens du site consultent le stock ; seule sa modification est réservée au
+        <strong>pharmacien en chef</strong>, désigné par l'administrateur.
+      </p>
+
+      <details class="page-card" id="pharmacie-dash" open>
+        <summary>
+          <span class="page-title">Tableau de bord pharmacie</span>
+          <span class="page-path">onglet « Tableau de bord »</span>
+          <span class="page-badges"><span class="badge pharma">Pharmacien</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Quatre cartes <strong>cliquables</strong> qui mènent directement à la partie concernée :</p>
+          <ul>
+            <li><strong>Articles en stock</strong> et <strong>Alertes stock bas</strong> → onglet Stock ;</li>
+            <li><strong>Unités délivrées (total)</strong> → Délivrances, historique inclus ;</li>
+            <li><strong>Unités en attente</strong> → Délivrances en attente.</li>
+          </ul>
+          <p>Graphiques : stock par catégorie thérapeutique et médicaments les plus délivrés.</p>
+        </div>
+      </details>
+
+      <details class="page-card" id="pharmacie-delivrances">
+        <summary>
+          <span class="page-title">Délivrances</span>
+          <span class="page-path">onglet « Pharmacie » → Délivrances</span>
+          <span class="page-badges"><span class="badge pharma">Pharmacien</span><span class="badge online">connexion requise</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Les prescriptions liées au stock s'affichent patient par patient, avec le prescripteur et le numéro de consultation. Par défaut, seules celles <strong>en attente</strong> sont listées (case à cocher pour afficher aussi l'historique).</p>
+          <ol>
+            <li>Saisissez la <strong>quantité</strong> et l'<strong>unité</strong> effectivement remises ;</li>
+            <li>Touchez <strong>« Délivré »</strong> — le stock est <strong>ajusté automatiquement</strong> (article lié, ou correspondance par nom pour les anciennes prescriptions) ;</li>
+            <li>En cas d'erreur, <strong>« Annuler »</strong> restitue la quantité au stock.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="page-card" id="pharmacie-stock">
+        <summary>
+          <span class="page-title">Stock du site</span>
+          <span class="page-path">onglet « Pharmacie » → Stock</span>
+          <span class="page-badges"><span class="badge pharma">Pharmacien</span><span class="badge chef">Chef pharmacie</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Articles groupés par catégorie, avec l'alerte <strong>« Stock bas »</strong> quand la quantité passe sous le seuil défini. La <strong>modification</strong> est réservée au pharmacien en chef :</p>
+          <ul>
+            <li><strong>Ajouter un article</strong> : nom, type (médicament, consommable, matériel), catégorie, quantité, unité, seuil d'alerte ;</li>
+            <li><strong>Modifier / Supprimer</strong> : bouton « Modifier » sur chaque ligne — ajustable à tout moment (réassorts, corrections) ;</li>
+            <li><strong>Import Excel</strong> : téléchargez le modèle (Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte), remplissez, importez. Les doublons sont arbitrés ligne par ligne : <strong>ajouter à l'existant</strong>, <strong>remplacer</strong> ou <strong>ignorer</strong>.</li>
+          </ul>
+          <div class="note-box"><strong>Conseil :</strong> le rapprochement automatique à la délivrance se fait par nom d'article pour les anciennes prescriptions — gardez des noms cohérents (ex. toujours « Paracétamol 500mg cp »).</div>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 4. ADMINISTRATION -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="admin">
+      <div class="tier-head"><span class="tier-num">4</span><h2>Administration</h2></div>
+      <p class="tier-desc">
+        Les administrateurs supervisent l'ensemble : comptes, campagnes, sites, statistiques
+        globales et sauvegardes. Toutes les actions d'administration nécessitent une connexion.
+      </p>
+
+      <details class="page-card" id="admin-dash" open>
+        <summary>
+          <span class="page-title">Tableau de bord global</span>
+          <span class="page-path">onglet « Tableau de bord »</span>
+          <span class="page-badges"><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <ul>
+            <li><strong>Filtre par campagne</strong> : restreint chiffres, graphiques et rapports à une campagne précise ;</li>
+            <li><strong>Aperçu par campagne</strong> : sites et consultations, bouton « Voir » ;</li>
+            <li><strong>Statistiques par site</strong> : volume, % femmes/hommes, âge moyen, pathologie la plus fréquente ;</li>
+            <li>Graphique <strong>médicaments les plus délivrés</strong> (pharmacie) ;</li>
+            <li><strong>Rapports PDF / Word</strong> : incluent les effectifs de la campagne (sites, praticiens par domaine), le détail jour par jour et les graphiques affichés ;</li>
+            <li><strong>Sauvegarde complète (JSON)</strong> : exporte toutes les tables pour archivage.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="page-card" id="admin-consultations">
+        <summary>
+          <span class="page-title">Consultations (toutes)</span>
+          <span class="page-path">onglet « Consultations »</span>
+          <span class="page-badges"><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Toutes les consultations, tous praticiens confondus, avec <strong>filtre par site</strong>, nom du praticien sur chaque fiche, recherche, export CSV et suppression (définitive, avec confirmation). L'admin peut aussi saisir ses propres consultations via « Nouvelle consultation », en choisissant site et type à chaque fois.</p>
+        </div>
+      </details>
+
+      <details class="page-card" id="admin-utilisateurs">
+        <summary>
+          <span class="page-title">Utilisateurs</span>
+          <span class="page-path">onglet « Utilisateurs »</span>
+          <span class="page-badges"><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Tous les comptes, avec recherche par nom ou e-mail. Touchez une carte pour la déplier :</p>
+          <ul>
+            <li><strong>Activer / Désactiver</strong> — un compte nouvellement inscrit doit être activé ici avant de pouvoir travailler ;</li>
+            <li><strong>Rôle</strong> : Praticien ou Admin — la promotion en administrateur demande une confirmation explicite ;</li>
+            <li><strong>Spécialité</strong> : Médecin, Dentiste, Spécialiste (avec sous-spécialité) ou Pharmacien ;</li>
+            <li><strong>Campagne puis Site</strong> — changer la campagne réinitialise le site, à re-choisir dans la liste filtrée ;</li>
+            <li><strong>Supprimer</strong> — retire l'accès ; les consultations déjà enregistrées sont conservées.</li>
+          </ul>
+          <div class="note-box"><strong>Compte protégé :</strong> le super-administrateur ne peut être ni rétrogradé ni désactivé, même par un autre administrateur.</div>
+        </div>
+      </details>
+
+      <details class="page-card" id="admin-campagnes">
+        <summary>
+          <span class="page-title">Campagnes &amp; sites</span>
+          <span class="page-path">onglet « Campagnes »</span>
+          <span class="page-badges"><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <ul>
+            <li><strong>Créer une campagne</strong> : volet dépliable en haut — nom (obligatoire), lieu, dates de début et de fin ;</li>
+            <li><strong>Fiche campagne</strong> : nom, lieu, dates, statut Active / Terminée ; « Voir les statistiques » bascule le tableau de bord filtré ;</li>
+            <li><strong>Archiver</strong> : déplace dans l'onglet Archives (désarchivable, ou supprimable définitivement — les sites deviennent « sans campagne », les consultations sont conservées) ;</li>
+            <li><strong>Sites</strong> : ajout, renommage, activation, suppression sous chaque campagne ; bloc « Sites autonomes » pour les sites sans campagne ;</li>
+            <li><strong>Pharmacien en chef</strong> : désigné site par site parmi les pharmaciens affectés — seul habilité à modifier le stock de ce site.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="page-card" id="admin-pharmacie">
+        <summary>
+          <span class="page-title">Pharmacie (aperçu)</span>
+          <span class="page-path">onglet « Pharmacie »</span>
+          <span class="page-badges"><span class="badge admin">Admin</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <p>Vue en <strong>lecture seule</strong> : total des médicaments délivrés, stock global toutes campagnes (regroupé par article), stock détaillé par site. La gestion elle-même reste réservée aux comptes Pharmacien, pour ne pas interférer avec leur travail.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- 5. AU QUOTIDIEN -->
+    <!-- ============================================================ -->
+    <section class="tier-section" id="profil">
+      <div class="tier-head"><span class="tier-num">5</span><h2>Au quotidien</h2></div>
+
+      <details class="page-card" open>
+        <summary>
+          <span class="page-title">Mon profil</span>
+          <span class="page-path">menu du compte → « Mon profil »</span>
+          <span class="page-badges"><span class="badge tous">Tous</span></span>
+          <span class="chev">▶</span>
+        </summary>
+        <div class="page-body">
+          <ul>
+            <li><strong>Photo</strong> : recadrée et compressée automatiquement, visible par l'administrateur et vos collègues de site ;</li>
+            <li><strong>Prénom, Nom, Téléphone, Niveau d'étude</strong> : modifiables à tout moment ;</li>
+            <li><strong>Domaine d'exercice</strong> (praticiens) : modifiable ici, avec effet à la <strong>prochaine connexion</strong> — la session en cours n'est pas affectée.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="subsection" id="horsligne">
+        <h3>Travailler hors connexion</h3>
+        <p class="subsection-desc">L'application est conçue pour le terrain : une fois chargée, elle fonctionne sans internet.</p>
+      </div>
+
+      <div class="state-grid">
+        <div class="state-card ok">
+          <h4><span class="dot"></span>En ligne</h4>
+          <p>Tout fonctionne. Chaque consultation est enregistrée immédiatement sur le serveur (« Synchronisée »).</p>
+        </div>
+        <div class="state-card grace">
+          <h4><span class="dot"></span>Hors ligne</h4>
+          <p>Saisie normale : les consultations passent « À envoyer » et un compteur s'affiche dans la barre du haut. L'application peut même être rouverte hors connexion (si déjà utilisée sur l'appareil).</p>
+        </div>
+        <div class="state-card blocked">
+          <h4><span class="dot"></span>Connexion requise</h4>
+          <p>Première connexion d'un compte, suppression d'une consultation synchronisée, délivrances, actions d'administration, confirmation initiale du domaine et du site.</p>
+        </div>
+      </div>
+
+      <p style="font-size:0.9rem; color:var(--ink-soft); margin-bottom:40px;">
+        La synchronisation est <strong>automatique</strong> dès le retour du réseau — aucune action nécessaire.
+        Le numéro <code>AMSTC-XXXXXXXX</code> de chaque consultation est attribué immédiatement, hors ligne compris.
+      </p>
+
+      <div class="subsection" id="securite">
+        <h3>Sécurité &amp; bonnes pratiques</h3>
+      </div>
+      <div class="page-card" style="padding:16px 18px;">
+        <ul style="list-style:none;">
+          <li style="font-size:0.88rem; color:var(--ink-soft); padding-left:16px; position:relative; margin-bottom:8px;"><span style="position:absolute; left:2px; color:var(--gold-deep);">•</span>Les données saisies relèvent du <strong style="color:var(--ink);">secret médical</strong> : n'accédez qu'aux données nécessaires à votre mission ;</li>
+          <li style="font-size:0.88rem; color:var(--ink-soft); padding-left:16px; position:relative; margin-bottom:8px;"><span style="position:absolute; left:2px; color:var(--gold-deep);">•</span><strong style="color:var(--ink);">Ne partagez jamais vos identifiants</strong> — chaque saisie est rattachée à votre compte ;</li>
+          <li style="font-size:0.88rem; color:var(--ink-soft); padding-left:16px; position:relative; margin-bottom:8px;"><span style="position:absolute; left:2px; color:var(--gold-deep);">•</span>Sur un <strong style="color:var(--ink);">appareil partagé</strong>, déconnectez-vous en fin de service : les données du compte sont alors effacées de l'appareil (les consultations en attente d'envoi sont conservées) ;</li>
+          <li style="font-size:0.88rem; color:var(--ink-soft); padding-left:16px; position:relative; margin-bottom:8px;"><span style="position:absolute; left:2px; color:var(--gold-deep);">•</span><strong style="color:var(--ink);">Déconnexion automatique</strong> après 30 minutes d'inactivité ;</li>
+          <li style="font-size:0.88rem; color:var(--ink-soft); padding-left:16px; position:relative;"><span style="position:absolute; left:2px; color:var(--gold-deep);">•</span>Échanges chiffrés (HTTPS), accès restreint par rôle — détails dans <a href="./confidentialite">Confidentialité</a> et <a href="./cgu">Conditions d'utilisation</a> (loi sénégalaise n° 2008-12, contrôle CDP).</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer class="page-footer">
+      <span>Guide d'utilisation — consultations-amstc.org</span>
+      <span>AMSTC · Association Médico-Sociale des Talibés Cheikh</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  // Surlignage de l'entrée active dans le sommaire pendant le défilement.
+  const tocLinks = Array.from(document.querySelectorAll('[data-toc]'));
+  if ('IntersectionObserver' in window && tocLinks.length){
+    const linkByTarget = new Map();
+    tocLinks.forEach(a => {
+      const t = document.querySelector(a.getAttribute('href'));
+      if (t) linkByTarget.set(t, a);
+    });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const link = linkByTarget.get(entry.target);
+        if (!link) return;
+        if (entry.isIntersecting) {
+          tocLinks.forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    linkByTarget.forEach((link, target) => observer.observe(target));
+  }
+
+  // Export PDF : toutes les sections doivent être dépliées à l'impression
+  // (les <details> fermés n'imprimeraient pas leur contenu). Le paramètre
+  // ?print sert à la génération automatisée ; beforeprint couvre Ctrl+P.
+  function openAllCards(){ document.querySelectorAll('details').forEach(d => d.open = true); }
+  if (new URLSearchParams(location.search).has('print')) openAllCards();
+  window.addEventListener('beforeprint', openAllCards);
+</script>
+</body>
+</html>

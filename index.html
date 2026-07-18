@@ -570,6 +570,24 @@
       <div class="field"><label for="suEmail">Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
       <div class="field"><label for="suTelephone">Numéro de téléphone (WhatsApp)</label>
         <input type="tel" id="suTelephone" autocomplete="tel" placeholder="Ex : 77 123 45 67"></div>
+      <!-- Domaine d'exercice (même composant que Mon profil) - rempli au démarrage par buildSpecialiteFieldsHtml("su") -->
+      <div id="suSpecialiteWrap"></div>
+      <div class="field"><label for="suNiveau">Niveau d'étude</label>
+        <select id="suNiveau">
+          <option value="">- Choisir -</option>
+          <option value="Licence 1">Licence 1</option>
+          <option value="Licence 2">Licence 2</option>
+          <option value="Licence 3">Licence 3</option>
+          <option value="Master 1">Master 1</option>
+          <option value="Master 2">Master 2</option>
+          <option value="Doctorat 1">Doctorat 1</option>
+          <option value="Doctorat 2">Doctorat 2</option>
+          <option value="Doctorat 3">Doctorat 3</option>
+          <option value="Docteur">Docteur</option>
+          <option value="D.E.S">D.E.S</option>
+          <option value="Professeur">Professeur</option>
+        </select>
+      </div>
       <div class="field"><label for="suPass">Mot de passe <span style="font-weight:400;color:var(--muted)">(min. 6 caractères)</span></label>
         <div class="pwd-wrap"><input type="password" id="suPass" autocomplete="new-password">
           <button type="button" class="pwd-toggle" onclick="togglePwd('suPass',this)" aria-label="Afficher le mot de passe">
@@ -1153,17 +1171,23 @@ async function doSignup(){
   const prenom=$("suPrenom").value.trim(), nom=$("suNom").value.trim();
   const email=$("suEmail").value.trim(), pass=$("suPass").value;
   const telephone=$("suTelephone").value.trim();
-  if(!prenom||!nom||!email||!pass||!telephone){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  const niveau_etude=$("suNiveau").value;
+  if(!prenom||!nom||!email||!pass||!telephone||!niveau_etude){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  // Domaine d'exercice (+ sous-spécialité si Spécialiste) : mêmes règles que partout ailleurs.
+  const specFields=readSpecialiteFields("su","signupAlert");
+  if(!specFields) return;
   if(pass.length<6){ alertIn("signupAlert","err","Le mot de passe doit faire au moins 6 caractères."); return; }
   $("signupBtn").disabled=true; $("signupBtn").textContent="Création…";
-  const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom,telephone}}});
+  const {data,error}=await sb.auth.signUp({email,password:pass,options:{data:{prenom,nom,telephone,niveau_etude,...specFields}}});
   $("signupBtn").disabled=false; $("signupBtn").textContent="Créer le compte";
   if(error){ alertIn("signupAlert","err","Échec : "+errMsg(error)); return; }
   // Le profil est créé côté serveur (trigger) à partir des métadonnées ci-dessus ; si ce
-  // trigger ne recopie pas le téléphone, on complète directement la colonne du profil tant
-  // que la session d'inscription est active (même droit d'auto-modification que "Mon profil").
+  // trigger ne recopie pas tous les champs, on complète directement le profil tant que la
+  // session d'inscription est active (même droit d'auto-modification que "Mon profil").
   // Meilleur effort : un échec ici ne doit pas faire échouer une inscription déjà réussie.
-  if(data?.user){ await sb.from("profiles").update({telephone}).eq("id",data.user.id); }
+  // Le profil arrive ainsi complet dès le départ, et la première connexion ne demandera
+  // plus que le site (le domaine étant déjà renseigné).
+  if(data?.user){ await sb.from("profiles").update({telephone,niveau_etude,...specFields}).eq("id",data.user.id); }
   showLogin();
   alertIn("loginAlert","ok","Compte créé. Il doit être activé par un administrateur avant utilisation.");
 }
@@ -3884,10 +3908,10 @@ function renderAide(){
   const sections=[
 
     { show:true, titre:"Premiers pas : compte et connexion", corps:`
-      <p><b>Créer un compte :</b> renseignez prénom, nom, adresse e-mail, numéro de téléphone (WhatsApp) et un mot de passe d'au moins 6 caractères. Vous pouvez aussi utiliser <b>Continuer avec Google</b>.</p>
+      <p><b>Créer un compte :</b> renseignez prénom, nom, adresse e-mail, numéro de téléphone (WhatsApp), votre <b>domaine d'exercice</b> (Médecin, Dentiste, Spécialiste avec sa sous-spécialité, ou Pharmacien), votre <b>niveau d'étude</b> et un mot de passe d'au moins 6 caractères - votre profil est ainsi complet dès le départ. Vous pouvez aussi utiliser <b>Continuer avec Google</b>.</p>
       <p>Après l'inscription, votre compte doit être <b>activé par un administrateur</b> avant de pouvoir être utilisé. Tant qu'il ne l'est pas, un message « Compte en attente » s'affiche à la connexion.</p>
       <ul>
-        <li><b>Première connexion :</b> vous choisissez votre <b>domaine d'exercice</b> (Médecin, Dentiste, Spécialiste avec sa sous-spécialité, ou Pharmacien). Ce choix détermine votre formulaire et vos onglets. Il n'est demandé qu'une seule fois, et reste modifiable plus tard depuis « Mon profil ».</li>
+        <li><b>Domaine d'exercice :</b> il détermine votre formulaire et vos onglets. S'il n'a pas encore été renseigné (par exemple après une inscription via Google), il vous est demandé à la première connexion. Il reste modifiable plus tard depuis « Mon profil ».</li>
         <li><b>À chaque connexion :</b> vous confirmez le <b>site où vous exercez aujourd'hui</b> (pré-rempli sur votre dernier site, modifiable). Cela permet de changer de site d'un jour à l'autre pendant une campagne.</li>
         <li><b>Mot de passe oublié :</b> depuis l'écran de connexion, un lien de réinitialisation vous est envoyé par e-mail.</li>
       </ul>`},
@@ -4075,6 +4099,7 @@ sb.auth.onAuthStateChange((event)=>{
 
 /* ---------- démarrage ---------- */
 $("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule fois
+$("suSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("su","",""); // domaine d'exercice du formulaire d'inscription
 
 (async function(){
   updateSync();

@@ -1703,7 +1703,7 @@ function buildTabs(){
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
   }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
-    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}</span><span>${l}</span></button>`).join("");
+    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}${k==="users"?'<span class="navtab-badge hidden" id="navBadgeUsers">0</span>':""}</span><span>${l}</span></button>`).join("");
   // le filtre par site n'a de sens que pour l'admin
   $("siteFilter").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
@@ -1760,6 +1760,7 @@ function buildTabs(){
     setupReferField();
   }
   refreshPendingReferencesCount(); // visible depuis n'importe quel écran, pas seulement le tableau de bord
+  refreshPendingAccountsCount();   // badge admin : comptes en attente de validation
   switchTab(tabs[0][0]);
 }
 
@@ -1777,6 +1778,25 @@ async function refreshPendingReferencesCount(){
 }
 function updateReferenceBadge(n){
   const el=$("navBadgeDashboard"); if(!el) return;
+  if(n>0){ el.textContent = n>9?"9+":n; el.classList.remove("hidden"); }
+  else { el.classList.add("hidden"); }
+}
+
+// Badge rouge sur l'onglet Utilisateurs (admin) : nombre de comptes en attente de
+// validation, pour repérer les nouvelles inscriptions sans avoir à ouvrir l'onglet.
+// Critère "en attente de première validation" : inactif ET sans site attribué - un
+// nouvel inscrit n'a pas encore de site (il le choisit à sa première connexion, après
+// activation), alors qu'un compte désactivé en fin de campagne garde le sien et ne
+// doit pas faire grossir le badge indéfiniment.
+async function refreshPendingAccountsCount(){
+  if(!ME || ME.role!=="admin"){ updateUsersBadge(0); return; }
+  const {count,error}=await sb.from("profiles")
+    .select("id",{count:"exact",head:true}).eq("actif",false).is("site_id",null);
+  if(error) return;
+  updateUsersBadge(count||0);
+}
+function updateUsersBadge(n){
+  const el=$("navBadgeUsers"); if(!el) return;
   if(n>0){ el.textContent = n>9?"9+":n; el.classList.remove("hidden"); }
   else { el.classList.add("hidden"); }
 }
@@ -2926,6 +2946,10 @@ async function loadUsers(){
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+errMsg(error)); return; }
   USERS_CACHE=data||[];
   PHARMACIENS_CACHE=USERS_CACHE.filter(u=>u.specialite==="pharmacien" && u.actif);
+  // La liste complète est déjà là : le badge se recalcule localement, sans requête
+  // supplémentaire - et reste ainsi synchronisé après chaque action sur un compte
+  // (activation, site, suppression... toutes rappellent loadUsers).
+  updateUsersBadge(USERS_CACHE.filter(u=>!u.actif && !u.site_id).length);
   renderUsers();
 }
 
@@ -3107,6 +3131,7 @@ async function bulkSetActive(active,btn){
       toast(active?`${n} compte(s) activé(s)`:`${n} compte(s) praticien désactivé(s)`);
     }
     if(CURRENT_TAB==="users") loadUsers(); // rafraîchit la liste si elle est affichée
+    refreshPendingAccountsCount(); // le badge "comptes en attente" change aussi depuis le tableau de bord
   }finally{
     if(btn) btn.disabled=false;
   }

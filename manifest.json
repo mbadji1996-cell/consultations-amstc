@@ -1,0 +1,26 @@
+{
+  "name": "Consultations AMSTC",
+  "short_name": "AMSTC",
+  "description": "Gestion des consultations et du stock pharmaceutique AMSTC",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#17763B",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

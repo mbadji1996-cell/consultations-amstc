@@ -234,7 +234,10 @@
 </head>
 <body>
 
-<div class="shell">
+<!-- Le guide est réservé aux comptes connectés : le contenu reste masqué tant que la
+     session Supabase n'est pas confirmée (voir le script de garde en fin de page), pour
+     éviter tout flash de contenu avant la redirection d'un visiteur non connecté. -->
+<div class="shell" id="guideShell" style="visibility:hidden">
 
   <aside class="toc">
     <a href="./" class="toc-back">← Retour à l'application</a>
@@ -798,7 +801,35 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  // ---------- Garde d'accès : réservé aux comptes connectés ----------
+  // Un visiteur sans session est renvoyé vers l'écran de connexion. Vérification côté
+  // client (page statique) : elle écarte les visiteurs non connectés, sachant que les
+  // données réellement sensibles restent, elles, protégées côté Supabase (RLS).
+  // Le protocole file:// est exempté pour permettre la régénération locale du PDF
+  // (Chrome headless sur le fichier, sans session).
+  (async () => {
+    if (location.protocol === "file:") {
+      document.getElementById("guideShell").style.visibility = "";
+      return;
+    }
+    try {
+      const sbGuide = supabase.createClient(
+        "https://krhvnuhwqlsdfecodmrp.supabase.co",
+        "sb_publishable_9j8QN9IEROZen5ecVuWwkQ_V3ySs699"
+      );
+      const { data: { session } } = await sbGuide.auth.getSession();
+      if (session) {
+        document.getElementById("guideShell").style.visibility = "";
+      } else {
+        location.replace("./");
+      }
+    } catch (e) {
+      location.replace("./");
+    }
+  })();
+
   // Surlignage de l'entrée active dans le sommaire pendant le défilement.
   const tocLinks = Array.from(document.querySelectorAll('[data-toc]'));
   if ('IntersectionObserver' in window && tocLinks.length){

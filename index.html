@@ -395,11 +395,13 @@
 
   /* 8 · Liens légaux (Confidentialité / CGU) en bas de la carte de connexion */
   .auth-legal{
-    display:flex; align-items:center; justify-content:center; gap:10px;
+    /* flex-wrap + white-space : sans eux, les liens se coupaient au milieu d'un mot sur
+       petit écran au lieu de passer proprement à la ligne entière */
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px 10px;
     margin-top:22px; padding-top:16px; border-top:1px solid var(--line);
-    font-size:12.5px;
+    font-size:12.5px; text-align:center;
   }
-  .auth-legal a{ color:var(--muted); text-decoration:none; font-weight:600; }
+  .auth-legal a{ color:var(--muted); text-decoration:none; font-weight:600; white-space:nowrap; }
   .auth-legal a:hover{ color:var(--green-700); text-decoration:underline; }
   .auth-legal span{ color:var(--line); }
 
@@ -657,8 +659,6 @@
     </div>
 
     <div class="auth-legal">
-      <a href="./guide.html">Guide d'utilisation</a>
-      <span>·</span>
       <a href="./confidentialite">Confidentialité</a>
       <span>·</span>
       <a href="./cgu">Conditions d'utilisation</a>

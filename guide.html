@@ -7,6 +7,17 @@
 <meta name="description" content="Guide d'utilisation et de navigation de la plateforme consultations-amstc.org : consultations, pharmacie, administration, mode hors connexion.">
 <link rel="canonical" href="https://consultations-amstc.org/guide.html">
 <link rel="icon" href="./icon.png">
+<meta name="theme-color" content="#17763B" id="meta-theme-color">
+<script>
+/* Même logique d'amorçage que l'application principale (voir index.html) : applique le
+   thème mémorisé (clé localStorage partagée) AVANT le premier rendu, pour éviter un flash
+   clair au chargement si l'utilisateur a choisi le mode sombre dans l'application. */
+(function(){try{
+  var t=localStorage.getItem("amstc_theme");
+  if(!t && matchMedia("(prefers-color-scheme: dark)").matches) t="dark";
+  if(t==="dark") document.documentElement.setAttribute("data-theme","dark");
+}catch(e){}})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -38,7 +49,25 @@
     --display:'Sora', sans-serif;
     --body:'Inter', -apple-system, sans-serif;
     --mono:'JetBrains Mono', monospace;
+    /* Variable dédiée uniquement pour .badge.tous : --green-deep reste par ailleurs fixe
+       (utilisée telle quelle par la feuille d'impression, qui doit rester lisible sur un
+       fond blanc quel que soit le thème choisi à l'écran). */
+    --heading:var(--green-deep);
   }
+  /* ---------- MODE SOMBRE ---------- */
+  :root[data-theme="dark"]{
+    --paper:#0d1512; --paper-raised:#182019; --paper-alt:#202a20;
+    --ink:#eef3ef; --ink-soft:#b7c4bb; --ink-faint:#7c8f83;
+    --line:rgba(255,255,255,0.12); --line-strong:rgba(255,255,255,0.22);
+    --green:#3fdb84; --heading:#3fdb84; --gold-deep:#f0c24d;
+    --teal:#2dd4bf; --teal-bg:rgba(14,159,138,0.18);
+    --slate:#93a5d1; --slate-bg:rgba(70,87,122,0.28);
+    --lock:#ff8f7f; --lock-bg:rgba(178,59,59,0.22);
+    --shadow:0 1px 2px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.3);
+  }
+  :root[data-theme="dark"] .note-box{ background:rgba(248,183,24,0.16); border-color:rgba(248,183,24,0.35); color:#f0c24d; }
+  :root[data-theme="dark"] .note-box strong{ color:#f0c24d; }
+  :root[data-theme="dark"] table{ background:var(--paper-raised); }
 
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
@@ -73,6 +102,14 @@
     text-transform:uppercase; letter-spacing:0.06em; color:var(--gold); text-decoration:none; margin-bottom:20px;
   }
   .toc-back:hover{opacity:0.75;}
+  .toc-top-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:20px;}
+  .toc-top-row .toc-back{margin-bottom:0;}
+  .theme-toggle{
+    display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+    border-radius:7px; border:1px solid var(--sidebar-line); background:rgba(255,255,255,0.06);
+    color:var(--sidebar-ink-strong); cursor:pointer; flex-shrink:0; font-size:13px; line-height:1;
+  }
+  .theme-toggle:hover{background:rgba(255,255,255,0.12);}
 
   .toc-brand{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
   .toc-mark{
@@ -123,7 +160,7 @@
     font-family:var(--mono); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em;
     padding:3px 8px; border-radius:999px; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;
   }
-  .badge.tous{background:var(--paper-alt); color:var(--green-deep);}
+  .badge.tous{background:var(--paper-alt); color:var(--heading);}
   .badge.praticien{background:rgba(248,183,24,0.16); color:var(--gold-deep);}
   .badge.pharma{background:var(--teal-bg); color:var(--teal);}
   .badge.chef{background:rgba(23,118,59,0.12); color:var(--green);}
@@ -240,7 +277,10 @@
 <div class="shell" id="guideShell" style="visibility:hidden">
 
   <aside class="toc">
-    <a href="./" class="toc-back">← Retour à l'application</a>
+    <div class="toc-top-row">
+      <a href="./" class="toc-back">← Retour à l'application</a>
+      <button type="button" class="theme-toggle" id="themeToggleBtn" onclick="toggleGuideTheme()" aria-label="Activer/désactiver le mode sombre">🌙</button>
+    </div>
 
     <div class="toc-brand">
       <span class="toc-mark">✚</span>
@@ -803,6 +843,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+  // ---------- Mode sombre : bascule + icône (clé localStorage partagée avec l'application) ----------
+  function syncThemeToggleIcon(){
+    const dark = document.documentElement.getAttribute("data-theme")==="dark";
+    const btn = document.getElementById("themeToggleBtn");
+    if(btn) btn.textContent = dark ? "☀️" : "🌙";
+    const meta = document.getElementById("meta-theme-color");
+    if(meta) meta.setAttribute("content", dark ? "#0d1512" : "#17763B");
+  }
+  function toggleGuideTheme(){
+    const dark = document.documentElement.getAttribute("data-theme")==="dark";
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    localStorage.setItem("amstc_theme", dark ? "light" : "dark");
+    syncThemeToggleIcon();
+  }
+  syncThemeToggleIcon();
+
   // ---------- Garde d'accès : réservé aux comptes connectés ----------
   // Un visiteur sans session est renvoyé vers l'écran de connexion. Vérification côté
   // client (page statique) : elle écarte les visiteurs non connectés, sachant que les

@@ -1079,6 +1079,16 @@
           </div>
         </div>
         <fieldset>
+          <legend>Délivrances</legend>
+          <div class="toolbar">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap">
+              <input type="checkbox" id="dispShowDeliveredAdmin" onchange="renderDispensationAdmin()"> Afficher aussi les prescriptions déjà délivrées
+            </label>
+            <button class="btn btn-ghost btn-sm" onclick="loadDispensation().then(renderDispensationAdmin)">Actualiser</button>
+          </div>
+          <div id="pharmaAdminDispensationBody"></div>
+        </fieldset>
+        <fieldset>
           <legend>Stock total - toute la campagne</legend>
           <div id="pharmaAdminGlobalStockBody"></div>
         </fieldset>
@@ -1158,6 +1168,7 @@ let CURRENT_TAB = null;
 let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
 let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien en chef" par site
 let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
+let DISPENSATION_STOCK_UNITS = {}; // stock_id -> unité actuelle en stock (pré-sélectionne l'unité à la délivrance)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
 let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
 // Panneaux dépliés (fiches utilisateur / campagne / sites d'une campagne) : mémorisés ici pour
@@ -3322,6 +3333,16 @@ async function loadDispensation(){
   // Seuls les médicaments liés au stock (en_stock=true) apparaissent ici - jamais une prescription
   // hors stock saisie manuellement par le médecin faute de correspondance dans le stock.
   DISPENSATION_LIST=(data||[]).filter(r=>Array.isArray(r.medicaments) && r.medicaments.some(m=>m.en_stock));
+
+  // Le médecin choisit le médicament mais pas son conditionnement (boîte, plaquette...) : sans
+  // cela, le sélecteur d'unité à la délivrance démarrait toujours vide, et rien n'empêchait de
+  // choisir une unité incohérente avec celle réellement utilisée pour cet article en stock.
+  const stockIds=[...new Set(DISPENSATION_LIST.flatMap(r=>r.medicaments.filter(m=>m.en_stock && m.stock_id).map(m=>m.stock_id)))];
+  DISPENSATION_STOCK_UNITS={};
+  if(stockIds.length){
+    const {data:stockRows}=await sb.from("stock_medicaments").select("id,unite").in("id",stockIds);
+    (stockRows||[]).forEach(s=>{ DISPENSATION_STOCK_UNITS[s.id]=s.unite; });
+  }
   renderDispensation();
 }
 
@@ -3346,6 +3367,9 @@ function renderDispensation(){
         </div>`;
       }
       const qId=`dispqte_${r.id}_${i}`, uId=`dispunite_${r.id}_${i}`;
+      // Unité déjà utilisée pour cet article en stock, pré-sélectionnée par défaut : le
+      // pharmacien peut toujours la changer (ex. délivrer en plaquettes un article stocké en boîte).
+      const stockUnite=m.stock_id?DISPENSATION_STOCK_UNITS[m.stock_id]:null;
       return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
           <b>${esc(m.nom)}</b>${m.posologie?`<span class="rec-meta"> · ${esc(m.posologie)}</span>`:""}
@@ -3354,7 +3378,7 @@ function renderDispensation(){
           <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
             <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
           <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
-            <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("")}</select></div>
+            <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}" ${u===stockUnite?"selected":""}>${esc(u)}</option>`).join("")}</select></div>
           <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
         </div>
       </div>`;
@@ -3369,6 +3393,33 @@ function renderDispensation(){
     </div>`;
   }).filter(Boolean);
   $("dispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
+}
+
+// Vue ADMIN des délivrances : mêmes données que la vue pharmacien (DISPENSATION_LIST,
+// déjà chargée tous sites confondus pour ce rôle), mais en lecture seule - aucun bouton
+// d'action, pour ne jamais interférer avec le travail du pharmacien.
+function renderDispensationAdmin(){
+  const showAll=$("dispShowDeliveredAdmin")?.checked;
+  const cards=DISPENSATION_LIST.map(r=>{
+    const visible=r.medicaments.filter(m=>m.en_stock && (showAll || !m.delivre));
+    if(!visible.length) return "";
+    const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const medsHtml=visible.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+        <div><b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}</div>
+        ${m.delivre
+          ? `<span class="tag tag-sent">Délivré : ${esc(m.quantite||"-")} · ${esc(m.delivre_par||"-")}</span>`
+          : `<span class="tag tag-queue">En attente</span>`}
+      </div>`).join("");
+    return `<div class="rec">
+      <div class="rec-top">
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          <div class="rec-meta">${d} · ${esc(siteName(r.site_id))} · Prescrit par ${esc(r.medecin_nom||"-")}</div>
+          <div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation||"")}</div></div>
+      </div>
+      ${medsHtml}
+    </div>`;
+  }).filter(Boolean);
+  $("pharmaAdminDispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
 }
 
 function confirmDelivery(consultId,idx){
@@ -3544,6 +3595,7 @@ async function loadPharmaAdminOverview(){
   if(!$("pharmaAdminStockSite").innerHTML){
     $("pharmaAdminStockSite").innerHTML=SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
   }
+  loadDispensation().then(renderDispensationAdmin);
   loadPharmaAdminGlobalStock();
   loadPharmaAdminStock();
 }

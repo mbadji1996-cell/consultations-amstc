@@ -1301,7 +1301,27 @@ async function doSignup(){
   alertIn("loginAlert","ok","Compte créé. Il doit être activé par un administrateur avant utilisation.");
 }
 
+// Dans l'app mobile (Capacitor), la connexion Google ne peut pas se faire dans la
+// WebView embarquée : Google la refuse volontairement ("disallowed_useragent"), par
+// mesure de sécurité contre le vol d'identifiants dans les WebViews. Il faut donc
+// ouvrir Google dans le vrai navigateur du téléphone, puis revenir dans l'app via le
+// schéma personnalisé "org.amstc.consultations://auth-callback" (voir handleNativeAuthCallback).
+function isNativeApp(){ return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+
 async function doGoogle(){
+  if(isNativeApp()){
+    const {data,error}=await sb.auth.signInWithOAuth({
+      provider:"google",
+      options:{
+        redirectTo:"org.amstc.consultations://auth-callback",
+        skipBrowserRedirect:true, // on ouvre nous-même l'URL retournée, dans le navigateur système
+        queryParams:{ prompt:"select_account" }
+      }
+    });
+    if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+errMsg(error)); return; }
+    window.Capacitor.Plugins.Browser.open({ url: data.url });
+    return;
+  }
   const {error}=await sb.auth.signInWithOAuth({
     provider:"google",
     options:{
@@ -1311,6 +1331,26 @@ async function doGoogle(){
   });
   if(error){ alertIn("loginAlert","err","Connexion Google impossible : "+errMsg(error)); }
   // en cas de succès, le navigateur est redirigé vers Google puis revient sur l'app
+}
+
+// Réceptionne le retour du navigateur système après la connexion Google (app mobile
+// uniquement) : l'URL de retour contient les jetons de session dans son fragment.
+async function handleNativeAuthCallback(url){
+  try{
+    const hash = url.includes("#") ? url.split("#")[1] : "";
+    const params = new URLSearchParams(hash);
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    if(access_token && refresh_token){
+      await sb.auth.setSession({ access_token, refresh_token });
+    }
+  } catch(e){ /* silencieux : au pire l'utilisateur retente la connexion */ }
+  finally{ window.Capacitor?.Plugins?.Browser?.close?.(); }
+}
+if(isNativeApp()){
+  window.Capacitor.Plugins.App.addListener("appUrlOpen", (data)=>{
+    if(data?.url?.startsWith("org.amstc.consultations://auth-callback")) handleNativeAuthCallback(data.url);
+  });
 }
 
 async function doLogout(){

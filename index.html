@@ -1114,6 +1114,19 @@
       </div>
     </div>
 
+    <!-- INFIRMIER : unique onglet, limité aux patients référés par un confrère -
+         jamais de prise en charge de son propre chef (voir buildTabs). -->
+    <div class="panel" id="panel-referrals">
+      <div class="stat-row" id="referralsStats"></div>
+      <div class="toolbar">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap">
+          <input type="checkbox" id="referralsShowDone" onchange="renderInfirmierReferrals()"> Afficher aussi les patients déjà pris en charge
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="loadInfirmierReferrals()">Actualiser</button>
+      </div>
+      <div id="referralsBody"></div>
+    </div>
+
     <!-- AIDE : guide d'utilisation en sections dépliables, accessible à tous les rôles
          depuis le menu du compte - le contenu est filtré selon le rôle (renderAide). -->
     <div class="panel" id="panel-aide">
@@ -1709,7 +1722,7 @@ async function confirmSiteSelection(){
 /* =====================================================================
    ONGLETS SELON LE RÔLE
    ===================================================================== */
-const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien"};
+const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien",infirmier:"Infirmier"};
 // Libellé affiché (badge, cartes collègues, panneau admin) - dérivé du domaine d'exercice
 // réel (specialite), fusionné avec lui depuis "Mon profil" : plus de champ "profession"
 // distinct qui pouvait afficher un intitulé sans rapport avec le formulaire réellement utilisé.
@@ -1729,7 +1742,8 @@ const NAV_ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path
 const NAV_ICON_FLAG=`<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line>`;
 const NAV_ICON_PHARMA=`<path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>`;
 const NAV_ICON_SEARCH=`<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>`;
-const NAV_ICONS={dashboard:NAV_ICON_HOME, form:NAV_ICON_PLUS, list:NAV_ICON_LIST, users:NAV_ICON_USERS, campagnes:NAV_ICON_FLAG, dispensation:NAV_ICON_PHARMA, historique:NAV_ICON_SEARCH};
+const NAV_ICON_INBOX=`<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>`;
+const NAV_ICONS={dashboard:NAV_ICON_HOME, form:NAV_ICON_PLUS, list:NAV_ICON_LIST, users:NAV_ICON_USERS, campagnes:NAV_ICON_FLAG, dispensation:NAV_ICON_PHARMA, historique:NAV_ICON_SEARCH, referrals:NAV_ICON_INBOX};
 function navIconSvg(paths){ return `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`; }
 
 // Liste des spécialités médicales proposées à l'admin - avec une option "Autre" en secours,
@@ -1800,6 +1814,7 @@ function buildSpecialiteFieldsHtml(prefix,currentSpecialite,currentDetail){
         <option value="generaliste"${currentSpecialite==="generaliste"?" selected":""}>Médecin</option>
         <option value="dentiste"${currentSpecialite==="dentiste"?" selected":""}>Dentiste</option>
         <option value="specialiste"${currentSpecialite==="specialiste"?" selected":""}>Spécialiste</option>
+        <option value="infirmier"${currentSpecialite==="infirmier"?" selected":""}>Infirmier</option>
         <option value="pharmacien"${currentSpecialite==="pharmacien"?" selected":""}>Pharmacien</option>
       </select>
     </div>
@@ -1848,6 +1863,7 @@ function stockTypeSelect(id,current){
   return `<select id="${id}">${Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
 }
 function isPharmacien(){ return ME.role!=="admin" && ME.specialite==="pharmacien"; }
+function isInfirmier(){ return ME.role!=="admin" && ME.specialite==="infirmier"; }
 
 function buildTabs(){
   let tabs;
@@ -1858,11 +1874,16 @@ function buildTabs(){
     // plus l'onglet Pharmacie pour les délivrances et le stock. Pas d'onglet "Historique patient" :
     // il ne concerne que le suivi clinique, hors de son périmètre.
     tabs=[["dashboard","Tableau de bord"],["dispensation","Pharmacie"]];
+  } else if(isInfirmier()){
+    // L'infirmier n'a qu'un seul onglet : les patients qui lui sont référés par un confrère.
+    // Pas de "Nouvelle consultation" (il ne prend jamais en charge un patient de son propre
+    // chef), pas de tableau de bord ni d'historique - son périmètre se limite à ces référencements.
+    tabs=[["referrals","Patients référés"]];
   } else {
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["historique","Historique patient"],["dashboard","Tableau de bord"]];
   }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
-    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}${k==="users"?'<span class="navtab-badge hidden" id="navBadgeUsers">0</span>':""}</span><span>${l}</span></button>`).join("");
+    `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}${k==="users"?'<span class="navtab-badge hidden" id="navBadgeUsers">0</span>':""}${k==="referrals"?'<span class="navtab-badge hidden" id="navBadgeReferrals">0</span>':""}</span><span>${l}</span></button>`).join("");
   // le filtre par site n'a de sens que pour l'admin
   $("siteFilter").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
@@ -1936,9 +1957,13 @@ async function refreshPendingReferencesCount(){
   updateReferenceBadge(count||0);
 }
 function updateReferenceBadge(n){
-  const el=$("navBadgeDashboard"); if(!el) return;
-  if(n>0){ el.textContent = n>9?"9+":n; el.classList.remove("hidden"); }
-  else { el.classList.add("hidden"); }
+  // L'infirmier n'a pas d'onglet Tableau de bord (voir buildTabs) : son badge de
+  // référencements en attente vit sur son unique onglet, "Patients référés".
+  [$("navBadgeDashboard"),$("navBadgeReferrals")].forEach(el=>{
+    if(!el) return;
+    if(n>0){ el.textContent = n>9?"9+":n; el.classList.remove("hidden"); }
+    else { el.classList.add("hidden"); }
+  });
 }
 
 // Badge rouge sur l'onglet Utilisateurs (admin) : nombre de comptes en attente de
@@ -1995,6 +2020,77 @@ async function marquerReferenceTraitee(consultId,silencieux){
   if(error){ if(!silencieux) toast("Échec : "+errMsg(error),true); return; }
   refreshPendingReferencesCount();
   if(!silencieux){ toast("Marqué comme traité"); if(CURRENT_TAB==="dashboard") renderDashboard(); }
+}
+
+/* =====================================================================
+   INFIRMIER - patients référés uniquement (voir buildTabs)
+   Écriture exclusivement via la fonction enregistrer_acte_infirmier, qui ne peut
+   jamais toucher qu'aux colonnes de l'acte, sur les seules références qui lui
+   sont destinées (même principe que mark_medicament_delivered).
+   ===================================================================== */
+const ACTES_INFIRMIERS=["Pansement","Mise en observation","Surveillance","Injection / Perfusion","Prise de constantes","Autre soin"];
+let INFIRMIER_REFERRALS=[];
+
+async function loadInfirmierReferrals(){
+  $("referralsBody").innerHTML=LOADING_HTML;
+  const {data,error}=await sb.from("consultations")
+    .select("id,prenom,nom,sexe,age,site_id,refere_motif,medecin_nom,created_at,refere_traite,acte_infirmier,acte_infirmier_note")
+    .eq("refere_vers_id",ME.id).order("created_at",{ascending:false});
+  if(error){ $("referralsBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
+  INFIRMIER_REFERRALS=data||[];
+  renderInfirmierReferrals();
+}
+
+function renderInfirmierReferrals(){
+  const showDone=$("referralsShowDone")?.checked;
+  const rows=INFIRMIER_REFERRALS.filter(r=>showDone || !r.refere_traite);
+  const pending=INFIRMIER_REFERRALS.filter(r=>!r.refere_traite).length;
+  $("referralsStats").innerHTML=`<div class="stat"><b>${pending}</b><span>Patient${pending>1?"s":""} en attente de prise en charge</span></div>`;
+  if(!rows.length){ $("referralsBody").innerHTML=`<div class="empty">Aucun patient ${showDone?"":"en attente "}pour l'instant.</div>`; return; }
+  $("referralsBody").innerHTML=rows.map(r=>{
+    const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const sexeLabel=r.sexe==="M"?"Masculin":r.sexe==="F"?"Féminin":(r.sexe||"?");
+    const motifLine=r.refere_motif?`<div class="rec-diag"><b>Motif :</b> ${esc(r.refere_motif)}</div>`:"";
+    if(r.refere_traite){
+      return `<div class="rec">
+        <div class="rec-top">
+          <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+            <div class="rec-meta">${d} · ${r.age??"?"} ans · ${esc(sexeLabel)} · Référé par ${esc(r.medecin_nom||"-")}</div>
+          </div>
+          <span class="tag tag-sent">Pris en charge</span>
+        </div>
+        ${motifLine}
+        ${r.acte_infirmier?`<div class="rec-diag"><b>Acte réalisé :</b> ${esc(r.acte_infirmier)}</div>`:""}
+        ${r.acte_infirmier_note?`<div class="rec-meta"><b>Note :</b> ${esc(r.acte_infirmier_note)}</div>`:""}
+      </div>`;
+    }
+    const acteId=`acteSel_${r.id}`, noteId=`acteNote_${r.id}`;
+    return `<div class="rec">
+      <div class="rec-top">
+        <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          <div class="rec-meta">${d} · ${r.age??"?"} ans · ${esc(sexeLabel)} · Référé par ${esc(r.medecin_nom||"-")}</div>
+        </div>
+      </div>
+      ${motifLine}
+      <div class="field" style="margin-top:10px"><label for="${acteId}">Acte réalisé</label>
+        <select id="${acteId}"><option value="">- Choisir -</option>${ACTES_INFIRMIERS.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join("")}</select></div>
+      <div class="field"><label for="${noteId}">Note (optionnel)</label>
+        <textarea id="${noteId}" placeholder="Détails, suivi, recommandations…"></textarea></div>
+      <div class="rec-foot">
+        <button class="btn btn-accent btn-sm" onclick="confirmActeInfirmier('${r.id}')">Marquer comme pris en charge</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function confirmActeInfirmier(consultId){
+  const acte=$(`acteSel_${consultId}`).value;
+  const note=$(`acteNote_${consultId}`).value.trim();
+  if(!acte){ toast("Choisissez l'acte réalisé avant de confirmer",true); return; }
+  const {error}=await sb.rpc("enregistrer_acte_infirmier",{p_consultation_id:consultId,p_acte:acte,p_note:note||null});
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  toast("Patient marqué comme pris en charge");
+  loadInfirmierReferrals();
 }
 
 function onConsultTypeChange(){
@@ -2120,6 +2216,7 @@ function switchTab(tab){
   // rendu immédiat puis re-rendu au retour réseau - faisait flasher tout le panneau).
   if(tab==="campagnes"){ $("campagnesBody").innerHTML=LOADING_HTML; refreshPharmaciensCache().catch(()=>{}).then(renderCampagnes); }
   if(tab==="dispensation") loadPharmacieTab();
+  if(tab==="referrals") loadInfirmierReferrals();
 }
 
 /* =====================================================================
@@ -2866,13 +2963,19 @@ function reportTitleLines(S){
 
 // Effectifs d'une campagne précise : nombre de sites et de praticiens par spécialité -
 // interrogé à la demande pour être toujours à jour au moment du téléchargement du rapport.
-async function getCampagneEffectifs(campagneId){
-  if(!campagneId) return null;
-  const {data}=await sb.from("profiles").select("specialite").eq("campagne_id",campagneId).eq("actif",true);
-  const counts={generaliste:0,dentiste:0,specialiste:0,pharmacien:0};
+// Effectifs mobilisés : scoping sur une campagne précise si campagneId est fourni,
+// sinon tous sites confondus - pour que le rapport affiche toujours ce chiffre,
+// même quand aucune campagne particulière n'est sélectionnée (admin, vue globale).
+// Seuls les comptes "agent" sont comptés (l'admin n'a pas de domaine d'exercice fixe).
+async function getEffectifs(campagneId){
+  let q=sb.from("profiles").select("specialite").eq("actif",true).eq("role","agent");
+  if(campagneId) q=q.eq("campagne_id",campagneId);
+  const {data}=await q;
+  const counts={generaliste:0,dentiste:0,specialiste:0,infirmier:0,pharmacien:0};
   (data||[]).forEach(p=>{ const s=p.specialite||"generaliste"; if(counts[s]!==undefined) counts[s]++; });
-  const nbSites=SITES.filter(s=>s.campagne_id===campagneId).length;
-  return { nbSites, counts };
+  const nbSites = campagneId ? SITES.filter(s=>s.campagne_id===campagneId).length : SITES.length;
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  return { nbSites, counts, total };
 }
 
 // Régénère tous les graphiques du rapport dans des <canvas> détachés (jamais affichés),
@@ -2893,12 +2996,6 @@ async function generateReportCharts(S){
   };
 
   if(S.total){
-    make("trend",{ type:"line", data:{ labels:S.trendLabels, datasets:[{ label:"Consultations", data:S.trendCounts,
-        borderColor:green, backgroundColor:"rgba(46,160,56,.14)", fill:true, tension:.35,
-        borderWidth:2.5, pointRadius:0, pointHoverRadius:5, pointBackgroundColor:green }] },
-      options:{ plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, x:{grid:{display:false}} } }
-    },900,420);
-
     make("type",{ type:"bar", data:{ labels:["Médecin","Dentiste","Spécialiste"],
         datasets:[{ data:[S.typeCounts.generaliste,S.typeCounts.dentiste,S.typeCounts.specialiste], backgroundColor:[green,orange,"#0E9F8A"], borderRadius:6, maxBarThickness:26 }] },
       options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
@@ -3051,25 +3148,32 @@ async function downloadReportPDF(){
 
   doc.addPage(); y=20;
 
-  // Détails de la campagne : sites et effectifs de praticiens alloués
-  if(S.campagneInfo){
-    const eff=await getCampagneEffectifs(S.campagneInfo.id);
-    if(eff){
-      pdfSectionHeader(doc,margin,y,"Détails de la campagne",green); y+=6;
-      doc.autoTable({
-        startY:y, margin:{left:margin,right:margin}, theme:"grid",
-        headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
-        head:[["Élément","Nombre"]],
-        body:[
-          ["Sites rattachés", String(eff.nbSites)],
-          ["Médecins généralistes", String(eff.counts.generaliste)],
-          ["Dentistes", String(eff.counts.dentiste)],
-          ["Spécialistes", String(eff.counts.specialiste)],
-          ["Pharmaciens", String(eff.counts.pharmacien)],
-        ],
-      });
-      y=doc.lastAutoTable.finalY+10;
+  // Durée de la campagne, sites rattachés et effectifs mobilisés (avec leur proportion) -
+  // toujours affiché, même sans campagne précise sélectionnée (agrégat tous sites confondus).
+  {
+    const eff=await getEffectifs(S.campagneInfo?.id||null);
+    const pct=n=>eff.total?Math.round(n/eff.total*100)+"%":"-";
+    pdfSectionHeader(doc,margin,y,S.campagneInfo?"Durée et effectifs de la campagne":"Effectifs mobilisés",green); y+=6;
+    const rows=[];
+    if(S.campagneInfo && (S.campagneInfo.date_debut||S.campagneInfo.date_fin)){
+      rows.push(["Période", `Du ${fmtDate(S.campagneInfo.date_debut)} au ${fmtDate(S.campagneInfo.date_fin)}`, "-"]);
     }
+    rows.push(
+      ["Sites rattachés", String(eff.nbSites), "-"],
+      ["Médecins généralistes", String(eff.counts.generaliste), pct(eff.counts.generaliste)],
+      ["Dentistes", String(eff.counts.dentiste), pct(eff.counts.dentiste)],
+      ["Spécialistes", String(eff.counts.specialiste), pct(eff.counts.specialiste)],
+      ["Infirmiers", String(eff.counts.infirmier), pct(eff.counts.infirmier)],
+      ["Pharmaciens", String(eff.counts.pharmacien), pct(eff.counts.pharmacien)],
+      ["Total agents mobilisés", String(eff.total), "100%"],
+    );
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Élément","Nombre","% des effectifs"]],
+      body:rows,
+    });
+    y=doc.lastAutoTable.finalY+10;
   }
 
   // Détail jour par jour - patients consultés par date
@@ -3102,7 +3206,6 @@ async function downloadReportPDF(){
     doc.addImage(chart.data,"PNG",margin,y,w,h);
     y+=h+9;
   };
-  addChartImage("trend","Évolution - 14 derniers jours");
   addChartImage("type","Consultations par type de praticien");
   addChartImage("specialite","Détail par spécialité médicale");
   addChartImage("sex","Répartition par sexe");
@@ -3119,6 +3222,19 @@ async function downloadReportPDF(){
       headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
       head:[["Pathologie","Nombre de cas"]],
       body:S.topDiag.map(([l,c])=>[l,String(c)]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
+  // Tableau des médicaments les plus dispensés (en plus du graphique ci-dessus)
+  if(ME.role==="admin" && S.medDeliveredBreakdown.length){
+    if(y>250){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Détail - Médicaments les plus dispensés",teal); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:teal, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Médicament","Quantité dispensée"]],
+      body:S.medDeliveredBreakdown.map(([l,c])=>[l,String(Math.round(c*10)/10)]),
     });
     y=doc.lastAutoTable.finalY+10;
   }
@@ -3239,19 +3355,26 @@ async function downloadReportWord(){
     ]),
   );
 
-  // Détails de la campagne : sites et effectifs de praticiens alloués
-  if(S.campagneInfo){
-    const eff=await getCampagneEffectifs(S.campagneInfo.id);
-    if(eff){
-      children.push(sectionHeading("Détails de la campagne"));
-      children.push(mkTable(["Élément","Nombre"],[
-        ["Sites rattachés", eff.nbSites],
-        ["Médecins généralistes", eff.counts.generaliste],
-        ["Dentistes", eff.counts.dentiste],
-        ["Spécialistes", eff.counts.specialiste],
-        ["Pharmaciens", eff.counts.pharmacien],
-      ]));
+  // Durée de la campagne, sites rattachés et effectifs mobilisés (avec leur proportion) -
+  // toujours affiché, même sans campagne précise sélectionnée (agrégat tous sites confondus).
+  {
+    const eff=await getEffectifs(S.campagneInfo?.id||null);
+    const pct=n=>eff.total?Math.round(n/eff.total*100)+"%":"-";
+    const rows=[];
+    if(S.campagneInfo && (S.campagneInfo.date_debut||S.campagneInfo.date_fin)){
+      rows.push(["Période", `Du ${fmtDate(S.campagneInfo.date_debut)} au ${fmtDate(S.campagneInfo.date_fin)}`, "-"]);
     }
+    rows.push(
+      ["Sites rattachés", eff.nbSites, "-"],
+      ["Médecins généralistes", eff.counts.generaliste, pct(eff.counts.generaliste)],
+      ["Dentistes", eff.counts.dentiste, pct(eff.counts.dentiste)],
+      ["Spécialistes", eff.counts.specialiste, pct(eff.counts.specialiste)],
+      ["Infirmiers", eff.counts.infirmier, pct(eff.counts.infirmier)],
+      ["Pharmaciens", eff.counts.pharmacien, pct(eff.counts.pharmacien)],
+      ["Total agents mobilisés", eff.total, "100%"],
+    );
+    children.push(sectionHeading(S.campagneInfo?"Durée et effectifs de la campagne":"Effectifs mobilisés"));
+    children.push(mkTable(["Élément","Nombre","% des effectifs"], rows));
   }
 
   // Détail jour par jour - patients consultés par date
@@ -3273,7 +3396,6 @@ async function downloadReportWord(){
     children.push(sectionHeading(label));
     children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:dataUrlToBytes(chart.data), transformation:{ width:w, height:h } })] }));
   };
-  addChartImage("trend","Évolution - 14 derniers jours");
   addChartImage("type","Consultations par type de praticien");
   addChartImage("specialite","Détail par spécialité médicale");
   addChartImage("sex","Répartition par sexe");
@@ -3284,6 +3406,12 @@ async function downloadReportWord(){
   if(S.topDiag.length){
     children.push(sectionHeading("Détail - Pathologies les plus fréquentes"));
     children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
+  }
+
+  // Tableau des médicaments les plus dispensés (en plus du graphique ci-dessus)
+  if(ME.role==="admin" && S.medDeliveredBreakdown.length){
+    children.push(sectionHeading("Détail - Médicaments les plus dispensés"));
+    children.push(mkTable(["Médicament","Quantité dispensée"], S.medDeliveredBreakdown.map(([l,c])=>[l,Math.round(c*10)/10])));
   }
 
   if(S.siteStats.length){
@@ -4458,11 +4586,12 @@ function closeAide(){
 function renderAide(){
   const isAdmin=ME.role==="admin";
   const isPharma=isPharmacien();
-  const isPraticien=ME.role==="agent" && !isPharma; // médecin, dentiste ou spécialiste
+  const isInfirmierRole=isInfirmier();
+  const isPraticien=ME.role==="agent" && !isPharma && !isInfirmierRole; // médecin, dentiste ou spécialiste
   const sections=[
 
     { show:true, titre:"Premiers pas : compte et connexion", corps:`
-      <p><b>Créer un compte :</b> renseignez prénom, nom, adresse e-mail, numéro de téléphone (WhatsApp), votre <b>domaine d'exercice</b> (Médecin, Dentiste, Spécialiste avec sa sous-spécialité, ou Pharmacien), votre <b>niveau d'étude</b> et un mot de passe d'au moins 6 caractères - votre profil est ainsi complet dès le départ. Vous pouvez aussi utiliser <b>Continuer avec Google</b>.</p>
+      <p><b>Créer un compte :</b> renseignez prénom, nom, adresse e-mail, numéro de téléphone (WhatsApp), votre <b>domaine d'exercice</b> (Médecin, Dentiste, Spécialiste avec sa sous-spécialité, Infirmier, ou Pharmacien), votre <b>niveau d'étude</b> et un mot de passe d'au moins 6 caractères - votre profil est ainsi complet dès le départ. Vous pouvez aussi utiliser <b>Continuer avec Google</b>.</p>
       <p>Après l'inscription, votre compte doit être <b>activé par un administrateur</b> avant de pouvoir être utilisé. Tant qu'il ne l'est pas, un message « Compte en attente » s'affiche à la connexion.</p>
       <ul>
         <li><b>Domaine d'exercice :</b> il détermine votre formulaire et vos onglets. S'il n'a pas encore été renseigné (par exemple après une inscription via Google), il vous est demandé à la première connexion. Il reste modifiable plus tard depuis « Mon profil ».</li>
@@ -4490,6 +4619,14 @@ function renderAide(){
         <li>Choisissez le confrère (sa spécialité est affichée) et indiquez le <b>motif</b> de la référence.</li>
         <li>Le confrère voit alors un <b>badge rouge</b> sur l'icône de son tableau de bord, et une carte <b>« Patients qui vous sont référés »</b> y liste les patients en attente.</li>
         <li>Depuis cette carte, <b>« Commencer la consultation »</b> pré-remplit l'identité du patient dans son formulaire ; <b>« Marquer comme traité »</b> retire simplement la référence.</li>
+      </ul>`},
+
+    { show:isPraticien||isAdmin||isInfirmierRole, titre:"Infirmier : patients référés", corps:`
+      ${isInfirmierRole?`<p>Votre compte est entièrement dédié aux patients qu'un confrère vous <b>réfère</b> - vous ne créez jamais de consultation de votre propre chef. L'onglet <b>Patients référés</b> est votre seul espace de travail.</p>`
+      :`<p>Un compte Infirmier ne voit que les patients qui lui sont <b>référés</b> par un confrère (médecin, dentiste ou spécialiste) - il ne crée jamais de consultation lui-même.</p>`}
+      <ul>
+        <li>Pour chaque patient en attente : motif de la référence, puis choix de l'<b>acte réalisé</b> (Pansement, Mise en observation, Surveillance, Injection / Perfusion, Prise de constantes, ou Autre soin) et une note libre facultative.</li>
+        <li><b>« Marquer comme pris en charge »</b> enregistre l'acte et retire le patient de la liste des patients en attente ; une case permet d'afficher aussi ceux déjà pris en charge, avec le détail de l'acte réalisé.</li>
       </ul>`},
 
     { show:isPraticien||isAdmin, titre:"Consulter, rechercher et exporter les consultations", corps:`

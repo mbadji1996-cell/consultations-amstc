@@ -991,6 +991,18 @@
       <div id="listBody"></div>
     </div>
 
+    <!-- HISTORIQUE PATIENT : recherche par nom/téléphone, tous sites et campagnes confondus -
+         utile pour le suivi des cas récurrents (ex. patient revu sur un autre site). Lecture
+         seule : aucune action possible depuis cet écran. -->
+    <div class="panel" id="panel-historique">
+      <p class="rec-meta" style="margin-bottom:14px">Retrouvez les consultations précédentes d'un patient, même sur un autre site ou lors d'une autre campagne - utile pour le suivi des cas récurrents.</p>
+      <div class="toolbar">
+        <input type="text" id="patientSearchInput" placeholder="Nom, prénom ou téléphone du patient" aria-label="Rechercher un patient" onkeydown="if(event.key==='Enter') searchPatientHistory()">
+        <button class="btn btn-primary btn-sm" onclick="searchPatientHistory()">Rechercher</button>
+      </div>
+      <div id="patientHistoryBody"><div class="empty">Saisissez un nom, prénom ou numéro de téléphone pour commencer.</div></div>
+    </div>
+
     <!-- ADMIN: utilisateurs -->
     <div class="panel" id="panel-users">
       <div id="usersAlert"></div>
@@ -1716,7 +1728,8 @@ const NAV_ICON_LIST=`<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="
 const NAV_ICON_USERS=`<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>`;
 const NAV_ICON_FLAG=`<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line>`;
 const NAV_ICON_PHARMA=`<path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line>`;
-const NAV_ICONS={dashboard:NAV_ICON_HOME, form:NAV_ICON_PLUS, list:NAV_ICON_LIST, users:NAV_ICON_USERS, campagnes:NAV_ICON_FLAG, dispensation:NAV_ICON_PHARMA};
+const NAV_ICON_SEARCH=`<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>`;
+const NAV_ICONS={dashboard:NAV_ICON_HOME, form:NAV_ICON_PLUS, list:NAV_ICON_LIST, users:NAV_ICON_USERS, campagnes:NAV_ICON_FLAG, dispensation:NAV_ICON_PHARMA, historique:NAV_ICON_SEARCH};
 function navIconSvg(paths){ return `<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`; }
 
 // Liste des spécialités médicales proposées à l'admin - avec une option "Autre" en secours,
@@ -1839,13 +1852,14 @@ function isPharmacien(){ return ME.role!=="admin" && ME.specialite==="pharmacien
 function buildTabs(){
   let tabs;
   if(ME.role==="admin"){
-    tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Pharmacie"]];
+    tabs=[["dashboard","Tableau de bord"],["form","Nouvelle consultation"],["list","Consultations"],["historique","Historique patient"],["users","Utilisateurs"],["campagnes","Campagnes"],["dispensation","Pharmacie"]];
   } else if(isPharmacien()){
     // Le pharmacien a son propre tableau de bord (pharmacie), distinct de celui des consultations,
-    // plus l'onglet Pharmacie pour les délivrances et le stock.
+    // plus l'onglet Pharmacie pour les délivrances et le stock. Pas d'onglet "Historique patient" :
+    // il ne concerne que le suivi clinique, hors de son périmètre.
     tabs=[["dashboard","Tableau de bord"],["dispensation","Pharmacie"]];
   } else {
-    tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["dashboard","Tableau de bord"]];
+    tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["historique","Historique patient"],["dashboard","Tableau de bord"]];
   }
   $("tabs").innerHTML = tabs.map(([k,l],i)=>
     `<button class="navtab${i===0?" active":""}" data-tab="${k}" title="${esc(l)}" aria-label="${esc(l)}" onclick="switchTab('${k}')"><span class="navtab-icon">${navIconSvg(NAV_ICONS[k]||NAV_ICON_LIST)}${k==="dashboard"?'<span class="navtab-badge hidden" id="navBadgeDashboard">0</span>':""}${k==="users"?'<span class="navtab-badge hidden" id="navBadgeUsers">0</span>':""}</span><span>${l}</span></button>`).join("");
@@ -2323,6 +2337,50 @@ function renderList(){
       <div class="rec-foot">
         <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>
       </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- Historique patient : recherche tous sites/campagnes confondus ----------
+   Nécessite une règle de sécurité (RLS) dédiée côté Supabase - voir rls_historique_patient.sql -
+   sans quoi la recherche ne remontera que ce que le compte connecté peut déjà voir aujourd'hui
+   (généralement limité à son propre site). Lecture seule : aucune action possible ici. */
+async function searchPatientHistory(){
+  const raw=$("patientSearchInput").value.trim();
+  const body=$("patientHistoryBody");
+  if(raw.length<2){ body.innerHTML=`<div class="empty">Saisissez au moins 2 caractères (nom, prénom ou téléphone).</div>`; return; }
+  body.innerHTML=LOADING_HTML;
+  // Chaque mot doit se retrouver dans le prénom, le nom OU le téléphone, dans n'importe quel
+  // ordre ("Awa Diop" comme "Diop Awa") - une recherche sur un seul champ raterait un nom
+  // composé de plusieurs mots. Les caractères ",()" casseraient la syntaxe du filtre PostgREST.
+  const tokens=raw.split(/\s+/).map(t=>t.replace(/[,()]/g,"")).filter(Boolean).slice(0,5);
+  let q=sb.from("consultations")
+    .select("id,prenom,nom,telephone_patient,sexe,age,site_id,created_at,numero_consultation,type_consultation,medecin_nom,acte_dentaire,specialite_medicale,motifs,signes,diagnostic,conduite")
+    .order("created_at",{ascending:false}).limit(100);
+  tokens.forEach(t=>{ q=q.or(`prenom.ilike.%${t}%,nom.ilike.%${t}%,telephone_patient.ilike.%${t}%`); });
+  const {data,error}=await q;
+  if(error){ body.innerHTML=`<div class="empty empty-err">Recherche impossible : ${esc(errMsg(error))}</div>`; return; }
+  if(!data||!data.length){ body.innerHTML=`<div class="empty">Aucun résultat pour cette recherche.</div>`; return; }
+  body.innerHTML=data.map(r=>{
+    const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"short",year:"numeric"});
+    const sexeLabel=r.sexe==="M"?"Masculin":r.sexe==="F"?"Féminin":(r.sexe||"?");
+    let typeLine;
+    if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
+    else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else typeLine="Consultation Médecine Générale";
+    return `<div class="rec">
+      <div class="rec-top">
+        <div>
+          <div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
+          <div class="rec-meta">${d} · ${esc(siteName(r.site_id))} · Praticien : ${esc(r.medecin_nom||"-")}</div>
+          <div class="rec-meta">${r.age??"?"} ans · ${esc(sexeLabel)}${r.telephone_patient?" · Tel : "+esc(r.telephone_patient):""}</div>
+          <div class="rec-meta" style="margin-top:2px">${typeLine}</div>
+        </div>
+      </div>
+      ${r.motifs?`<div class="rec-diag"><b>Motifs :</b> ${esc(r.motifs)}</div>`:""}
+      ${r.signes?`<div class="rec-diag"><b>Signes :</b> ${esc(r.signes)}</div>`:""}
+      ${r.diagnostic?`<div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>`:""}
+      ${r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:""}
     </div>`;
   }).join("");
 }
@@ -4236,6 +4294,14 @@ function renderAide(){
         <li><b>Supprimer :</b> définitif, avec confirmation - nécessite une connexion internet.</li>
       </ul>`},
 
+    { show:isPraticien||isAdmin, titre:"Historique patient", corps:`
+      <p>L'onglet <b>Historique patient</b> retrouve les consultations précédentes d'un patient, <b>même sur un autre site ou lors d'une autre campagne</b> - utile pour le suivi des cas récurrents (patients revus au fil des campagnes).</p>
+      <ul>
+        <li>Recherchez par <b>nom, prénom ou numéro de téléphone</b> - l'ordre des mots n'a pas d'importance.</li>
+        <li>Les résultats sont en <b>lecture seule</b> : date, site, praticien, motifs, signes, diagnostic et traitement de chaque visite passée.</li>
+      </ul>
+      <div class="aide-note">Réservé aux comptes Médecin, Dentiste, Spécialiste et Administrateur - hors du périmètre des comptes Pharmacien.</div>`},
+
     { show:true, titre:"Travailler hors connexion", corps:`
       <p>L'application est conçue pour le terrain : une fois chargée, elle <b>fonctionne sans internet</b>.</p>
       <ul>
@@ -4256,7 +4322,7 @@ function renderAide(){
       ${!isPharma?`<p><b>Rapports PDF et Word :</b> les boutons de téléchargement génèrent un rapport reprenant exactement les chiffres et graphiques affichés à l'écran au moment du clic.</p>`:""}`},
 
     { show:isPharma||isAdmin, titre:"Pharmacie : délivrances", corps:`
-      ${isAdmin?`<p>En tant qu'administrateur, l'onglet Pharmacie vous donne un <b>aperçu en lecture seule</b> : total des médicaments délivrés, stock global toutes campagnes, et stock détaillé par site. La gestion elle-même est réservée aux comptes Pharmacien.</p>`
+      ${isAdmin?`<p>En tant qu'administrateur, l'onglet Pharmacie vous donne un <b>aperçu en lecture seule</b> : les délivrances (en attente et déjà effectuées), le total des médicaments délivrés, le stock global toutes campagnes, et le stock détaillé par site. La gestion elle-même est réservée aux comptes Pharmacien.</p>`
       :`<p>L'onglet <b>Pharmacie › Délivrances</b> liste les prescriptions liées au stock, patient par patient. Par défaut, seules celles <b>en attente</b> s'affichent ; une case permet d'afficher aussi celles déjà délivrées.</p>
       <ul>
         <li>Pour délivrer : indiquez la <b>quantité</b> et l'<b>unité</b> remises, puis « Délivré ». Le <b>stock est ajusté automatiquement</b> si l'article est retrouvé (par lien direct, ou par nom pour les anciennes prescriptions).</li>

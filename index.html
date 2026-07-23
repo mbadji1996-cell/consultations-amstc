@@ -1114,8 +1114,37 @@
       </div>
     </div>
 
-    <!-- INFIRMIER : unique onglet, limité aux patients référés par un confrère -
-         jamais de prise en charge de son propre chef (voir buildTabs). -->
+    <!-- INFIRMIER : prise en charge initiale d'un patient (souvent le premier point de
+         contact) - identité + constantes vitales, puis référencement OBLIGATOIRE vers un
+         médecin/dentiste/spécialiste du site (jamais de diagnostic posé par l'infirmier). -->
+    <div class="panel" id="panel-intake">
+      <div id="intakeAlert"></div>
+      <div class="field"><label for="inf_prenom">Prénom <span class="req">*</span></label><input type="text" id="inf_prenom"></div>
+      <div class="field"><label for="inf_nom">Nom <span class="req">*</span></label><input type="text" id="inf_nom"></div>
+      <div class="row2">
+        <div class="field"><label for="inf_sexe">Sexe <span class="req">*</span></label>
+          <select id="inf_sexe"><option value="">- Choisir -</option><option value="F">Féminin</option><option value="M">Masculin</option></select></div>
+        <div class="field"><label for="inf_age">Âge <span class="req">*</span></label><input type="number" id="inf_age" min="0"></div>
+      </div>
+      <div class="field"><label for="inf_adresse">Adresse</label><input type="text" id="inf_adresse"></div>
+      <div class="field"><label for="inf_telephone">Téléphone (optionnel)</label><input type="tel" id="inf_telephone" placeholder="Ex : 77 123 45 67"></div>
+      <fieldset>
+        <legend>Constantes vitales</legend>
+        <div class="constants">
+          <div class="field"><label for="inf_ta">Tension artérielle</label><input type="text" id="inf_ta" placeholder="120/80"></div>
+          <div class="field"><label for="inf_temperature">Température (°C)</label><input type="number" id="inf_temperature" step="0.1" placeholder="37.5"></div>
+          <div class="field"><label for="inf_fc">Fréquence cardiaque</label><input type="number" id="inf_fc" placeholder="72"></div>
+          <div class="field"><label for="inf_taille">Taille (cm)</label><input type="number" id="inf_taille" step="0.1" placeholder="165"></div>
+          <div class="field"><label for="inf_poids">Poids (kg)</label><input type="number" id="inf_poids" step="0.1" placeholder="65.5"></div>
+        </div>
+      </fieldset>
+      <div class="field"><label for="inf_motif">Motif <span class="req">*</span></label><textarea id="inf_motif" placeholder="Raison de la prise en charge"></textarea></div>
+      <div class="field"><label for="inf_refere_vers">Référer vers <span class="req">*</span></label>
+        <select id="inf_refere_vers"><option value="">- Choisir un médecin -</option></select></div>
+      <button class="btn btn-primary btn-block" id="intakeSaveBtn" onclick="saveInfirmierIntake()">Référer au médecin</button>
+    </div>
+
+    <!-- INFIRMIER : patients référés par un confrère (voir buildTabs). -->
     <div class="panel" id="panel-referrals">
       <div class="stat-row" id="referralsStats"></div>
       <div class="toolbar">
@@ -1875,10 +1904,11 @@ function buildTabs(){
     // il ne concerne que le suivi clinique, hors de son périmètre.
     tabs=[["dashboard","Tableau de bord"],["dispensation","Pharmacie"]];
   } else if(isInfirmier()){
-    // L'infirmier n'a qu'un seul onglet : les patients qui lui sont référés par un confrère.
-    // Pas de "Nouvelle consultation" (il ne prend jamais en charge un patient de son propre
-    // chef), pas de tableau de bord ni d'historique - son périmètre se limite à ces référencements.
-    tabs=[["referrals","Patients référés"]];
+    // L'infirmier a deux onglets : la prise en charge initiale d'un patient (souvent le
+    // premier point de contact, constantes vitales puis référencement obligatoire vers un
+    // médecin/dentiste/spécialiste), et les patients qui lui sont référés en retour par un
+    // confrère. Pas de tableau de bord ni d'historique - son périmètre reste ces deux flux.
+    tabs=[["intake","Nouveau patient"],["referrals","Patients référés"]];
   } else {
     tabs=[["form","Nouvelle consultation"],["list","Mes consultations"],["historique","Historique patient"],["dashboard","Tableau de bord"]];
   }
@@ -2005,12 +2035,19 @@ function onRefereVersChange(){
   $("referMotifWrap").classList.toggle("hidden", !$("c_refere_vers").value);
 }
 
-function commencerConsultationReferee(consultId,prenom,nom,sexe,age){
+function commencerConsultationReferee(consultId,prenom,nom,sexe,age,ta,temperature,fc,taille,poids){
   switchTab("form");
   resetForm();
   $("c_prenom").value=prenom; $("c_nom").value=nom;
   if(sexe) $("c_sexe").value=sexe;
   if(age!=null) $("c_age").value=age;
+  // Si un infirmier a déjà pris les constantes avant de référer, elles sont reprises telles
+  // quelles - pas besoin de les faire re-mesurer ou re-saisir par le médecin.
+  if(ta) $("c_ta").value=ta;
+  if(temperature!=null) $("c_temperature").value=temperature;
+  if(fc!=null) $("c_fc").value=fc;
+  if(taille!=null) $("c_taille").value=taille;
+  if(poids!=null) $("c_poids").value=poids;
   toast("Identité du patient reprise - complétez la consultation");
   marquerReferenceTraitee(consultId,true);
 }
@@ -2091,6 +2128,77 @@ async function confirmActeInfirmier(consultId){
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Patient marqué comme pris en charge");
   loadInfirmierReferrals();
+}
+
+/* ---------- Infirmier : prise en charge initiale + référencement obligatoire ----------
+   Souvent le premier point de contact avec le patient : identité + constantes vitales,
+   jamais de diagnostic posé (hors de son périmètre), puis référencement vers un
+   médecin/dentiste/spécialiste de son site - jamais vers un autre infirmier ou un
+   pharmacien, qui ne peuvent pas prendre en charge une consultation. */
+async function setupInfirmierReferField(){
+  const collegues=(await loadCollegues(ME.site_id)).filter(p=>p.specialite!=="pharmacien" && p.specialite!=="infirmier");
+  $("inf_refere_vers").innerHTML=`<option value="">- Choisir un médecin -</option>`+
+    collegues.map(p=>{
+      const nom=(p.prenom||"")+" "+(p.nom||"");
+      const spec=SPEC_LABELS[p.specialite||"generaliste"]||"Praticien";
+      return `<option value="${p.id}">${esc(nom.trim()||"(sans nom)")} - ${esc(spec)}${p.specialite==="specialiste"&&p.specialite_detail?" ("+esc(p.specialite_detail)+")":""}</option>`;
+    }).join("");
+}
+
+function resetInfirmierIntakeForm(){
+  ["inf_prenom","inf_nom","inf_sexe","inf_age","inf_adresse","inf_telephone","inf_ta","inf_temperature",
+    "inf_fc","inf_taille","inf_poids","inf_motif","inf_refere_vers"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
+}
+
+async function saveInfirmierIntake(){
+  const newId=crypto.randomUUID();
+  const numero="AMSTC-"+newId.slice(0,8).toUpperCase();
+  const medecinNom=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email||"-";
+  const motif=$("inf_motif").value.trim();
+  const refereVersId=$("inf_refere_vers").value||null;
+
+  const rec={
+    id:newId, numero_consultation:numero, medecin_nom:medecinNom, type_consultation:"infirmier",
+    agent_id:ME.id, site_id:ME.site_id,
+    prenom:$("inf_prenom").value.trim(), nom:$("inf_nom").value.trim(),
+    sexe:$("inf_sexe").value, age:$("inf_age").value?parseInt($("inf_age").value):null,
+    adresse:$("inf_adresse").value.trim(), telephone_patient:$("inf_telephone").value.trim()||null,
+    motifs:motif,
+    ta:$("inf_ta").value.trim()||null,
+    temperature:$("inf_temperature").value?parseFloat($("inf_temperature").value):null,
+    fc:$("inf_fc").value?parseInt($("inf_fc").value):null,
+    taille:$("inf_taille").value?parseFloat($("inf_taille").value):null,
+    poids:$("inf_poids").value?parseFloat($("inf_poids").value):null,
+    antecedents:"", signes:"", diagnostic:"", explorations:null, conduite:"", medicaments:[],
+    dent_concernee:null, acte_dentaire:null, specialite_medicale:null,
+    refere_vers_id:refereVersId, refere_motif:motif||null,
+  };
+
+  const missing=[];
+  if(!rec.prenom||!rec.nom) missing.push("nom et prénom");
+  if(!rec.sexe) missing.push("sexe"); if(rec.age===null) missing.push("âge");
+  if(!motif) missing.push("motif");
+  if(!refereVersId) missing.push("médecin à référer");
+  if(missing.length){ alertIn("intakeAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
+
+  $("intakeSaveBtn").disabled=true;
+  let confirmMsg="Patient référé au médecin.";
+  if(navigator.onLine){
+    const {error}=await sb.from("consultations").insert(rec);
+    $("intakeSaveBtn").disabled=false;
+    if(error){
+      const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
+      toast("Enregistré localement (envoi différé)");
+      confirmMsg="Patient enregistré localement - l'envoi sera retenté automatiquement.";
+    } else { toast("Patient référé au médecin"); }
+  } else {
+    const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
+    $("intakeSaveBtn").disabled=false;
+    toast("Enregistré hors ligne · sera synchronisé");
+    confirmMsg="Patient enregistré hors ligne - il sera référé dès le retour de la connexion.";
+  }
+  resetInfirmierIntakeForm();
+  alertIn("intakeAlert","ok",confirmMsg);
 }
 
 function onConsultTypeChange(){
@@ -2217,6 +2325,7 @@ function switchTab(tab){
   if(tab==="campagnes"){ $("campagnesBody").innerHTML=LOADING_HTML; refreshPharmaciensCache().catch(()=>{}).then(renderCampagnes); }
   if(tab==="dispensation") loadPharmacieTab();
   if(tab==="referrals") loadInfirmierReferrals();
+  if(tab==="intake") setupInfirmierReferField();
 }
 
 /* =====================================================================
@@ -2405,6 +2514,7 @@ function renderList(){
     let typeLine;
     if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
     else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière - référé au médecin";
     else typeLine="Consultation Médecine Générale";
     const motifsLine=r.motifs?`<div class="rec-diag"><b>Motifs :</b> ${esc(r.motifs)}</div>`:"";
     const signesLine=r.signes?`<div class="rec-diag"><b>Signes :</b> ${esc(r.signes)}</div>`:"";
@@ -2464,6 +2574,7 @@ async function searchPatientHistory(){
     let typeLine;
     if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
     else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière - référé au médecin";
     else typeLine="Consultation Médecine Générale";
     return `<div class="rec">
       <div class="rec-top">
@@ -2726,7 +2837,7 @@ async function renderDashboard(){
     // confrères du site) : le badge du tableau de bord le compte déjà, donc la carte
     // doit aussi s'afficher pour lui, sans quoi la référence reste invisible.
     const {data}=await sb.from("consultations")
-      .select("id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at")
+      .select("id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at,type_consultation,ta,temperature,fc,taille,poids")
       .eq("refere_vers_id",ME.id).eq("refere_traite",false).order("created_at",{ascending:false});
     referencesRecues=data||[];
   }
@@ -2798,16 +2909,24 @@ async function renderDashboard(){
       <div class="dash-card-head"><span>Patients qui vous sont référés (${referencesRecues.length})</span></div>
       ${referencesRecues.map(r=>{
         const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+        const jsStr=v=>(v||"").toString().replace(/'/g,"\\'");
+        // Un infirmier référant a déjà pris les constantes : autant les afficher ici et les
+        // reprendre automatiquement dans le formulaire, plutôt que de les faire re-saisir.
+        const constantes=[
+          r.ta?`TA ${r.ta}`:null, r.temperature!=null?`T° ${r.temperature}`:null,
+          r.fc!=null?`FC ${r.fc}`:null, r.taille!=null?`Taille ${r.taille}cm`:null, r.poids!=null?`Poids ${r.poids}kg`:null,
+        ].filter(Boolean);
         return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
             <div>
               <b>${esc(r.prenom)} ${esc(r.nom)}</b> <span class="rec-meta">${r.sexe||"?"} · ${r.age??"?"} ans</span>
-              <div class="rec-meta">${d} · Référé par ${esc(r.medecin_nom||"-")}</div>
+              <div class="rec-meta">${d} · Référé par ${esc(r.medecin_nom||"-")}${r.type_consultation==="infirmier"?" (infirmier)":""}</div>
               ${r.refere_motif?`<div class="rec-meta"><b>Motif :</b> ${esc(r.refere_motif)}</div>`:""}
+              ${constantes.length?`<div class="rec-meta"><b>Constantes prises :</b> ${constantes.join(" · ")}</div>`:""}
             </div>
           </div>
           <div class="rec-foot" style="margin-top:6px">
-            <button class="btn btn-accent btn-sm" onclick="commencerConsultationReferee('${r.id}','${esc(r.prenom).replace(/'/g,"\\'")}','${esc(r.nom).replace(/'/g,"\\'")}','${r.sexe||""}',${r.age??"null"})">Commencer la consultation</button>
+            <button class="btn btn-accent btn-sm" onclick="commencerConsultationReferee('${r.id}','${jsStr(esc(r.prenom))}','${jsStr(esc(r.nom))}','${r.sexe||""}',${r.age??"null"},'${jsStr(r.ta)}',${r.temperature??"null"},${r.fc??"null"},${r.taille??"null"},${r.poids??"null"})">Commencer la consultation</button>
             <button class="btn btn-ghost btn-sm" onclick="marquerReferenceTraitee('${r.id}')">Marquer comme traité</button>
           </div>
         </div>`;
@@ -4621,12 +4740,12 @@ function renderAide(){
         <li>Depuis cette carte, <b>« Commencer la consultation »</b> pré-remplit l'identité du patient dans son formulaire ; <b>« Marquer comme traité »</b> retire simplement la référence.</li>
       </ul>`},
 
-    { show:isPraticien||isAdmin||isInfirmierRole, titre:"Infirmier : patients référés", corps:`
-      ${isInfirmierRole?`<p>Votre compte est entièrement dédié aux patients qu'un confrère vous <b>réfère</b> - vous ne créez jamais de consultation de votre propre chef. L'onglet <b>Patients référés</b> est votre seul espace de travail.</p>`
-      :`<p>Un compte Infirmier ne voit que les patients qui lui sont <b>référés</b> par un confrère (médecin, dentiste ou spécialiste) - il ne crée jamais de consultation lui-même.</p>`}
+    { show:isPraticien||isAdmin||isInfirmierRole, titre:"Infirmier", corps:`
+      ${isInfirmierRole?`<p>Votre compte couvre deux situations : vous êtes parfois le <b>premier point de contact</b> avec un patient (onglet <b>Nouveau patient</b>), et vous recevez aussi des patients qu'un confrère vous <b>réfère</b> en retour (onglet <b>Patients référés</b>). Vous ne posez jamais de diagnostic - ce n'est pas votre rôle.</p>`
+      :`<p>Un compte Infirmier peut accueillir un patient en premier (prise des constantes) avant de le référer à un médecin, et peut aussi recevoir des patients référés en retour par un confrère (médecin, dentiste ou spécialiste) - il ne pose jamais de diagnostic.</p>`}
       <ul>
-        <li>Pour chaque patient en attente : motif de la référence, puis choix de l'<b>acte réalisé</b> (Pansement, Mise en observation, Surveillance, Injection / Perfusion, Prise de constantes, ou Autre soin) et une note libre facultative.</li>
-        <li><b>« Marquer comme pris en charge »</b> enregistre l'acte et retire le patient de la liste des patients en attente ; une case permet d'afficher aussi ceux déjà pris en charge, avec le détail de l'acte réalisé.</li>
+        <li><b>Nouveau patient :</b> identité du patient et constantes vitales (tension, température, fréquence cardiaque, taille, poids), puis <b>référencement obligatoire</b> vers un médecin, dentiste ou spécialiste de son site avec le motif de la prise en charge. Le médecin qui reçoit ce patient retrouve directement les constantes déjà prises - il n'a pas besoin de les ressaisir.</li>
+        <li><b>Patients référés :</b> pour chaque patient en attente, motif de la référence puis choix de l'<b>acte réalisé</b> (Pansement, Mise en observation, Surveillance, Injection / Perfusion, Prise de constantes, ou Autre soin) et une note libre facultative. <b>« Marquer comme pris en charge »</b> enregistre l'acte et retire le patient de la liste des patients en attente ; une case permet d'afficher aussi ceux déjà pris en charge, avec le détail de l'acte réalisé.</li>
       </ul>`},
 
     { show:isPraticien||isAdmin, titre:"Consulter, rechercher et exporter les consultations", corps:`

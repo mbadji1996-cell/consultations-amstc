@@ -587,6 +587,32 @@
     transition:transform .2s ease}
   :root[data-theme="dark"] .theme-switch-track{background:var(--green-700)}
   :root[data-theme="dark"] .theme-switch-track::after{transform:translateX(16px)}
+
+  /* 13 · Fiche patient imprimable - carte remise au patient après sa consultation, avec un
+     QR permettant de retrouver son dossier lors d'une prochaine halte de la tournée. Toujours
+     imprimée en clair sur papier blanc (indépendante du thème sombre/clair de l'app), grâce au
+     classique "n'afficher que cet élément à l'impression". */
+  #ficheImprimable{ display:none; }
+  @media print{
+    body *{ visibility:hidden; }
+    #ficheImprimable, #ficheImprimable *{ visibility:visible; }
+    #ficheImprimable{ display:block; position:absolute; top:0; left:0; width:100%; }
+  }
+  .fiche-print{ font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:#182019; padding:16mm; max-width:190mm; margin:0 auto; }
+  .fiche-print .fiche-head{ display:flex; align-items:center; gap:10px; border-bottom:2px solid #17763B;
+    padding-bottom:10px; margin-bottom:16px; }
+  .fiche-print .fiche-head img{ width:40px; height:40px; object-fit:contain; }
+  .fiche-print .fiche-brand b{ font-family:'Sora',sans-serif; font-size:15px; color:#06441C; display:block; }
+  .fiche-print .fiche-brand span{ font-size:11px; color:#5f6b62; }
+  .fiche-print h2{ font-family:'Sora',sans-serif; font-size:16px; color:#06441C; margin:0 0 4px; }
+  .fiche-print .fiche-numero{ font-family:monospace; font-size:12px; color:#5f6b62; margin-bottom:16px; }
+  .fiche-print .fiche-row{ display:flex; gap:8px; font-size:13px; margin-bottom:7px; line-height:1.4; }
+  .fiche-print .fiche-label{ font-weight:700; min-width:130px; flex-shrink:0; }
+  .fiche-print .fiche-qr{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:22px;
+    padding-top:16px; border-top:1px dashed #c7d2cb; }
+  .fiche-print .fiche-qr p{ font-size:11px; color:#5f6b62; text-align:center; max-width:240px; }
+  .fiche-print .fiche-foot{ margin-top:18px; font-size:10.5px; color:#8a978f; text-align:center; }
 </style>
 </head>
 <body>
@@ -758,7 +784,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v66</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v67</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button class="theme-switch" onclick="toggleDarkTheme(event)" aria-label="Activer/désactiver le mode sombre">
@@ -1170,6 +1196,7 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="ficheImprimable"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -1177,6 +1204,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 <script>
 /* =====================================================================
    CONFIGURATION - À REMPLIR (une seule fois)
@@ -1654,6 +1682,21 @@ async function enterApp(){
   buildTabs();
   await refreshData();
   updateSync();
+  handleQrDeepLink();
+}
+
+// Scanner le QR d'une fiche imprimée ramène sur le site avec ?rechercher=... : si le compte
+// connecté a accès à "Historique patient", on y bascule directement avec la recherche déjà
+// lancée - sinon (pharmacien, infirmier) on ignore silencieusement, ce n'est pas leur périmètre.
+function handleQrDeepLink(){
+  const term=new URLSearchParams(location.search).get("rechercher");
+  if(!term) return;
+  history.replaceState(null,"",location.pathname); // évite de relancer la recherche à chaque rechargement
+  const canAccessHistorique = ME.role==="admin" || (ME.role==="agent" && ME.specialite!=="pharmacien" && ME.specialite!=="infirmier");
+  if(!canAccessHistorique) return;
+  switchTab("historique");
+  $("patientSearchInput").value=term;
+  searchPatientHistory();
 }
 
 // Construit l'écran d'accueil de session : le domaine (une seule fois, tant qu'il
@@ -2544,6 +2587,7 @@ function renderList(){
       ${explo}
       ${telLine}
       <div class="rec-foot">
+        <button class="btn btn-ghost btn-sm" onclick="imprimerFiche('${r.id}')">Imprimer la fiche</button>
         <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>
       </div>
     </div>`;
@@ -2593,6 +2637,69 @@ async function searchPatientHistory(){
       ${r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:""}
     </div>`;
   }).join("");
+}
+
+/* ---------- Fiche patient imprimable ----------
+   Un petit document remis au patient après sa consultation : l'essentiel de son passage,
+   plus un QR permettant de retrouver rapidement son dossier lors d'une prochaine halte de
+   la tournée (le QR pointe vers une recherche pré-remplie dans "Historique patient" - voir
+   l'amorçage de démarrage qui lit le paramètre ?rechercher= de l'URL). */
+function imprimerFiche(id){
+  const r=currentRows().find(x=>String(x.id)===String(id));
+  if(!r){ toast("Consultation introuvable",true); return; }
+  renderFicheAndPrint(r);
+}
+
+async function renderFicheAndPrint(r){
+  const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});
+  const sexeLabel=r.sexe==="M"?"Masculin":r.sexe==="F"?"Féminin":(r.sexe||"?");
+  let typeLine;
+  if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+r.acte_dentaire:"");
+  else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+r.specialite_medicale:" spécialisée");
+  else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière";
+  else typeLine="Consultation médecine générale";
+
+  const rows=[
+    ["Patient", `${r.prenom||""} ${r.nom||""}`.trim()],
+    ["Âge / Sexe", `${r.age??"?"} ans - ${sexeLabel}`],
+    ["Date", d],
+    ["Site", siteName(r.site_id)],
+    ["Praticien", r.medecin_nom||"-"],
+    ["Type", typeLine],
+  ];
+  if(r.motifs) rows.push(["Motif", r.motifs]);
+  if(r.diagnostic) rows.push(["Diagnostic", r.diagnostic]);
+  if(r.conduite) rows.push(["Traitement", r.conduite]);
+  if(r.acte_infirmier) rows.push(["Acte réalisé", r.acte_infirmier+(r.acte_infirmier_note?" - "+r.acte_infirmier_note:"")]);
+  if(r.refere_motif && !r.diagnostic) rows.push(["Motif de référence", r.refere_motif]);
+
+  // Le QR encode un lien vers le site : n'importe quel appareil photo de téléphone le
+  // reconnaît nativement, pas besoin d'un lecteur dédié. Le téléphone (plus fiable qu'un nom
+  // mal orthographié d'un site à l'autre) sert d'identifiant quand il est disponible.
+  const searchTerm=(r.telephone_patient||`${r.prenom||""} ${r.nom||""}`.trim());
+  const qrUrl=`https://consultations-amstc.org/?rechercher=${encodeURIComponent(searchTerm)}`;
+
+  $("ficheImprimable").innerHTML=`
+    <div class="fiche-print">
+      <div class="fiche-head">
+        <img src="./icon.png" alt="AMSTC">
+        <div class="fiche-brand"><b>Consultations AMSTC</b><span>Association Médico-Sociale des Talibés Cheikh</span></div>
+      </div>
+      <h2>Fiche de consultation</h2>
+      <div class="fiche-numero">${esc(r.numero_consultation||"")}</div>
+      ${rows.map(([label,val])=>`<div class="fiche-row"><span class="fiche-label">${esc(label)} :</span><span>${esc(String(val))}</span></div>`).join("")}
+      <div class="fiche-qr">
+        <canvas id="ficheQrCanvas"></canvas>
+        <p>Conservez cette fiche - présentez ce code lors d'une prochaine consultation pour retrouver rapidement le dossier.</p>
+      </div>
+      <div class="fiche-foot">Consultations AMSTC · Document généré le ${new Date().toLocaleDateString("fr-FR")}</div>
+    </div>`;
+
+  if(typeof QRious!=="undefined"){
+    try{ new QRious({ element:$("ficheQrCanvas"), value:qrUrl, size:120, background:"#ffffff", foreground:"#06441C", level:"M" }); }
+    catch(e){ /* pas de réseau la toute première fois hors ligne : la fiche s'imprime quand même, juste sans QR */ }
+  }
+  window.print();
 }
 
 async function deleteConsultation(id, isQueued){
@@ -4758,6 +4865,7 @@ function renderAide(){
         <li><b>Statut :</b> « Synchronisée » = enregistrée sur le serveur ; « À envoyer » = encore en attente de réseau (voir la section hors connexion).</li>
         <li><b>Recherche :</b> par nom du patient, numéro AMSTC, diagnostic ou motifs.</li>
         <li><b>Exporter CSV :</b> télécharge la liste affichée avec toutes les colonnes, ouvrable dans Excel.</li>
+        <li><b>Imprimer la fiche :</b> un petit document à remettre au patient (résumé de sa consultation + un QR) - utile en tournée, quand on ne reverra pas forcément le même patient. Scanner ce QR lors d'une prochaine visite ouvre directement sa fiche dans l'Historique patient.</li>
         <li><b>Supprimer :</b> définitif, avec confirmation - nécessite une connexion internet.</li>
       </ul>`},
 

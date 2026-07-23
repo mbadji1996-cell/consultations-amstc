@@ -2884,6 +2884,45 @@ function chartImage(canvasId){
   }catch(e){ return null; }
 }
 
+// Charge une image locale (logo) en data URL via un <canvas> - même principe que chartImage().
+// Résout à null plutôt que de rejeter si l'image manque (ex. hors ligne, jamais mise en cache) :
+// le rapport doit rester généré même sans logo, jamais bloqué pour un simple visuel.
+function loadImageDataURL(url){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const canvas=document.createElement("canvas");
+        canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+        canvas.getContext("2d").drawImage(img,0,0);
+        resolve({ data:canvas.toDataURL("image/png"), ratio:img.naturalHeight/img.naturalWidth });
+      }catch(e){ resolve(null); }
+    };
+    img.onerror=()=>resolve(null);
+    img.src=url;
+  });
+}
+
+// Petite carte chiffrée colorée (même esprit que les cartes KPI du tableau de bord à l'écran),
+// pour que le rapport garde un rendu "présentable" plutôt qu'un simple tableau de nombres.
+function pdfKpiTile(doc,x,y,w,h,color,value,label){
+  doc.setFillColor(...color);
+  doc.roundedRect(x,y,w,h,2.2,2.2,"F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text(String(value), x+w/2, y+h*0.44, {align:"center"});
+  doc.setFont("helvetica","normal"); doc.setFontSize(8);
+  doc.text(label, x+w/2, y+h*0.7, {align:"center", maxWidth:w-6});
+}
+
+// En-tête de section avec liseré coloré vertical, cohérent avec l'habillage des cartes à l'écran.
+function pdfSectionHeader(doc,x,y,text,color){
+  doc.setFillColor(...color);
+  doc.rect(x,y-4.3,1.4,5.6,"F");
+  doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(30,42,35);
+  doc.text(text, x+4.5, y);
+}
+
 async function downloadReportPDF(){
   if(typeof window.jspdf==="undefined"){
     toast("Génération PDF indisponible : bibliothèque non chargée. Vérifiez votre connexion et réessayez.",true);
@@ -2895,38 +2934,71 @@ async function downloadReportPDF(){
   const doc=new jsPDF({ unit:"mm", format:"a4" });
   const pageW=doc.internal.pageSize.getWidth();
   const margin=14;
-  let y=18;
 
-  const green=[46,160,56], green900=[6,68,28]; // rgb(--green-500), rgb(--green-900) - alignés sur la palette de l'app
-  const { title, meta }=reportTitleLines(S);
-  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(...green900);
-  doc.text(title, margin, y); y+=8;
-  doc.setFont("helvetica","normal"); doc.setFontSize(10.5); doc.setTextColor(90,90,90);
-  meta.forEach(line=>{ doc.text(line, margin, y); y+=5.5; });
-  y+=3.5;
+  // Palette alignée sur les accents des cartes KPI de l'app (--green-700, --gold, --orange-dark,
+  // --teal, --blue, --red, --purple, --green-900), pour que le rapport se reconnaisse d'un coup
+  // d'œil comme venant de la même application que celle utilisée sur le terrain.
+  const green=[23,118,59], green900=[6,68,28], gold=[248,183,24], goldDeep=[170,123,17],
+    teal=[14,159,138], blue=[46,111,216], red=[192,57,43], purple=[122,77,216];
 
-  // Tableau des chiffres clés
-  doc.autoTable({
-    startY:y, margin:{left:margin,right:margin}, theme:"grid",
-    headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" },
-    styles:{ fontSize:10 },
-    head:[["Indicateur","Valeur"]],
-    body:[
-      [ME.role==="admin"?"Consultations au total":"Mes consultations", String(S.total)],
-      ["Âge moyen (ans)", S.ageMoyen??"-"],
-      ["Explorations complémentaires demandées", String(S.explorations)],
-      ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
-      ["Taux de référencement (vers un confrère)", S.tauxReferencement!=null?`${S.tauxReferencement}% (${S.referes})`:"-"],
-    ],
-  });
-  y=doc.lastAutoTable.finalY+10;
+  // ---------- Page de garde ----------
+  doc.setFillColor(...green900);
+  doc.rect(0,0,pageW,54,"F");
+  // Touche décorative dorée, comme sur l'écran de connexion - en transparence, pour rester
+  // un discret clin d'œil plutôt qu'une forme pleine qui distrairait de l'en-tête.
+  doc.saveGraphicsState();
+  doc.setGState(new doc.GState({opacity:0.35}));
+  doc.setFillColor(...gold);
+  doc.circle(pageW+6,-6,26,"F");
+  doc.restoreGraphicsState();
+
+  const campagneNom=S.campagneInfo?.nom;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...gold);
+  doc.text("RAPPORT DE CAMPAGNE", margin, 16);
+  doc.setFont("helvetica","bold"); doc.setFontSize(21); doc.setTextColor(255,255,255);
+  doc.text(campagneNom || "Consultations AMSTC", margin, 30, {maxWidth:pageW-margin*2-20});
+  doc.setFont("helvetica","normal"); doc.setFontSize(10.5); doc.setTextColor(230,236,232);
+  const perimetre = ME.role==="admin"
+    ? (campagneNom?`${campagneNom}${S.campagneInfo.lieu?" · "+S.campagneInfo.lieu:""}` : "Toutes campagnes confondues")
+    : `Consultations de ${(ME.prenom||"")} ${(ME.nom||"")}`.trim();
+  const periode=S.campagneInfo&&(S.campagneInfo.date_debut||S.campagneInfo.date_fin)
+    ? ` · du ${fmtDate(S.campagneInfo.date_debut)} au ${fmtDate(S.campagneInfo.date_fin)}` : "";
+  doc.text(perimetre+periode, margin, 44);
+
+  let y=66;
+  const logo=await loadImageDataURL("./logo-horizontal.png");
+  if(logo){
+    const w=68, h=w*logo.ratio;
+    doc.addImage(logo.data,"PNG",margin,y,w,h);
+  }
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(110,120,114);
+  doc.text(`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`, pageW-margin, y+8, {align:"right"});
+  doc.text(`Par ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(), pageW-margin, y+13, {align:"right"});
+  y+=34;
+
+  // Chiffres clés, en cartes colorées plutôt qu'un simple tableau
+  const tileRow=(tiles,rowY,rowH)=>{
+    const gap=4, w=(pageW-margin*2-gap*(tiles.length-1))/tiles.length;
+    tiles.forEach((t,i)=>pdfKpiTile(doc,margin+i*(w+gap),rowY,w,rowH,t.color,t.value,t.label));
+    return rowY+rowH+gap;
+  };
+  y=tileRow([
+    { color:green, value:S.total, label:ME.role==="admin"?"Consultations au total":"Mes consultations" },
+    { color:blue, value:S.ageMoyen??"-", label:"Âge moyen (ans)" },
+    { color:purple, value:S.explorations, label:"Explorations demandées" },
+  ], y, 26);
+  y=tileRow([
+    { color:teal, value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes" },
+    { color:red, value:S.tauxReferencement!=null?S.tauxReferencement+"%":"-", label:"Taux de référencement vers un confrère" },
+  ], y, 26);
+
+  doc.addPage(); y=20;
 
   // Détails de la campagne : sites et effectifs de praticiens alloués
   if(S.campagneInfo){
     const eff=await getCampagneEffectifs(S.campagneInfo.id);
     if(eff){
-      doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-      doc.text("Détails de la campagne", margin, y); y+=4;
+      pdfSectionHeader(doc,margin,y,"Détails de la campagne",green); y+=6;
       doc.autoTable({
         startY:y, margin:{left:margin,right:margin}, theme:"grid",
         headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
@@ -2945,9 +3017,8 @@ async function downloadReportPDF(){
 
   // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
-    if(y>250){ doc.addPage(); y=18; }
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-    doc.text("Consultations par jour", margin, y); y+=4;
+    if(y>250){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Consultations par jour",green); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
@@ -2961,16 +3032,15 @@ async function downloadReportPDF(){
   const addChartImage=(canvasId,label)=>{
     const chart=chartImage(canvasId);
     if(!chart) return;
-    if(y>230){ doc.addPage(); y=18; }
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-    doc.text(label, margin, y); y+=5;
+    if(y>230){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,label,green); y+=6;
     // Respecte toujours la vraie proportion du graphique : on part de la pleine largeur,
     // puis si la hauteur qui en découle dépasse le plafond, on réduit largeur ET hauteur
     // ensemble (jamais l'une sans l'autre, sinon l'image s'étire).
     const maxW=pageW-margin*2, maxH=150;
     let w=maxW, h=w*chart.ratio;
     if(h>maxH){ h=maxH; w=h/chart.ratio; }
-    if(y+h>270){ doc.addPage(); y=18; }
+    if(y+h>270){ doc.addPage(); y=20; }
     doc.addImage(chart.data,"PNG",margin,y,w,h);
     y+=h+9;
   };
@@ -2983,12 +3053,11 @@ async function downloadReportPDF(){
 
   // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
   if(S.topDiag.length){
-    if(y>250){ doc.addPage(); y=18; }
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-    doc.text("Détail - Pathologies les plus fréquentes", margin, y); y+=4;
+    if(y>250){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Détail - Pathologies les plus fréquentes",gold); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
-      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
       head:[["Pathologie","Nombre de cas"]],
       body:S.topDiag.map(([l,c])=>[l,String(c)]),
     });
@@ -2997,15 +3066,25 @@ async function downloadReportPDF(){
 
   // Tableau par site (admin uniquement)
   if(S.siteStats.length){
-    if(y>230){ doc.addPage(); y=18; }
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); doc.setTextColor(...green900);
-    doc.text("Statistiques par site", margin, y); y+=4;
+    if(y>230){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Statistiques par site",blue); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
       head:[["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"]],
       body:S.siteStats.map(s=>[s.nom,String(s.n),s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"]),
     });
+  }
+
+  // Pied de page (numérotation), sur toutes les pages sauf la couverture
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let p=2;p<=pageCount;p++){
+    doc.setPage(p);
+    doc.setDrawColor(225,229,226); doc.setLineWidth(0.2);
+    doc.line(margin,285,pageW-margin,285);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(140,150,144);
+    doc.text("Consultations AMSTC", margin, 290);
+    doc.text(`Page ${p-1} / ${pageCount-1}`, pageW-margin, 290, {align:"right"});
   }
 
   doc.save(reportFileBaseName(S)+".pdf");

@@ -784,7 +784,7 @@
       </button>
       <div class="menu-pop hidden" id="menuPop">
         <div class="menu-head"><b id="menuName"></b><small id="menuEmail"></small><br><span class="badge" id="menuRole"></span>
-          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v67</div>
+          <div style="margin-top:8px;font-size:10.5px;color:var(--muted);font-family:monospace">Version app : amstc-v68</div>
         </div>
         <button onclick="openProfileModal()">Mon profil</button>
         <button class="theme-switch" onclick="toggleDarkTheme(event)" aria-label="Activer/désactiver le mode sombre">
@@ -1689,14 +1689,16 @@ async function enterApp(){
 // connecté a accès à "Historique patient", on y bascule directement avec la recherche déjà
 // lancée - sinon (pharmacien, infirmier) on ignore silencieusement, ce n'est pas leur périmètre.
 function handleQrDeepLink(){
-  const term=new URLSearchParams(location.search).get("rechercher");
-  if(!term) return;
+  const params=new URLSearchParams(location.search);
+  const patientId=params.get("patient"); // fiches imprimées depuis l'ajout de l'identifiant stable
+  const term=params.get("rechercher");    // repli pour les fiches imprimées avant cette fonctionnalité
+  if(!patientId && !term) return;
   history.replaceState(null,"",location.pathname); // évite de relancer la recherche à chaque rechargement
   const canAccessHistorique = ME.role==="admin" || (ME.role==="agent" && ME.specialite!=="pharmacien" && ME.specialite!=="infirmier");
   if(!canAccessHistorique) return;
   switchTab("historique");
-  $("patientSearchInput").value=term;
-  searchPatientHistory();
+  if(patientId){ searchPatientHistoryById(patientId); }
+  else { $("patientSearchInput").value=term; searchPatientHistory(); }
 }
 
 // Construit l'écran d'accueil de session : le domaine (une seule fois, tant qu'il
@@ -2080,7 +2082,7 @@ function onRefereVersChange(){
   $("referMotifWrap").classList.toggle("hidden", !$("c_refere_vers").value);
 }
 
-function commencerConsultationReferee(consultId,prenom,nom,sexe,age,ta,temperature,fc,taille,poids){
+function commencerConsultationReferee(consultId,prenom,nom,sexe,age,ta,temperature,fc,taille,poids,patientId){
   switchTab("form");
   resetForm();
   $("c_prenom").value=prenom; $("c_nom").value=nom;
@@ -2093,6 +2095,8 @@ function commencerConsultationReferee(consultId,prenom,nom,sexe,age,ta,temperatu
   if(fc!=null) $("c_fc").value=fc;
   if(taille!=null) $("c_taille").value=taille;
   if(poids!=null) $("c_poids").value=poids;
+  // Cette consultation prolonge le même dossier patient que la référence d'origine.
+  CURRENT_PATIENT_ID=patientId||null;
   toast("Identité du patient reprise - complétez la consultation");
   marquerReferenceTraitee(consultId,true);
 }
@@ -2112,6 +2116,12 @@ async function marquerReferenceTraitee(consultId,silencieux){
    ===================================================================== */
 const ACTES_INFIRMIERS=["Pansement","Mise en observation","Surveillance","Injection / Perfusion","Prise de constantes","Autre soin"];
 let INFIRMIER_REFERRALS=[];
+
+// Identifiant patient stable en attente de reprise (référencement ou "Reprendre ce dossier"
+// depuis l'historique) - consommé et remis à null par saveConsultation()/resetForm(). Une
+// nouvelle consultation "à froid" (sans reprise) en génère un nouveau : c'est un nouveau
+// patient du point de vue du système, comme sur papier sans sa fiche.
+let CURRENT_PATIENT_ID=null;
 
 async function loadInfirmierReferrals(){
   $("referralsBody").innerHTML=LOADING_HTML;
@@ -2205,6 +2215,10 @@ async function saveInfirmierIntake(){
   const rec={
     id:newId, numero_consultation:numero, medecin_nom:medecinNom, type_consultation:"infirmier",
     agent_id:ME.id, site_id:ME.site_id,
+    // Toujours un nouvel identifiant : l'infirmier n'a pas d'outil de recherche pour repérer
+    // un dossier existant (voir buildTabs) - le médecin qui reçoit ensuite ce patient référé
+    // pourra, lui, "Reprendre ce dossier" pour le rattacher au bon identifiant si besoin.
+    patient_id:crypto.randomUUID(),
     prenom:$("inf_prenom").value.trim(), nom:$("inf_nom").value.trim(),
     sexe:$("inf_sexe").value, age:$("inf_age").value?parseInt($("inf_age").value):null,
     adresse:$("inf_adresse").value.trim(), telephone_patient:$("inf_telephone").value.trim()||null,
@@ -2404,6 +2418,10 @@ async function saveConsultation(){
   const rec={
     id:newId, numero_consultation:numero, medecin_nom:medecinNom, type_consultation:type,
     agent_id: ME.id, site_id: siteId,
+    // Identifiant patient stable : repris tel quel si cette consultation prolonge un dossier
+    // existant (référencement, "Reprendre ce dossier" depuis l'historique), sinon nouveau -
+    // c'est ce qui permet au QR de la fiche imprimée de retrouver directement le même patient.
+    patient_id: CURRENT_PATIENT_ID||crypto.randomUUID(),
     prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
     sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
     adresse:$("c_adresse").value.trim(),
@@ -2507,6 +2525,7 @@ async function flushQueue(){
 }
 
 function resetForm(){
+  CURRENT_PATIENT_ID=null; // toute reprise (référencement, "Reprendre ce dossier") le redéfinit juste après cet appel
   ["prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","signes","diagnostic_texte","explorations","conduite_notes",
    "signes_spec","diagnostic_spec","explorations_spec","conduite_notes_spec"]
     .forEach(f=>{const el=$("c_"+f); if(el) el.value="";});
@@ -2598,6 +2617,8 @@ function renderList(){
    Nécessite une règle de sécurité (RLS) dédiée côté Supabase - voir rls_historique_patient.sql -
    sans quoi la recherche ne remontera que ce que le compte connecté peut déjà voir aujourd'hui
    (généralement limité à son propre site). Lecture seule : aucune action possible ici. */
+const PATIENT_HISTORY_SELECT="id,patient_id,prenom,nom,telephone_patient,sexe,age,site_id,created_at,numero_consultation,type_consultation,medecin_nom,acte_dentaire,specialite_medicale,motifs,signes,diagnostic,conduite";
+
 async function searchPatientHistory(){
   const raw=$("patientSearchInput").value.trim();
   const body=$("patientHistoryBody");
@@ -2607,11 +2628,24 @@ async function searchPatientHistory(){
   // ordre ("Awa Diop" comme "Diop Awa") - une recherche sur un seul champ raterait un nom
   // composé de plusieurs mots. Les caractères ",()" casseraient la syntaxe du filtre PostgREST.
   const tokens=raw.split(/\s+/).map(t=>t.replace(/[,()]/g,"")).filter(Boolean).slice(0,5);
-  let q=sb.from("consultations")
-    .select("id,prenom,nom,telephone_patient,sexe,age,site_id,created_at,numero_consultation,type_consultation,medecin_nom,acte_dentaire,specialite_medicale,motifs,signes,diagnostic,conduite")
-    .order("created_at",{ascending:false}).limit(100);
+  let q=sb.from("consultations").select(PATIENT_HISTORY_SELECT).order("created_at",{ascending:false}).limit(100);
   tokens.forEach(t=>{ q=q.or(`prenom.ilike.%${t}%,nom.ilike.%${t}%,telephone_patient.ilike.%${t}%`); });
   const {data,error}=await q;
+  renderPatientHistoryResults(data,error);
+}
+
+// Recherche directe par identifiant patient stable (scan du QR d'une fiche imprimée) -
+// contrairement à la recherche par nom/téléphone, un match exact et sans ambiguïté.
+async function searchPatientHistoryById(patientId){
+  const body=$("patientHistoryBody");
+  body.innerHTML=LOADING_HTML;
+  const {data,error}=await sb.from("consultations").select(PATIENT_HISTORY_SELECT)
+    .eq("patient_id",patientId).order("created_at",{ascending:false}).limit(100);
+  renderPatientHistoryResults(data,error);
+}
+
+function renderPatientHistoryResults(data,error){
+  const body=$("patientHistoryBody");
   if(error){ body.innerHTML=`<div class="empty empty-err">Recherche impossible : ${esc(errMsg(error))}</div>`; return; }
   if(!data||!data.length){ body.innerHTML=`<div class="empty">Aucun résultat pour cette recherche.</div>`; return; }
   body.innerHTML=data.map(r=>{
@@ -2622,21 +2656,39 @@ async function searchPatientHistory(){
     else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
     else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière - référé au médecin";
     else typeLine="Consultation Médecine Générale";
+    const jsStr=v=>(v||"").toString().replace(/'/g,"\\'");
     return `<div class="rec">
       <div class="rec-top">
         <div>
           <div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
           <div class="rec-meta">${d} · ${esc(siteName(r.site_id))} · Praticien : ${esc(r.medecin_nom||"-")}</div>
           <div class="rec-meta">${r.age??"?"} ans · ${esc(sexeLabel)}${r.telephone_patient?" · Tel : "+esc(r.telephone_patient):""}</div>
-          <div class="rec-meta" style="margin-top:2px">${typeLine}</div>
+          <div class="rec-meta" style="margin-top:2px">${typeLine}${r.patient_id?"":" · dossier non lié (ancienne consultation)"}</div>
         </div>
       </div>
       ${r.motifs?`<div class="rec-diag"><b>Motifs :</b> ${esc(r.motifs)}</div>`:""}
       ${r.signes?`<div class="rec-diag"><b>Signes :</b> ${esc(r.signes)}</div>`:""}
       ${r.diagnostic?`<div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>`:""}
       ${r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:""}
+      <div class="rec-foot">
+        <button class="btn btn-ghost btn-sm" onclick="reprendreDossierPatient('${r.patient_id||""}','${jsStr(esc(r.prenom))}','${jsStr(esc(r.nom))}','${r.sexe||""}',${r.age??"null"})">Reprendre ce dossier</button>
+      </div>
     </div>`;
   }).join("");
+}
+
+// Fait démarrer une nouvelle consultation pré-remplie à partir d'un résultat de l'historique -
+// CURRENT_PATIENT_ID est repris tel quel pour que cette nouvelle visite se rattache au MÊME
+// patient (voir saveConsultation). Si l'ancienne consultation n'avait pas encore d'identifiant
+// (antérieure à cette fonctionnalité), un nouveau est créé : le suivi démarre à partir de maintenant.
+function reprendreDossierPatient(patientId,prenom,nom,sexe,age){
+  switchTab("form");
+  resetForm();
+  $("c_prenom").value=prenom; $("c_nom").value=nom;
+  if(sexe) $("c_sexe").value=sexe;
+  if(age!=null) $("c_age").value=age;
+  CURRENT_PATIENT_ID=patientId||null;
+  toast("Dossier repris - complétez la consultation");
 }
 
 /* ---------- Fiche patient imprimable ----------
@@ -2676,8 +2728,12 @@ async function renderFicheAndPrint(r){
   // Le QR encode un lien vers le site : n'importe quel appareil photo de téléphone le
   // reconnaît nativement, pas besoin d'un lecteur dédié. Le téléphone (plus fiable qu'un nom
   // mal orthographié d'un site à l'autre) sert d'identifiant quand il est disponible.
-  const searchTerm=(r.telephone_patient||`${r.prenom||""} ${r.nom||""}`.trim());
-  const qrUrl=`https://consultations-amstc.org/?rechercher=${encodeURIComponent(searchTerm)}`;
+  // Avec un identifiant patient stable, le QR pointe directement sur CE dossier (aucune
+  // ambiguïté de nom possible) ; à défaut (anciennes consultations d'avant cette fonctionnalité),
+  // on retombe sur la recherche par nom/téléphone comme avant.
+  const qrUrl = r.patient_id
+    ? `https://consultations-amstc.org/?patient=${r.patient_id}`
+    : `https://consultations-amstc.org/?rechercher=${encodeURIComponent(r.telephone_patient||`${r.prenom||""} ${r.nom||""}`.trim())}`;
 
   $("ficheImprimable").innerHTML=`
     <div class="fiche-print">
@@ -2946,7 +3002,7 @@ async function renderDashboard(){
     // confrères du site) : le badge du tableau de bord le compte déjà, donc la carte
     // doit aussi s'afficher pour lui, sans quoi la référence reste invisible.
     const {data}=await sb.from("consultations")
-      .select("id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at,type_consultation,ta,temperature,fc,taille,poids")
+      .select("id,patient_id,prenom,nom,sexe,age,refere_motif,medecin_nom,created_at,type_consultation,ta,temperature,fc,taille,poids")
       .eq("refere_vers_id",ME.id).eq("refere_traite",false).order("created_at",{ascending:false});
     referencesRecues=data||[];
   }
@@ -3035,7 +3091,7 @@ async function renderDashboard(){
             </div>
           </div>
           <div class="rec-foot" style="margin-top:6px">
-            <button class="btn btn-accent btn-sm" onclick="commencerConsultationReferee('${r.id}','${jsStr(esc(r.prenom))}','${jsStr(esc(r.nom))}','${r.sexe||""}',${r.age??"null"},'${jsStr(esc(r.ta))}',${r.temperature??"null"},${r.fc??"null"},${r.taille??"null"},${r.poids??"null"})">Commencer la consultation</button>
+            <button class="btn btn-accent btn-sm" onclick="commencerConsultationReferee('${r.id}','${jsStr(esc(r.prenom))}','${jsStr(esc(r.nom))}','${r.sexe||""}',${r.age??"null"},'${jsStr(esc(r.ta))}',${r.temperature??"null"},${r.fc??"null"},${r.taille??"null"},${r.poids??"null"},'${r.patient_id||""}')">Commencer la consultation</button>
             <button class="btn btn-ghost btn-sm" onclick="marquerReferenceTraitee('${r.id}')">Marquer comme traité</button>
           </div>
         </div>`;
@@ -3695,7 +3751,7 @@ async function downloadFullBackup(){
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
-  const cols=["numero_consultation","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
+  const cols=["numero_consultation","patient_id","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
   const rowsForExport=rows.map(r=>{
     const meds=Array.isArray(r.medicaments)?r.medicaments:[];
     const resume=meds.map(m=>`${m.nom}${m.posologie?" ("+m.posologie+")":""}${m.quantite?" x"+m.quantite:""} [${m.delivre?"délivré":"en attente"}]`).join("; ");
@@ -4873,9 +4929,20 @@ function renderAide(){
       <p>L'onglet <b>Historique patient</b> retrouve les consultations précédentes d'un patient, <b>même sur un autre site ou lors d'une autre campagne</b> - utile pour le suivi des cas récurrents (patients revus au fil des campagnes).</p>
       <ul>
         <li>Recherchez par <b>nom, prénom ou numéro de téléphone</b> - l'ordre des mots n'a pas d'importance.</li>
-        <li>Les résultats sont en <b>lecture seule</b> : date, site, praticien, motifs, signes, diagnostic et traitement de chaque visite passée.</li>
+        <li>Chaque résultat affiche date, site, praticien, motifs, signes, diagnostic et traitement de la visite passée.</li>
+        <li><b>Reprendre ce dossier :</b> démarre une nouvelle consultation pré-remplie avec l'identité du patient, <b>rattachée au même identifiant patient</b> que ses visites précédentes - voir "Identifiant patient stable" ci-dessous.</li>
       </ul>
       <div class="aide-note">Réservé aux comptes Médecin, Dentiste, Spécialiste et Administrateur - hors du périmètre des comptes Pharmacien.</div>`},
+
+    { show:isPraticien||isAdmin, titre:"Identifiant patient stable", corps:`
+      <p>Chaque patient reçoit, dès sa première consultation, un <b>identifiant permanent</b> - invisible à l'écran, mais encodé dans le QR de sa fiche imprimée. Il permet de retrouver directement le bon dossier d'une visite à l'autre, même sur un site différent ou lors d'une autre tournée, sans dépendre d'une orthographe exacte du nom.</p>
+      <ul>
+        <li><b>Nouvelle consultation "à froid" :</b> un identifiant est créé automatiquement.</li>
+        <li><b>Patient référé par un confrère :</b> l'identifiant est repris tel quel - la consultation du médecin qui reçoit le patient se rattache au même dossier.</li>
+        <li><b>« Reprendre ce dossier »</b> (depuis l'Historique patient) : reprend lui aussi le même identifiant.</li>
+        <li><b>Scanner le QR</b> d'une fiche déjà imprimée ouvre directement l'historique complet de ce patient, sans recherche à taper.</li>
+      </ul>
+      <div class="aide-note">Les consultations enregistrées avant l'ajout de cette fonctionnalité n'ont pas d'identifiant : elles restent consultables par la recherche nom/téléphone habituelle.</div>`},
 
     { show:true, titre:"Travailler hors connexion", corps:`
       <p>L'application est conçue pour le terrain : une fois chargée, elle <b>fonctionne sans internet</b>.</p>

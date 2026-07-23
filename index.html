@@ -2578,9 +2578,14 @@ function computeDashboardStats(){
     });
   }
 
+  // Taux de référencement : part des consultations orientées vers un confrère - un indicateur
+  // parlant pour un partenaire/bailleur (mesure la coordination entre praticiens sur le terrain).
+  const referes=rows.filter(r=>r.refere_vers_id).length;
+  const tauxReferencement=total?Math.round(referes/total*100):null;
+
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
-    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu };
+    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referes, tauxReferencement };
 }
 
 async function loadCollegues(siteId){
@@ -2616,7 +2621,7 @@ async function renderDashboard(){
   $("dashBody").innerHTML=LOADING_HTML;
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu } = S;
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, tauxReferencement } = S;
   const collegues = ME.role==="admin" ? [] : await loadCollegues();
   let referencesRecues=[];
   {
@@ -2635,6 +2640,7 @@ async function renderDashboard(){
   const ICON_TREND=`<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline>`;
   const ICON_USER=`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>`;
   const ICON_FLASK=`<path d="M10 2v7.31"></path><path d="M14 9.3V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.5 16h13"></path>`;
+  const ICON_REFER=`<circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>`;
   const svg=(paths,cls)=>`<svg class="${cls||""}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
   // Bandeau d'accueil, personnalisé et daté
@@ -2661,6 +2667,7 @@ async function renderDashboard(){
     ${statCard(ICON_TREND,"teal",semaine,"7 derniers jours")}
     ${statCard(ICON_USER,"blue",ageMoyen??"-","Âge moyen (ans)")}
     ${statCard(ICON_FLASK,"purple",explorations,"Explorations demandées")}
+    ${statCard(ICON_REFER,"red",tauxReferencement!=null?tauxReferencement+"%":"-","Taux de référencement")}
   </div>`;
 
   const cardOpen=(icon,title)=>`<div class="dash-card"><div class="dash-card-head">${svg(icon)}<span>${title}</span></div>`;
@@ -2909,6 +2916,7 @@ async function downloadReportPDF(){
       ["Âge moyen (ans)", S.ageMoyen??"-"],
       ["Explorations complémentaires demandées", String(S.explorations)],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
+      ["Taux de référencement (vers un confrère)", S.tauxReferencement!=null?`${S.tauxReferencement}% (${S.referes})`:"-"],
     ],
   });
   y=doc.lastAutoTable.finalY+10;
@@ -3032,6 +3040,7 @@ async function downloadReportWord(){
       ["Âge moyen (ans)", S.ageMoyen??"-"],
       ["Explorations complémentaires demandées", S.explorations],
       ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
+      ["Taux de référencement (vers un confrère)", S.tauxReferencement!=null?`${S.tauxReferencement}% (${S.referes})`:"-"],
     ]),
   ];
 

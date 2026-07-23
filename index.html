@@ -2875,18 +2875,74 @@ async function getCampagneEffectifs(campagneId){
   return { nbSites, counts };
 }
 
-// Capture l'image d'un graphique Chart.js actuellement affiché à l'écran (si disponible)
-function chartImage(canvasId){
-  try{
-    const c=$(canvasId);
-    if(!c) return null;
-    return { data:c.toDataURL("image/png",1.0), ratio: c.height/c.width }; // ratio réel, pour ne jamais déformer l'image
-  }catch(e){ return null; }
+// Régénère tous les graphiques du rapport dans des <canvas> détachés (jamais affichés),
+// plutôt que de capturer ceux du tableau de bord à l'écran : ainsi, un graphique manquant
+// à l'écran (onglet différent, filtre changé, chargement pas terminé) n'en prive jamais le
+// rapport, et le PDF comme le Word utilisent exactement les mêmes images.
+async function generateReportCharts(S){
+  if(typeof Chart==="undefined") return {};
+  applyChartDefaults();
+  const green=CHART_GREEN, orange=CHART_ORANGE, grid=CHART_GRID;
+  const images={};
+  const make=(key,config,w,h)=>{
+    const canvas=document.createElement("canvas");
+    canvas.width=w; canvas.height=h;
+    const chart=new Chart(canvas,{ ...config, options:{ ...config.options, responsive:false, animation:false } });
+    images[key]={ data:canvas.toDataURL("image/png",1.0), ratio:h/w };
+    chart.destroy();
+  };
+
+  if(S.total){
+    make("trend",{ type:"line", data:{ labels:S.trendLabels, datasets:[{ label:"Consultations", data:S.trendCounts,
+        borderColor:green, backgroundColor:"rgba(46,160,56,.14)", fill:true, tension:.35,
+        borderWidth:2.5, pointRadius:0, pointHoverRadius:5, pointBackgroundColor:green }] },
+      options:{ plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, x:{grid:{display:false}} } }
+    },900,420);
+
+    make("type",{ type:"bar", data:{ labels:["Médecin","Dentiste","Spécialiste"],
+        datasets:[{ data:[S.typeCounts.generaliste,S.typeCounts.dentiste,S.typeCounts.specialiste], backgroundColor:[green,orange,"#0E9F8A"], borderRadius:6, maxBarThickness:26 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    },900,320);
+  }
+
+  if(S.specialiteBreakdown.length){
+    make("specialite",{ type:"bar", data:{ labels:S.specialiteBreakdown.map(([l])=>l), datasets:[{ data:S.specialiteBreakdown.map(([,c])=>c), backgroundColor:chartColors(S.specialiteBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    },900,Math.max(260,S.specialiteBreakdown.length*70));
+  }
+
+  if(ME.role==="admin" && S.medDeliveredBreakdown.length){
+    make("medDelivered",{ type:"bar", data:{ labels:S.medDeliveredBreakdown.map(([l])=>l), datasets:[{ data:S.medDeliveredBreakdown.map(([,c])=>c), backgroundColor:chartColors(S.medDeliveredBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    },900,Math.max(260,S.medDeliveredBreakdown.length*70));
+  }
+
+  if(S.hommes+S.femmes){
+    make("sex",{ type:"doughnut", data:{ labels:["Féminin","Masculin"], datasets:[{ data:[S.femmes,S.hommes], backgroundColor:[orange,green], borderWidth:2, borderColor:"#fff", hoverOffset:6 }] },
+      options:{ cutout:"68%", plugins:{legend:{position:"bottom"}} }
+    },700,560);
+  }
+
+  if(S.hasAgeData){
+    make("age",{ type:"bar", data:{ labels:AGE_BRACKETS.map(bracketLabel),
+        datasets:[ {label:"Masculin",data:S.ageM.map(v=>-v),backgroundColor:green,borderRadius:3}, {label:"Féminin",data:S.ageF,backgroundColor:orange,borderRadius:3} ] },
+      options:{ indexAxis:"y", plugins:{ legend:{position:"bottom"}, tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label} : ${Math.abs(ctx.parsed.x)}`}} },
+        scales:{ x:{grid:{color:grid},ticks:{callback:v=>Math.abs(v),precision:0}}, y:{grid:{display:false}} } }
+    },900,Math.max(320,AGE_BRACKETS.length*60));
+  }
+
+  if(S.topDiag.length){
+    make("diag",{ type:"bar", data:{ labels:S.topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:S.topDiag.map(([,c])=>c), backgroundColor:chartColors(S.topDiag.length), borderRadius:6, maxBarThickness:22 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    },900,Math.max(260,S.topDiag.length*70));
+  }
+
+  return images;
 }
 
-// Charge une image locale (logo) en data URL via un <canvas> - même principe que chartImage().
-// Résout à null plutôt que de rejeter si l'image manque (ex. hors ligne, jamais mise en cache) :
-// le rapport doit rester généré même sans logo, jamais bloqué pour un simple visuel.
+// Charge une image locale (logo) en data URL via un <canvas>. Résout à null plutôt que de
+// rejeter si l'image manque (ex. hors ligne, jamais mise en cache) : le rapport doit rester
+// généré même sans logo, jamais bloqué pour un simple visuel.
 function loadImageDataURL(url){
   return new Promise(resolve=>{
     const img=new Image();
@@ -2930,6 +2986,7 @@ async function downloadReportPDF(){
   }
   $("pdfReportBtn").disabled=true; $("pdfReportBtn").textContent="Génération…";
   const S=computeDashboardStats();
+  const charts=await generateReportCharts(S);
   const { jsPDF }=window.jspdf;
   const doc=new jsPDF({ unit:"mm", format:"a4" });
   const pageW=doc.internal.pageSize.getWidth();
@@ -3028,9 +3085,10 @@ async function downloadReportPDF(){
     y=doc.lastAutoTable.finalY+10;
   }
 
-  // Graphiques (si actuellement affichés à l'écran)
-  const addChartImage=(canvasId,label)=>{
-    const chart=chartImage(canvasId);
+  // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
+  // présents dès qu'il y a des données, peu importe ce qui est affiché à l'écran.
+  const addChartImage=(key,label)=>{
+    const chart=charts[key];
     if(!chart) return;
     if(y>230){ doc.addPage(); y=20; }
     pdfSectionHeader(doc,margin,y,label,green); y+=6;
@@ -3044,12 +3102,13 @@ async function downloadReportPDF(){
     doc.addImage(chart.data,"PNG",margin,y,w,h);
     y+=h+9;
   };
-  addChartImage("dashTypeChart","Consultations par type de praticien");
-  addChartImage("dashSpecialiteChart","Détail par spécialité médicale");
-  addChartImage("dashSexChart","Répartition par sexe");
-  addChartImage("dashAgeChart","Pyramide des âges");
-  addChartImage("dashDiagChart","Pathologies les plus fréquentes");
-  addChartImage("dashMedDeliveredChart","Pharmacie - médicaments les plus délivrés");
+  addChartImage("trend","Évolution - 14 derniers jours");
+  addChartImage("type","Consultations par type de praticien");
+  addChartImage("specialite","Détail par spécialité médicale");
+  addChartImage("sex","Répartition par sexe");
+  addChartImage("age","Pyramide des âges");
+  addChartImage("diag","Pathologies les plus fréquentes");
+  addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
   // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
   if(S.topDiag.length){
@@ -3097,37 +3156,94 @@ async function downloadReportWord(){
     toast("Génération Word indisponible : bibliothèque non chargée. Vérifiez votre connexion et réessayez.",true);
     return;
   }
+  $("wordReportBtn").disabled=true; $("wordReportBtn").textContent="Génération…";
   const S=computeDashboardStats();
-  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, ImageRun, AlignmentType }=window.docx;
-  const { title, meta }=reportTitleLines(S);
+  const charts=await generateReportCharts(S); // mêmes images que le PDF - voir generateReportCharts
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, ImageRun,
+    AlignmentType, VerticalAlign, BorderStyle, Footer, PageNumber }=window.docx;
+
+  // Même palette (mêmes valeurs hex) que le PDF, pour un rendu jumeau entre les deux formats.
+  const GREEN="17763B", GREEN900="06441C", GOLD="F8B718", GOLD_DEEP="AA7B11",
+    TEAL="0E9F8A", BLUE="2E6FD8", RED="C0392B", PURPLE="7A4DD8";
+
+  const dataUrlToBytes=dataUrl=>{
+    const bin=atob(dataUrl.split(",")[1]);
+    const bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return bytes;
+  };
 
   const mkTable=(head,rows)=>new Table({
     width:{ size:100, type:WidthType.PERCENTAGE },
     rows:[
-      new TableRow({ children:head.map(h=>new TableCell({ shading:{fill:"2EA038"}, children:[new Paragraph({ children:[new TextRun({text:h,bold:true,color:"FFFFFF"})] })] })) }),
+      new TableRow({ children:head.map(h=>new TableCell({ shading:{fill:GREEN}, children:[new Paragraph({ children:[new TextRun({text:h,bold:true,color:"FFFFFF"})] })] })) }),
       ...rows.map(r=>new TableRow({ children:r.map(v=>new TableCell({ children:[new Paragraph(String(v))] })) })),
     ],
   });
 
-  const children=[
-    new Paragraph({ text:title, heading:HeadingLevel.HEADING_1 }),
-    ...meta.map((line,i)=>new Paragraph({ text:line, spacing:{after:i===meta.length-1?240:80} })),
+  // En-tête de section à liseré vertical coloré - même esprit que pdfSectionHeader().
+  const sectionHeading=text=>new Paragraph({
+    heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120},
+    border:{ left:{ style:BorderStyle.SINGLE, size:24, color:GREEN, space:6 } },
+    children:[ new TextRun({text}) ],
+  });
 
-    new Paragraph({ text:"Chiffres clés", heading:HeadingLevel.HEADING_2, spacing:{before:160,after:120} }),
-    mkTable(["Indicateur","Valeur"],[
-      [ME.role==="admin"?"Consultations au total":"Mes consultations", S.total],
-      ["Âge moyen (ans)", S.ageMoyen??"-"],
-      ["Explorations complémentaires demandées", S.explorations],
-      ["Femmes / Hommes", `${S.femmes} / ${S.hommes}`],
-      ["Taux de référencement (vers un confrère)", S.tauxReferencement!=null?`${S.tauxReferencement}% (${S.referes})`:"-"],
+  // Petite carte chiffrée colorée - équivalent Word de pdfKpiTile().
+  const kpiCell=(value,label,color)=>new TableCell({
+    shading:{fill:color}, verticalAlign:VerticalAlign.CENTER, margins:{top:200,bottom:200,left:120,right:120},
+    children:[
+      new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({text:String(value),color:"FFFFFF",bold:true,size:32})] }),
+      new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:40}, children:[new TextRun({text:label,color:"FFFFFF",size:15})] }),
+    ],
+  });
+  const kpiRow=tiles=>new Table({ width:{size:100,type:WidthType.PERCENTAGE}, rows:[new TableRow({ children:tiles.map(t=>kpiCell(t.value,t.label,t.color)) })] });
+
+  // ---------- Page de garde : même contenu que le PDF (bandeau, logo, cartes KPI) ----------
+  const campagneNom=S.campagneInfo?.nom;
+  const perimetre = ME.role==="admin"
+    ? (campagneNom?`${campagneNom}${S.campagneInfo.lieu?" · "+S.campagneInfo.lieu:""}` : "Toutes campagnes confondues")
+    : `Consultations de ${(ME.prenom||"")} ${(ME.nom||"")}`.trim();
+  const periode=S.campagneInfo&&(S.campagneInfo.date_debut||S.campagneInfo.date_fin)
+    ? ` · du ${fmtDate(S.campagneInfo.date_debut)} au ${fmtDate(S.campagneInfo.date_fin)}` : "";
+
+  const coverBand=new Table({
+    width:{size:100,type:WidthType.PERCENTAGE},
+    rows:[ new TableRow({ children:[ new TableCell({ shading:{fill:GREEN900}, margins:{top:260,bottom:260,left:260,right:260}, children:[
+      new Paragraph({ children:[new TextRun({text:"RAPPORT DE CAMPAGNE",color:GOLD,bold:true,size:18})] }),
+      new Paragraph({ spacing:{before:100}, children:[new TextRun({text:campagneNom||"Consultations AMSTC",color:"FFFFFF",bold:true,size:40})] }),
+      new Paragraph({ spacing:{before:100}, children:[new TextRun({text:perimetre+periode,color:"E6ECE8",size:21})] }),
+    ] }) ] }) ],
+  });
+
+  const children=[ coverBand, new Paragraph({text:"",spacing:{after:160}}) ];
+
+  const logo=await loadImageDataURL("./logo-horizontal.png");
+  if(logo){
+    const w=260, h=w*logo.ratio;
+    children.push(new Paragraph({ children:[new ImageRun({ data:dataUrlToBytes(logo.data), transformation:{width:w,height:h} })] }));
+  }
+  children.push(new Paragraph({ alignment:AlignmentType.RIGHT, spacing:{before:80,after:220}, children:[
+    new TextRun({ text:`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})} · Par ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(), color:"6E7872", size:16 }),
+  ] }));
+
+  children.push(
+    kpiRow([
+      { value:S.total, label:ME.role==="admin"?"Consultations au total":"Mes consultations", color:GREEN },
+      { value:S.ageMoyen??"-", label:"Âge moyen (ans)", color:BLUE },
+      { value:S.explorations, label:"Explorations demandées", color:PURPLE },
     ]),
-  ];
+    new Paragraph({text:"",spacing:{after:100}}),
+    kpiRow([
+      { value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes", color:TEAL },
+      { value:S.tauxReferencement!=null?S.tauxReferencement+"%":"-", label:"Taux de référencement vers un confrère", color:RED },
+    ]),
+  );
 
   // Détails de la campagne : sites et effectifs de praticiens alloués
   if(S.campagneInfo){
     const eff=await getCampagneEffectifs(S.campagneInfo.id);
     if(eff){
-      children.push(new Paragraph({ text:"Détails de la campagne", heading:HeadingLevel.HEADING_2, spacing:{before:200,after:120} }));
+      children.push(sectionHeading("Détails de la campagne"));
       children.push(mkTable(["Élément","Nombre"],[
         ["Sites rattachés", eff.nbSites],
         ["Médecins généralistes", eff.counts.generaliste],
@@ -3140,46 +3256,50 @@ async function downloadReportWord(){
 
   // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
-    children.push(new Paragraph({ text:"Consultations par jour", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(sectionHeading("Consultations par jour"));
     children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
   }
 
-  // Graphiques capturés en image, si actuellement affichés à l'écran
-  const addChartImage=(canvasId,label)=>{
-    const chart=chartImage(canvasId);
+  // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
+  // présents et strictement identiques à ceux du PDF.
+  const addChartImage=(key,label)=>{
+    const chart=charts[key];
     if(!chart) return;
-    const base64=chart.data.split(",")[1];
-    const bin=atob(base64);
-    const bytes=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
     // Même principe que pour le PDF : on respecte toujours la vraie proportion du graphique,
-    // plutôt qu'un format 520x230 identique et imposé à tous.
+    // plutôt qu'un format identique et imposé à tous.
     const maxW=520, maxH=280;
     let w=maxW, h=w*chart.ratio;
     if(h>maxH){ h=maxH; w=h/chart.ratio; }
-    children.push(new Paragraph({ text:label, heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
-    children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:bytes, transformation:{ width:w, height:h } })] }));
+    children.push(sectionHeading(label));
+    children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new ImageRun({ data:dataUrlToBytes(chart.data), transformation:{ width:w, height:h } })] }));
   };
-  addChartImage("dashTypeChart","Consultations par type de praticien");
-  addChartImage("dashSpecialiteChart","Détail par spécialité médicale");
-  addChartImage("dashSexChart","Répartition par sexe");
-  addChartImage("dashAgeChart","Pyramide des âges");
-  addChartImage("dashDiagChart","Pathologies les plus fréquentes");
-  addChartImage("dashMedDeliveredChart","Pharmacie - médicaments les plus délivrés");
+  addChartImage("trend","Évolution - 14 derniers jours");
+  addChartImage("type","Consultations par type de praticien");
+  addChartImage("specialite","Détail par spécialité médicale");
+  addChartImage("sex","Répartition par sexe");
+  addChartImage("age","Pyramide des âges");
+  addChartImage("diag","Pathologies les plus fréquentes");
+  addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
   if(S.topDiag.length){
-    children.push(new Paragraph({ text:"Détail - Pathologies les plus fréquentes", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(sectionHeading("Détail - Pathologies les plus fréquentes"));
     children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
   }
 
   if(S.siteStats.length){
-    children.push(new Paragraph({ text:"Statistiques par site", heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120} }));
+    children.push(sectionHeading("Statistiques par site"));
     children.push(mkTable(["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"],
       S.siteStats.map(s=>[s.nom,s.n,s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
   }
 
-  const doc=new Document({ sections:[{ children }] });
-  $("wordReportBtn").disabled=true; $("wordReportBtn").textContent="Génération…";
+  const footer=new Footer({ children:[ new Paragraph({ alignment:AlignmentType.CENTER, children:[
+    new TextRun({ text:"Consultations AMSTC · Page ", color:"8C968F", size:16 }),
+    new TextRun({ children:[PageNumber.CURRENT], color:"8C968F", size:16 }),
+    new TextRun({ text:" / ", color:"8C968F", size:16 }),
+    new TextRun({ children:[PageNumber.TOTAL_PAGES], color:"8C968F", size:16 }),
+  ] }) ] });
+
+  const doc=new Document({ sections:[{ footers:{ default:footer }, children }] });
   try{
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");

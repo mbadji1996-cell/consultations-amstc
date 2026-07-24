@@ -448,8 +448,8 @@
   .auth-legal a:hover{ color:var(--accent-text); text-decoration:underline; }
   .auth-legal span{ color:var(--line); }
 
-  /* ---------- PAGE D'ACCUEIL : barre d'onglets au-dessus de l'écran de connexion ----------
-     Se connecter (vue par défaut) / Découvrir l'AMSTC (lien externe) / Nos campagnes. */
+  /* ---------- PAGE D'ACCUEIL : barre au-dessus de l'écran de connexion ----------
+     Se connecter (révèle la carte de connexion) / Découvrir l'AMSTC (lien externe). */
   .landing-nav{ position:absolute; top:0; left:0; right:0; z-index:3;
     display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
     padding:14px 20px; background:rgba(3,20,10,.35); backdrop-filter:blur(3px); }
@@ -460,19 +460,6 @@
     padding:8px 14px; border-radius:var(--radius-full); text-decoration:none; transition:background .15s ease,color .15s ease; }
   .landing-nav-link:hover{ background:rgba(255,255,255,.12); color:#fff; }
   .landing-nav-link.active{ background:var(--gradient-gold); color:#3a2600; }
-
-  .auth-card-wide{ max-width:640px; max-height:min(600px,80vh); overflow-y:auto; }
-  @media(min-width:860px){ .auth-card-wide{ flex-basis:640px; } }
-  .campaigns-year{ margin-bottom:22px; }
-  .campaigns-year:last-child{ margin-bottom:0; }
-  .campaigns-year h3{ font-family:var(--font-display); font-size:15px; color:var(--heading);
-    margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
-  .campaign-entry{ padding:10px 0; border-bottom:1px solid var(--line); }
-  .campaign-entry:last-child{ border-bottom:none; }
-  .campaign-entry-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:3px; }
-  .campaign-entry-head b{ font-size:14.5px; }
-  .campaign-entry-meta{ font-size:12px; color:var(--muted); white-space:nowrap; }
-  .campaign-entry p{ font-size:13.5px; color:var(--muted); line-height:1.55; }
 
   /* ============================================================
      PATCH MODERNISATION
@@ -666,12 +653,11 @@
   <div class="landing-nav">
     <div class="landing-nav-brand"><img src="./icon.png" alt="AMSTC"> Consultations AMSTC</div>
     <div class="landing-nav-links">
-      <button class="landing-nav-link active" id="navLinkLogin" onclick="showAuthView('login')">Se connecter</button>
+      <button class="landing-nav-link active" onclick="showAuthView('login')">Se connecter</button>
       <a class="landing-nav-link" href="https://amstc.org" target="_blank" rel="noopener">Découvrir l'AMSTC</a>
-      <button class="landing-nav-link" id="navLinkCampagnes" onclick="showAuthView('campagnes')">Nos campagnes</button>
     </div>
   </div>
-  <div class="auth-wrap" id="authViewLogin">
+  <div class="auth-wrap">
     <div class="auth-hero">
       <div class="auth-hero-content">
         <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh"></div>
@@ -811,31 +797,6 @@
       <a href="https://amstc.org" target="_blank" rel="noopener">Site officiel de l'AMSTC</a>
     </div>
   </div>
-  </div>
-
-  <!-- Onglet "Nos campagnes" : historique par année, en lecture seule et sans connexion.
-       Contenu tenu à jour manuellement (aucune donnée patient, aucun accès base de données
-       impliqué) - complétez/ajoutez une <div class="campaigns-year"> par année. -->
-  <div class="auth-card auth-card-wide hidden" id="authViewCampagnes">
-    <h2>Nos campagnes</h2>
-    <p class="auth-sub">Historique de nos campagnes médico-sociales, année par année.</p>
-    <div class="campaigns-timeline">
-      <!-- EXEMPLE À REMPLACER : dupliquez ce bloc "campaigns-year" pour chaque année, et
-           "campaign-entry" pour chaque campagne de cette année-là. -->
-      <div class="campaigns-year">
-        <h3>2026</h3>
-        <div class="campaign-entry">
-          <div class="campaign-entry-head">
-            <b>Campagne exemple - à remplacer</b>
-            <span class="campaign-entry-meta">Lieu · N sites · dates</span>
-          </div>
-          <p>Décrivez ici en une ou deux phrases cette campagne (contexte, population touchée, résultats marquants).</p>
-        </div>
-      </div>
-    </div>
-    <p style="text-align:center;margin-top:18px">
-      <button class="link-btn" onclick="showAuthView('login')">← Retour à la connexion</button>
-    </p>
   </div>
 </div>
 
@@ -1407,21 +1368,14 @@ function showPending(){ $("authLoginCard").classList.remove("hidden"); $("pendin
 function showForgot(){ $("forgotBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
 function showResetPassword(){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); $("authLoginCard").classList.remove("hidden"); $("resetPasswordBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); }
 
-// Bascule entre les deux vues de la page d'accueil (avant connexion) : "Se connecter" et
-// "Nos campagnes". "Découvrir l'AMSTC" n'en fait pas partie - c'est un simple lien externe.
+// Révèle la carte de connexion - masquée par défaut sur l'écran d'accueil - au clic sur
+// "Se connecter" (barre de navigation ou bouton du hero).
 function showAuthView(view){
-  $("authViewLogin").classList.toggle("hidden", view!=="login");
-  $("authViewCampagnes").classList.toggle("hidden", view!=="campagnes");
-  $("navLinkLogin").classList.toggle("active", view==="login");
-  $("navLinkCampagnes").classList.toggle("active", view==="campagnes");
-  // La carte de connexion reste masquée sur l'écran d'accueil ; un clic sur
-  // "Se connecter" (nav ou bouton du hero) la révèle.
-  if(view==="login"){
-    const card=$("authLoginCard");
-    card.classList.remove("hidden");
-    if(window.matchMedia("(max-width:859px)").matches){
-      card.scrollIntoView({behavior:"smooth", block:"center"});
-    }
+  if(view!=="login") return;
+  const card=$("authLoginCard");
+  card.classList.remove("hidden");
+  if(window.matchMedia("(max-width:859px)").matches){
+    card.scrollIntoView({behavior:"smooth", block:"center"});
   }
 }
 

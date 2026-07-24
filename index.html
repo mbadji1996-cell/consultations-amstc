@@ -102,6 +102,14 @@
   .auth-hero-feature{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);
     backdrop-filter:blur(2px);padding:8px 13px;border-radius:var(--radius-full);font-size:12.5px;font-weight:600}
   .auth-hero-feature svg{width:15px;height:15px;flex-shrink:0}
+  /* Bouton "Se connecter" du hero : révèle la carte de connexion, masquée par
+     défaut pour laisser l'écran d'accueil respirer. */
+  .auth-hero-cta{display:inline-flex;align-items:center;gap:9px;margin-top:22px;padding:13px 26px;
+    background:var(--gradient-gold,linear-gradient(135deg,#F8B718,#e0a010));color:#3a2a00;
+    border:none;border-radius:var(--radius-full);font-size:15px;font-weight:800;cursor:pointer;
+    box-shadow:0 8px 22px rgba(248,183,24,.4);transition:transform .15s,box-shadow .15s}
+  .auth-hero-cta:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(248,183,24,.5)}
+  .auth-hero-cta svg{width:18px;height:18px}
   .auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);
     box-shadow:0 30px 70px rgba(0,0,0,.35),0 10px 26px rgba(0,0,0,.22);
     width:100%;max-width:400px;margin:0 auto;padding:32px 28px}
@@ -674,9 +682,13 @@
           <span class="auth-hero-feature"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg> Suivi pharmacie intégré</span>
           <span class="auth-hero-feature"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"></path><path d="M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10"></path></svg> Fonctionne hors connexion</span>
         </div>
+        <button class="auth-hero-cta" id="heroLoginBtn" onclick="showAuthView('login')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+          Se connecter
+        </button>
       </div>
     </div>
-  <div class="auth-card">
+  <div class="auth-card hidden" id="authLoginCard">
     <div class="brand" style="flex-direction:column;text-align:center;gap:10px">
       <img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh" style="width:100%;max-width:280px;height:auto">
     </div>
@@ -1391,9 +1403,9 @@ function updateSync(){
    ===================================================================== */
 function showLogin(){ $("loginBox").classList.remove("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
 function showSignup(){ $("signupBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
-function showPending(){ $("pendingBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
+function showPending(){ $("authLoginCard").classList.remove("hidden"); $("pendingBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
 function showForgot(){ $("forgotBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("resetPasswordBox").classList.add("hidden"); }
-function showResetPassword(){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); $("resetPasswordBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); }
+function showResetPassword(){ $("authScreen").classList.remove("hidden"); $("appScreen").classList.add("hidden"); $("authLoginCard").classList.remove("hidden"); $("resetPasswordBox").classList.remove("hidden"); $("loginBox").classList.add("hidden"); $("signupBox").classList.add("hidden"); $("pendingBox").classList.add("hidden"); $("forgotBox").classList.add("hidden"); }
 
 // Bascule entre les deux vues de la page d'accueil (avant connexion) : "Se connecter" et
 // "Nos campagnes". "Découvrir l'AMSTC" n'en fait pas partie - c'est un simple lien externe.
@@ -1402,6 +1414,15 @@ function showAuthView(view){
   $("authViewCampagnes").classList.toggle("hidden", view!=="campagnes");
   $("navLinkLogin").classList.toggle("active", view==="login");
   $("navLinkCampagnes").classList.toggle("active", view==="campagnes");
+  // La carte de connexion reste masquée sur l'écran d'accueil ; un clic sur
+  // "Se connecter" (nav ou bouton du hero) la révèle.
+  if(view==="login"){
+    const card=$("authLoginCard");
+    card.classList.remove("hidden");
+    if(window.matchMedia("(max-width:859px)").matches){
+      card.scrollIntoView({behavior:"smooth", block:"center"});
+    }
+  }
 }
 
 async function doForgotPassword(){

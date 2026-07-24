@@ -3,7 +3,7 @@
    caches obsolètes chez les utilisateurs (voir aussi la stratégie réseau
    ci-dessous, qui limite déjà fortement le risque de rester bloqué sur une
    ancienne version même sans y penser). */
-const CACHE_VERSION = "amstc-v68";
+const CACHE_VERSION = "amstc-v69";
 // Toutes les bibliothèques CDN utilisées par l'app y figurent : sans elles, un utilisateur
 // qui rouvre l'app hors connexion sans les avoir jamais chargées perdrait les graphiques et
 // surtout les exports PDF/Word et l'import/export Excel (fonctions clés sur le terrain).
@@ -55,8 +55,10 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return; // ne jamais mettre en cache les requêtes API Supabase
 
   const url = new URL(req.url);
-  // Les appels vers Supabase passent toujours par le réseau (jamais de cache)
-  if (url.hostname.endsWith(".supabase.co")) return;
+  // Les appels vers Supabase passent toujours par le réseau (jamais de cache) -
+  // y compris l'instance auto-hébergée : mettre en cache des réponses API
+  // exposerait des données patients dans le cache du navigateur.
+  if (url.hostname.endsWith(".supabase.co") || url.hostname === "api.consultations-amstc.org") return;
 
   // Ressources versionnées (CDN) : cache d'abord, réseau en secours - rapide, et sûr puisque
   // leur URL ne change jamais de contenu.

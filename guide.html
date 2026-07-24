@@ -872,8 +872,8 @@
     }
     try {
       const sbGuide = supabase.createClient(
-        "https://krhvnuhwqlsdfecodmrp.supabase.co",
-        "sb_publishable_9j8QN9IEROZen5ecVuWwkQ_V3ySs699"
+        "https://api.consultations-amstc.org",
+        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc4NDg5NjQ0MCwiZXhwIjo0OTQwNTcwMDQwLCJyb2xlIjoiYW5vbiJ9.xmHY7yUCit7vU4lyFqEH02r6xTGWWSaLm1RwhMkbm3A"
       );
       const { data: { session } } = await sbGuide.auth.getSession();
       if (session) {

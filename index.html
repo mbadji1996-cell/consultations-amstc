@@ -3818,6 +3818,10 @@ function exportCSV(){
    ADMIN - GESTION DES UTILISATEURS
    ===================================================================== */
 async function loadUsers(){
+  // Sans cette remise à zéro, une recherche tapée lors d'une précédente visite de cet
+  // onglet restait active silencieusement : la liste semblait vide ("Aucun praticien ne
+  // correspond...") alors qu'il suffisait de revenir sur l'onglet Utilisateurs pour la voir.
+  if($("userSearch")) $("userSearch").value="";
   $("usersBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("profiles").select("*").order("created_at",{ascending:false});
   if(error){ alertIn("usersAlert","err","Chargement impossible : "+errMsg(error)); return; }

@@ -915,6 +915,7 @@
           <option value="generaliste">Médecin</option>
           <option value="dentiste">Dentiste</option>
           <option value="specialiste">Spécialiste</option>
+          <option value="sage_femme">Sage-femme</option>
         </select>
       </div>
       <div class="hidden" id="roleBadgeWrap" style="background:var(--green-50);color:var(--heading);border-radius:var(--radius-sm);padding:10px 12px;font-size:13.5px;margin-bottom:16px"></div>
@@ -1840,7 +1841,7 @@ async function confirmSiteSelection(){
 /* =====================================================================
    ONGLETS SELON LE RÔLE
    ===================================================================== */
-const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",pharmacien:"Pharmacien",infirmier:"Infirmier"};
+const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",sage_femme:"Sage-femme",pharmacien:"Pharmacien",infirmier:"Infirmier"};
 // Libellé affiché (badge, cartes collègues, panneau admin) - dérivé du domaine d'exercice
 // réel (specialite), fusionné avec lui depuis "Mon profil" : plus de champ "profession"
 // distinct qui pouvait afficher un intitulé sans rapport avec le formulaire réellement utilisé.
@@ -1932,6 +1933,7 @@ function buildSpecialiteFieldsHtml(prefix,currentSpecialite,currentDetail){
         <option value="generaliste"${currentSpecialite==="generaliste"?" selected":""}>Médecin</option>
         <option value="dentiste"${currentSpecialite==="dentiste"?" selected":""}>Dentiste</option>
         <option value="specialiste"${currentSpecialite==="specialiste"?" selected":""}>Spécialiste</option>
+        <option value="sage_femme"${currentSpecialite==="sage_femme"?" selected":""}>Sage-femme</option>
         <option value="infirmier"${currentSpecialite==="infirmier"?" selected":""}>Infirmier</option>
         <option value="pharmacien"${currentSpecialite==="pharmacien"?" selected":""}>Pharmacien</option>
       </select>
@@ -2029,7 +2031,7 @@ function buildTabs(){
     // L'admin, chef d'équipe, choisit à chaque fois le type de consultation qu'il réalise.
     $("typePickerWrap").classList.remove("hidden");
     $("roleBadgeWrap").classList.add("hidden");
-    $("c_type").innerHTML = ["generaliste","dentiste","specialiste"].map(k=>`<option value="${k}">${SPEC_LABELS[k]}</option>`).join("");
+    $("c_type").innerHTML = ["generaliste","dentiste","specialiste","sage_femme"].map(k=>`<option value="${k}">${SPEC_LABELS[k]}</option>`).join("");
     $("c_type").value="generaliste";
     // L'admin choisit la spécialité dans la liste à chaque consultation (menu déroulant, pas de texte libre).
     $("c_specialite_med").classList.add("hidden");
@@ -2622,6 +2624,7 @@ function renderList(){
     let typeLine;
     if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
     else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else if(r.type_consultation==="sage_femme") typeLine="Consultation Sage-femme";
     else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière - référé au médecin";
     else typeLine="Consultation Médecine Générale";
     const motifsLine=r.motifs?`<div class="rec-diag"><b>Motifs :</b> ${esc(r.motifs)}</div>`:"";
@@ -2698,6 +2701,7 @@ function renderPatientHistoryResults(data,error){
     let typeLine;
     if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+esc(r.acte_dentaire):"");
     else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+esc(r.specialite_medicale):" spécialisée");
+    else if(r.type_consultation==="sage_femme") typeLine="Consultation Sage-femme";
     else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière - référé au médecin";
     else typeLine="Consultation Médecine Générale";
     const jsStr=v=>(v||"").toString().replace(/'/g,"\\'");
@@ -2752,6 +2756,7 @@ async function renderFicheAndPrint(r){
   let typeLine;
   if(r.type_consultation==="dentiste") typeLine="Consultation dentaire"+(r.acte_dentaire?" - "+r.acte_dentaire:"");
   else if(r.type_consultation==="specialiste") typeLine="Consultation"+(r.specialite_medicale?" "+r.specialite_medicale:" spécialisée");
+  else if(r.type_consultation==="sage_femme") typeLine="Consultation Sage-femme";
   else if(r.type_consultation==="infirmier") typeLine="Prise en charge infirmière";
   else typeLine="Consultation médecine générale";
 
@@ -2950,7 +2955,7 @@ function computeDashboardStats(){
 
   // Répartition par type de praticien - nuance importante : dentiste et généraliste partagent
   // le même formulaire de saisie, mais leurs données sont comptées séparément ici.
-  const typeCounts={generaliste:0,dentiste:0,specialiste:0,infirmier:0};
+  const typeCounts={generaliste:0,dentiste:0,specialiste:0,sage_femme:0,infirmier:0};
   rows.forEach(r=>{ const t=r.type_consultation||"generaliste"; if(typeCounts[t]!==undefined) typeCounts[t]++; });
 
   // Détail par spécialité médicale précise (cardiologie, gynécologie…), pour les consultations "spécialiste"
@@ -3189,8 +3194,8 @@ async function renderDashboard(){
     killChart("type");
     CHARTS.type=new Chart($("dashTypeChart"),{
       type:"bar",
-      data:{ labels:["Médecin","Dentiste","Spécialiste","Infirmier"],
-        datasets:[{ data:[typeCounts.generaliste,typeCounts.dentiste,typeCounts.specialiste,typeCounts.infirmier], backgroundColor:[green,orange,"#0E9F8A","#7A4DD8"], borderRadius:6, maxBarThickness:26 }] },
+      data:{ labels:["Médecin","Dentiste","Spécialiste","Sage-femme","Infirmier"],
+        datasets:[{ data:[typeCounts.generaliste,typeCounts.dentiste,typeCounts.specialiste,typeCounts.sage_femme,typeCounts.infirmier], backgroundColor:[green,orange,"#0E9F8A","#C2417F","#7A4DD8"], borderRadius:6, maxBarThickness:26 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -3299,7 +3304,7 @@ async function getEffectifs(campagneId){
   let q=sb.from("profiles").select("specialite").eq("actif",true).eq("role","agent");
   if(campagneId) q=q.eq("campagne_id",campagneId);
   const {data}=await q;
-  const counts={generaliste:0,dentiste:0,specialiste:0,infirmier:0,pharmacien:0};
+  const counts={generaliste:0,dentiste:0,specialiste:0,sage_femme:0,infirmier:0,pharmacien:0};
   (data||[]).forEach(p=>{ const s=p.specialite||"generaliste"; if(counts[s]!==undefined) counts[s]++; });
   const nbSites = campagneId ? SITES.filter(s=>s.campagne_id===campagneId).length : SITES.length;
   const total=Object.values(counts).reduce((a,b)=>a+b,0);
@@ -3324,8 +3329,8 @@ async function generateReportCharts(S){
   };
 
   if(S.total){
-    make("type",{ type:"bar", data:{ labels:["Médecin","Dentiste","Spécialiste","Infirmier"],
-        datasets:[{ data:[S.typeCounts.generaliste,S.typeCounts.dentiste,S.typeCounts.specialiste,S.typeCounts.infirmier], backgroundColor:[green,orange,"#0E9F8A","#7A4DD8"], borderRadius:6, maxBarThickness:26 }] },
+    make("type",{ type:"bar", data:{ labels:["Médecin","Dentiste","Spécialiste","Sage-femme","Infirmier"],
+        datasets:[{ data:[S.typeCounts.generaliste,S.typeCounts.dentiste,S.typeCounts.specialiste,S.typeCounts.sage_femme,S.typeCounts.infirmier], backgroundColor:[green,orange,"#0E9F8A","#C2417F","#7A4DD8"], borderRadius:6, maxBarThickness:26 }] },
       options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
     },900,320);
   }
@@ -3491,6 +3496,7 @@ async function downloadReportPDF(){
       ["Médecins généralistes", String(eff.counts.generaliste), pct(eff.counts.generaliste)],
       ["Dentistes", String(eff.counts.dentiste), pct(eff.counts.dentiste)],
       ["Spécialistes", String(eff.counts.specialiste), pct(eff.counts.specialiste)],
+      ["Sages-femmes", String(eff.counts.sage_femme), pct(eff.counts.sage_femme)],
       ["Infirmiers", String(eff.counts.infirmier), pct(eff.counts.infirmier)],
       ["Pharmaciens", String(eff.counts.pharmacien), pct(eff.counts.pharmacien)],
       ["Total agents mobilisés", String(eff.total), "100%"],
@@ -3697,6 +3703,7 @@ async function downloadReportWord(){
       ["Médecins généralistes", eff.counts.generaliste, pct(eff.counts.generaliste)],
       ["Dentistes", eff.counts.dentiste, pct(eff.counts.dentiste)],
       ["Spécialistes", eff.counts.specialiste, pct(eff.counts.specialiste)],
+      ["Sages-femmes", eff.counts.sage_femme, pct(eff.counts.sage_femme)],
       ["Infirmiers", eff.counts.infirmier, pct(eff.counts.infirmier)],
       ["Pharmaciens", eff.counts.pharmacien, pct(eff.counts.pharmacien)],
       ["Total agents mobilisés", eff.total, "100%"],
@@ -3893,6 +3900,7 @@ function renderUsers(){
               <option value="generaliste"${spec==="generaliste"?" selected":""}>Médecin</option>
               <option value="dentiste"${spec==="dentiste"?" selected":""}>Dentiste</option>
               <option value="specialiste"${spec==="specialiste"?" selected":""}>Spécialiste</option>
+              <option value="sage_femme"${spec==="sage_femme"?" selected":""}>Sage-femme</option>
               <option value="infirmier"${spec==="infirmier"?" selected":""}>Infirmier</option>
               <option value="pharmacien"${spec==="pharmacien"?" selected":""}>Pharmacien</option>
             </select>

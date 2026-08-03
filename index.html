@@ -352,7 +352,11 @@
     .navtab span:not(.navtab-icon){display:none;font-size:11px;font-weight:600}
     .navtab svg{width:21px;height:21px}
     .navtab-icon{width:34px;height:34px;border-radius:11px}
-    .content{margin-left:120px;padding:24px 32px 32px;max-width:1180px}
+    /* width:calc(...) indispensable : la règle de base pose width:100%, et la marge
+       gauche de 120px (la place de la barre latérale fixe) s'AJOUTE à cette largeur -
+       sans ce retrait, la page déborde de 120px vers la droite et fait apparaître une
+       barre de défilement horizontale. */
+    .content{margin-left:120px;padding:24px 32px 32px;max-width:1180px;width:calc(100% - 120px)}
     .stat-row{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
     .dash-card canvas{max-height:340px}
     #panel-list .content, .table-wrap table{font-size:14px}
@@ -360,6 +364,33 @@
     #dashBody{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
     #usersBody{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-items:start}
     #dashBody .dash-greeting,#dashBody .stat-row,#dashBody .empty{grid-column:1 / -1}
+    /* Message "aucun résultat" / spinner : sinon ils n'occuperaient qu'une colonne. */
+    #usersBody>.empty,#usersBody>.loading-state{grid-column:1 / -1}
+  }
+
+  /* ---------- ÉCRAN LARGE : on exploite la place restante à droite ----------
+     Sur un écran de bureau, une fiche de consultation occupait seule toute la
+     largeur (et la liste des praticiens s'arrêtait à 3 par ligne) alors qu'une
+     large bande restait vide à droite. On densifie donc ces deux listes - et
+     elles seules : les écrans de SAISIE et de LECTURE (formulaire, guide,
+     historique patient…) gardent une largeur de lecture confortable, au-delà
+     de laquelle l'œil peine à suivre les lignes. */
+  @media(min-width:1100px){
+    #listBody{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    /* En grille, la marge basse ferait double emploi avec le "gap" ; et les
+       boutons doivent rester alignés en bas de carte même quand la fiche
+       voisine, plus fournie, est plus haute. */
+    #listBody .rec{margin-bottom:0;display:flex;flex-direction:column}
+    #listBody .rec-foot{margin-top:auto;padding-top:10px}
+    #listBody>.empty{grid-column:1 / -1}
+  }
+
+  @media(min-width:1400px){
+    .content{max-width:1560px}
+    .panel{max-width:1180px}
+    #panel-list,#panel-users,#panel-dashboard,#panel-campagnes{max-width:none}
+    #usersBody{grid-template-columns:repeat(4,1fr)}
+    #listBody{grid-template-columns:repeat(3,1fr)}
   }
 
   /* ============================================================

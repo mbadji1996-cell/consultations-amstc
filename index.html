@@ -1767,9 +1767,11 @@ function setupSiteSelectScreen(){
   const currentSiteId=ME.site_id||"";
   if(ME.campagne_id){
     const c=CAMPAGNES.find(x=>x.id===ME.campagne_id);
-    const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id);
+    // Le site déjà attribué reste proposé même si sa campagne a depuis été archivée - pour ne
+    // jamais bloquer complètement la connexion d'un agent en attendant une réaffectation.
+    const opts=SITES.filter(s=>s.campagne_id===ME.campagne_id && (siteIsUsable(s)||s.id===currentSiteId));
     wrap.innerHTML=`
-      <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"-")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}</div>
+      <div class="alert alert-info" style="margin-bottom:14px">Campagne assignée : <b>${esc(c?c.nom:"-")}</b>${c&&c.lieu?" · "+esc(c.lieu):""}${c&&c.archivee?" (archivée)":""}</div>
       <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
           ${opts.map(s=>`<option value="${s.id}"${s.id===currentSiteId?" selected":""}>${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
@@ -1779,7 +1781,7 @@ function setupSiteSelectScreen(){
       <div class="field"><label for="siteSelectCampagne">Campagne <span class="req">*</span></label>
         <select id="siteSelectCampagne" onchange="onSiteSelectCampagneChange()">
           <option value="">- Sélectionner une campagne -</option>
-          ${CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}</option>`).join("")}
+          ${CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}${c.archivee?" (archivée)":""}</option>`).join("")}
         </select></div>
       <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput" disabled><option value="">- Choisissez d'abord une campagne -</option></select></div>`;
@@ -1787,7 +1789,7 @@ function setupSiteSelectScreen(){
     wrap.innerHTML=`
       <div class="field"><label for="siteSelectInput">Site <span class="req">*</span></label>
         <select id="siteSelectInput"><option value="">- Sélectionner votre site -</option>
-          ${SITES.map(s=>`<option value="${s.id}"${s.id===currentSiteId?" selected":""}>${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
+          ${SITES.filter(s=>siteIsUsable(s)||s.id===currentSiteId).map(s=>`<option value="${s.id}"${s.id===currentSiteId?" selected":""}>${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("")}
         </select></div>`;
   }
 }
@@ -1796,7 +1798,7 @@ function onSiteSelectCampagneChange(){
   const cid=$("siteSelectCampagne").value;
   const sel=$("siteSelectInput");
   if(!cid){ sel.disabled=true; sel.innerHTML=`<option value="">- Choisissez d'abord une campagne -</option>`; return; }
-  const opts=SITES.filter(s=>s.campagne_id===cid);
+  const opts=SITES.filter(s=>s.campagne_id===cid && siteIsUsable(s));
   sel.disabled=false;
   sel.innerHTML=`<option value="">- Sélectionner votre site -</option>`+
     opts.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
@@ -2024,7 +2026,7 @@ function buildTabs(){
   $("c_site_wrap").classList.toggle("hidden", ME.role!=="admin");
   if(ME.role==="admin"){
     $("c_site").innerHTML=`<option value="">- Sélectionner un site -</option>`+
-      SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
+      SITES.filter(siteIsUsable).map(s=>`<option value="${s.id}">${esc(s.nom)}${s.ville?" · "+esc(s.ville):""}</option>`).join("");
   }
 
   if(ME.role==="admin"){
@@ -3854,7 +3856,9 @@ function renderUsers(){
     : USERS_CACHE;
   // le site proposé pour un utilisateur est limité aux sites de SA campagne (ou aux sites sans campagne, si "Aucune")
   const siteOptsForCampagne=(campagneId,selectedSiteId)=>{
-    const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null));
+    // Le site déjà assigné reste visible même s'il n'est plus "utilisable" (site désactivé ou
+    // campagne archivée depuis) - seuls les NOUVEAUX choix se limitent aux sites disponibles.
+    const pool=SITES.filter(s=>(s.campagne_id||null)===(campagneId||null) && (siteIsUsable(s)||s.id===selectedSiteId));
     return `<option value="">- Aucun -</option>`+pool.map(s=>`<option value="${s.id}"${s.id===selectedSiteId?" selected":""}>${esc(s.nom)}</option>`).join("");
   };
   if(!data.length){
@@ -4629,7 +4633,22 @@ async function deleteStockItem(id){
 function campagneName(id){ const c=CAMPAGNES.find(x=>x.id===id); return c?c.nom:null; }
 function campagneOpts(selectedId){
   return `<option value="">- Aucune -</option>`+
-    CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===selectedId?" selected":""}>${esc(c.nom)}</option>`).join("");
+    CAMPAGNES.map(c=>`<option value="${c.id}"${c.id===selectedId?" selected":""}>${esc(c.nom)}${c.archivee?" (archivée)":""}</option>`).join("");
+}
+
+// Un site n'est proposé pour du NOUVEAU travail (assigner un utilisateur, démarrer une
+// consultation, se connecter) que s'il est lui-même actif ET que sa campagne (s'il en a une)
+// n'est pas archivée - purement calculé à l'affichage, jamais écrit en base : désarchiver la
+// campagne rend aussitôt ses sites de nouveau disponibles, sans rien à faire manuellement.
+// Ne touche jamais aux consultations déjà enregistrées, ni à leur historique - seuls les
+// sélecteurs de site pour du travail à venir sont concernés.
+function siteIsUsable(site){
+  if(site.actif===false) return false;
+  if(site.campagne_id){
+    const camp=CAMPAGNES.find(c=>c.id===site.campagne_id);
+    if(camp && camp.archivee) return false;
+  }
+  return true;
 }
 function fmtDate(d){ return d?new Date(d+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}):"-"; }
 
@@ -5062,6 +5081,7 @@ function renderAide(){
         <li><b>Créer une campagne :</b> volet dépliable en haut (nom, lieu, dates de début et fin).</li>
         <li><b>Détails :</b> modifier nom, lieu, dates, statut (Active / Terminée) ; <b>Archiver</b> déplace la campagne dans l'onglet Archives (désarchivable, ou supprimable définitivement depuis là).</li>
         <li><b>Sites :</b> ajout, renommage, activation et suppression directement sous chaque campagne ; les <b>sites autonomes</b> (sans campagne) ont leur propre bloc.</li>
+        <li><b>Site indisponible pour un nouveau choix :</b> un site marqué "Inactif", ou rattaché à une campagne archivée, n'apparaît plus dans les listes de choix (nouvelle consultation, affectation d'un utilisateur, écran de connexion). Il reste visible et gérable ici dans l'onglet Campagnes, et un agent déjà affecté à ce site le garde sans interruption. Désarchiver la campagne (ou réactiver le site) le rend de nouveau choisissable immédiatement. Cela ne touche jamais aux consultations déjà enregistrées : elles restent consultables et ne disparaissent que si on les supprime manuellement.</li>
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - seul habilité à modifier le stock de ce site.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
       </ul>`},

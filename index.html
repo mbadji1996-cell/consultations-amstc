@@ -744,8 +744,8 @@
         <div class="field"><label for="suNom">Nom</label><input type="text" id="suNom"></div>
       </div>
       <div class="field"><label for="suEmail">Adresse e-mail</label><input type="email" id="suEmail" autocomplete="email"></div>
-      <div class="field"><label for="suTelephone">Numéro de téléphone (WhatsApp)</label>
-        <input type="tel" id="suTelephone" autocomplete="tel" placeholder="Ex : 77 123 45 67"></div>
+      <div class="field"><label for="suTelephone">Numéro WhatsApp <span class="req">*</span></label>
+        <input type="tel" id="suTelephone" autocomplete="tel" placeholder="Ex : 77 123 45 67" required></div>
       <!-- Domaine d'exercice (même composant que Mon profil) - rempli au démarrage par buildSpecialiteFieldsHtml("su") -->
       <div id="suSpecialiteWrap"></div>
       <div class="field"><label for="suNiveau">Niveau d'étude</label>
@@ -874,7 +874,7 @@
       </div>
       <div class="field"><label for="profile_prenom">Prénom</label><input type="text" id="profile_prenom"></div>
       <div class="field"><label for="profile_nom">Nom</label><input type="text" id="profile_nom"></div>
-      <div class="field"><label for="profile_telephone">Téléphone</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
+      <div class="field"><label for="profile_telephone">Numéro WhatsApp</label><input type="tel" id="profile_telephone" placeholder="Ex : 77 123 45 67"></div>
       <div id="profileSpecialiteSection" class="hidden">
         <div id="profileSpecialiteWrap"></div>
         <p class="rec-meta" style="margin:-6px 0 16px">Détermine votre formulaire et vos onglets - effectif à votre <b>prochaine connexion</b>, pas immédiatement.</p>
@@ -923,6 +923,9 @@
       <legend>Avant de commencer</legend>
       <div id="siteSelectAlert"></div>
       <div id="onboardSpecialiteWrap" class="hidden"></div>
+      <!-- Numéro WhatsApp : demandé ici uniquement s'il manque au profil (cas typique :
+           inscription via Google, qui ne passe pas par le formulaire d'inscription) -->
+      <div id="onboardTelephoneWrap" class="hidden"></div>
       <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
         Sélectionnez le site où vous exercez aujourd'hui. Ce choix vous sera de nouveau
         demandé à chaque connexion.
@@ -1333,6 +1336,11 @@ function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert a
   if(type==="ok") setTimeout(()=>el.innerHTML="",3500); }
 function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function siteName(id){ const s=SITES.find(x=>x.id===id); return s?s.nom:"-"; }
+// Numéro de téléphone plausible : au moins 7 chiffres une fois retirés les
+// séparateurs usuels (espaces, tirets, points, parenthèses, "+" international).
+// Volontairement permissif sur le format - les numéros sont saisis tantôt en
+// local (77 123 45 67), tantôt en international (+221 77 123 45 67).
+function validTelephone(t){ return ((t||"").match(/\d/g)||[]).length>=7 && !/[a-zA-Z]/.test(t||""); }
 
 // Avatar rond réutilisable (photo ou initiale à défaut) - une seule définition pour la carte
 // collègue, la carte utilisateur (admin) et tout futur endroit qui en aurait besoin.
@@ -1450,7 +1458,11 @@ async function doSignup(){
   const email=$("suEmail").value.trim(), pass=$("suPass").value;
   const telephone=$("suTelephone").value.trim();
   const niveau_etude=$("suNiveau").value;
-  if(!prenom||!nom||!email||!pass||!telephone||!niveau_etude){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  if(!prenom||!nom||!email||!pass||!niveau_etude){ alertIn("signupAlert","err","Tous les champs sont requis."); return; }
+  // Le numéro WhatsApp est exigé avec son propre message : c'est le canal de contact
+  // principal des équipes sur le terrain (validation des comptes, coordination).
+  if(!telephone){ alertIn("signupAlert","err","Le numéro WhatsApp est requis."); return; }
+  if(!validTelephone(telephone)){ alertIn("signupAlert","err","Numéro WhatsApp invalide : indiquez un numéro d'au moins 7 chiffres (ex : 77 123 45 67)."); return; }
   // Domaine d'exercice (+ sous-spécialité si Spécialiste) : mêmes règles que partout ailleurs.
   const specFields=readSpecialiteFields("su","signupAlert");
   if(!specFields) return;
@@ -1794,6 +1806,18 @@ function setupSiteSelectScreen(){
       ${buildSpecialiteFieldsHtml("onboard","","")}`;
   }
 
+  // Numéro WhatsApp obligatoire s'il manque au profil (inscription via Google : le
+  // formulaire d'inscription, qui l'exige, n'a pas été rempli). Demandé une seule
+  // fois - une fois enregistré, ce bloc ne réapparaît plus.
+  const needsTelephone = !ME.telephone;
+  const telWrap=$("onboardTelephoneWrap");
+  telWrap.classList.toggle("hidden", !needsTelephone);
+  if(needsTelephone){
+    telWrap.innerHTML=`
+      <div class="field"><label for="onboardTelephone">Numéro WhatsApp <span class="req">*</span></label>
+        <input type="tel" id="onboardTelephone" autocomplete="tel" placeholder="Ex : 77 123 45 67"></div>`;
+  }
+
   const wrap=$("siteSelectDynamic");
   const currentSiteId=ME.site_id||"";
   if(ME.campagne_id){
@@ -1850,6 +1874,13 @@ async function confirmSiteSelection(){
     if(!specFields) return;
     payload.specialite=specFields.specialite;
     payload.specialite_detail=specFields.specialite_detail;
+  }
+  // Numéro WhatsApp : exigé ici s'il manque au profil (voir setupSiteSelectScreen).
+  if(!ME.telephone){
+    const tel=($("onboardTelephone")?.value||"").trim();
+    if(!tel){ alertIn("siteSelectAlert","err","Le numéro WhatsApp est requis."); return; }
+    if(!validTelephone(tel)){ alertIn("siteSelectAlert","err","Numéro WhatsApp invalide : indiquez un numéro d'au moins 7 chiffres (ex : 77 123 45 67)."); return; }
+    payload.telephone=tel;
   }
   const site_id=$("siteSelectInput")?.value;
   if(!site_id){ alertIn("siteSelectAlert","err","Veuillez sélectionner un site."); return; }
@@ -3883,7 +3914,7 @@ async function setPharmacienChef(siteId,pharmacienId){
 function renderUsers(){
   const q=($("userSearch")?.value||"").toLowerCase().trim();
   const data=q
-    ? USERS_CACHE.filter(u=>`${u.prenom||""} ${u.nom||""} ${u.email||""}`.toLowerCase().includes(q))
+    ? USERS_CACHE.filter(u=>`${u.prenom||""} ${u.nom||""} ${u.email||""} ${u.telephone||""}`.toLowerCase().includes(q))
     : USERS_CACHE;
   // le site proposé pour un utilisateur est limité aux sites de SA campagne (ou aux sites sans campagne, si "Aucune")
   const siteOptsForCampagne=(campagneId,selectedSiteId)=>{
@@ -3920,6 +3951,7 @@ function renderUsers(){
       </div>
 
       <div id="userEdit_${u.id}" class="${OPEN_USER_EDITS.has(u.id)?"":"hidden"}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+        <div class="rec-meta" style="margin-bottom:2px">${u.telephone?`WhatsApp : ${esc(u.telephone)}`:`<span style="color:var(--danger)">Téléphone non renseigné</span>`}</div>
         <div class="rec-meta" style="margin-bottom:10px">${esc(u.email||"")}</div>
         ${u.super_admin?`<div class="alert alert-info" style="margin-bottom:12px;display:flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Compte protégé - le rôle et le statut de ce compte ne peuvent pas être modifiés, y compris par un autre administrateur.</div>`:""}
         <div class="row2" style="gap:10px">

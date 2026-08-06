@@ -5439,8 +5439,16 @@ sb.auth.onAuthStateChange((event)=>{
   if(!nav||!ecran) return;
   const sync=()=>ecran.style.setProperty("--landing-nav-h",nav.offsetHeight+"px");
   sync();
-  if(window.ResizeObserver) new ResizeObserver(sync).observe(nav);
-  else window.addEventListener("resize",sync);
+  // "resize" couvre le changement de taille de fenêtre et la rotation du téléphone -
+  // c'est là que la barre passe de une à deux lignes, donc le cas qui compte vraiment.
+  window.addEventListener("resize",sync);
+  // Les polices arrivent après le premier calcul et changent la hauteur de la barre sans
+  // aucun redimensionnement : on remesure une fois qu'elles sont chargées.
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(sync).catch(()=>{});
+  // Filet supplémentaire pour tout autre changement de hauteur (contenu de la barre
+  // modifié plus tard). La référence est volontairement conservée : un ResizeObserver
+  // auquel plus rien ne fait référence peut être libéré par le ramasse-miettes.
+  if(window.ResizeObserver){ window.__landingNavRO=new ResizeObserver(sync); window.__landingNavRO.observe(nav); }
 })();
 
 /* ---------- diaporama de la page d'accueil ---------- */

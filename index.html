@@ -80,7 +80,14 @@
      et le bloc de bienvenue est posé directement sur la photo, sans encadré propre. */
   /* flex-direction:column : avec le seul .auth-wrap le rendu est identique,
      et cela permet d'empiler dessous le bandeau Événement phare. */
-  #authScreen{position:relative;overflow:hidden;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  /* padding-top : réserve la hauteur de la barre de navigation, qui est en position
+     absolue (elle doit se superposer à la photo de fond). Sans cette réserve, elle
+     recouvre le haut du contenu dès que la page dépasse la hauteur de l'écran - ce qui
+     arrive avec le bandeau "Événement phare", et masquait alors le logo AMSTC. La
+     hauteur réelle est mesurée en JS (--landing-nav-h) car la barre passe sur deux
+     lignes sur mobile ; la valeur de repli sert avant l'exécution du script. */
+  #authScreen{position:relative;overflow:hidden;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding-top:var(--landing-nav-h,64px)}
   .auth-bg-slides{position:absolute;inset:0;z-index:0}
   .auth-hero-slide{position:absolute;inset:0;background-size:cover;background-position:center;
     opacity:0;transition:opacity 1.4s ease}
@@ -694,8 +701,13 @@
     <div class="auth-hero">
       <div class="auth-hero-content">
         <div class="auth-hero-badge"><img src="./logo-horizontal.png" alt="AMSTC - Association Médico-Sociale des Talibés Cheikh"></div>
-        <h1>Bienvenue sur la plateforme de gestion des consultations de l'Association Médico-Sociale des Talibés Cheikh (AMSTC)</h1>
-        <p>Un outil pensé pour le terrain, conçu pour accompagner nos équipes médicales au plus près des patients.</p>
+        <!-- Le nom complet de l'association est porté par le logo juste au-dessus (et par
+             son texte alternatif) : le répéter mot pour mot dans le titre allongeait
+             celui-ci à 115 caractères sans rien apprendre au lecteur. Il reste présent en
+             toutes lettres dans le sous-titre, pour les moteurs de recherche et les
+             visiteurs qui ne connaissent pas encore le sigle. -->
+        <h1>Bienvenue sur la plateforme de gestion des consultations</h1>
+        <p>L'outil de terrain de l'Association Médico-Sociale des Talibés Cheikh (AMSTC), conçu pour accompagner nos équipes médicales au plus près des patients.</p>
         <div class="auth-hero-features">
           <span class="auth-hero-feature"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg> Multi-sites &amp; multi-campagnes</span>
           <span class="auth-hero-feature"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"></path><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"></line></svg> Suivi pharmacie intégré</span>
@@ -861,7 +873,6 @@
     .ep-stat{background:var(--white);border-radius:14px;padding:18px 12px;text-align:center;box-shadow:var(--shadow);}
     .ep-stat b{display:block;font-family:var(--font-display);font-size:1.8rem;color:var(--green-900);line-height:1.1;}
     .ep-stat span{font-size:0.8rem;color:var(--muted);}
-    .ep-note{font-size:0.76rem;color:rgba(255,255,255,0.8);margin-top:10px;}
     @media(max-width:560px){.ep-card{padding:24px 18px;}.ep-cd-box{min-width:60px;}}
   </style>
   <section id="evenement-phare">
@@ -874,14 +885,17 @@
       <a class="ep-link" id="epLink" style="display:none;" href="#" target="_blank" rel="noopener">En savoir plus →</a>
     </div>
     <div class="ep-stats" id="epStats"></div>
-    <p class="ep-note" id="epNote"></p>
   </section>
   <script>
   // Bloc autonome, identique à celui d'amstc.org à la source près.
   (function(){
     const EP_SOURCE = 'https://amstc.org/content/evenement-phare.json';
-    const EP_POLL_MS = 120000; // les chiffres republiés via le CMS arrivent seuls
-    let epData = null, epTick = null;
+    const EP_POLL_MS = 120000; // contenu CMS et chiffres relus à ce rythme
+    // Chiffres du direct : agrégats publics de la campagne liée, calculés
+    // par la fonction stats_campagne_publique de cette instance (voir
+    // stats_campagne_publique.sql à la racine du dépôt) - aucune donnée
+    // individuelle ne transite, et la clé anon est celle de l'application.
+    let epData = null, epTick = null, epStatsData = null;
 
     const epEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const epNum = n => Number(n || 0).toLocaleString('fr-FR');
@@ -891,6 +905,14 @@
       const debut = Date.parse(epData.date_debut || '');
       const fin = Date.parse(epData.date_fin || '');
       const now = Date.now();
+
+      // Retrait de l'accueil : à la date choisie dans le CMS, sinon 7 jours
+      // après la clôture. La section disparaît alors d'elle-même.
+      const retrait = Date.parse(epData.date_retrait || '') || (isNaN(fin) ? NaN : fin + 7 * 86400000);
+      if (!isNaN(retrait) && now > retrait) {
+        document.getElementById('evenement-phare').style.display = 'none';
+        return;
+      }
 
       // 'block' obligatoire : le CSS masque la section (display:none), et un
       // style inline vide ne surclasse pas une règle de feuille de style.
@@ -931,10 +953,43 @@
         lien.style.display = '';
       } else lien.style.display = 'none';
 
-      document.getElementById('epStats').innerHTML = (epData.stats || []).map(s => `
-        <div class="ep-stat"><b>${epNum(s.valeur)}</b><span>${epEsc(s.label)}</span></div>
-      `).join('');
-      document.getElementById('epNote').textContent = epData.note || '';
+      epRenderStats();
+    }
+
+    // Quatre agrégats venant des données réelles de la campagne liée ;
+    // grille vide tant qu'aucune campagne n'est liée ou que la fonction
+    // SQL ne répond pas.
+    function epRenderStats(){
+      const grid = document.getElementById('epStats');
+      if (!epStatsData) { grid.innerHTML = ''; return; }
+      const d = epStatsData;
+      const total = (d.hommes || 0) + (d.femmes || 0);
+      const repartition = total
+        ? Math.round(d.hommes / total * 100) + '% / ' + Math.round(d.femmes / total * 100) + '%'
+        : '-';
+      grid.innerHTML = [
+        [epNum(d.malades), 'Malades consultés'],
+        [d.age_moyen != null ? d.age_moyen + ' ans' : '-', 'Âge moyen'],
+        [repartition, 'Hommes / Femmes'],
+        [epNum(d.ordonnances), 'Ordonnances délivrées'],
+      ].map(([v, l]) => `<div class="ep-stat"><b>${epEsc(v)}</b><span>${epEsc(l)}</span></div>`).join('');
+    }
+
+    async function epChargerStats(){
+      epStatsData = null;
+      if (!epData || !epData.campagne_id) return;
+      try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/stats_campagne_publique', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ p_campagne_id: epData.campagne_id }),
+        });
+        if (res.ok) epStatsData = await res.json();
+      } catch (e) { /* grille simplement vide */ }
     }
 
     function epCompteARebours(debut){
@@ -963,7 +1018,12 @@
       } catch (e) { /* bandeau simplement absent si le contenu ne charge pas */ }
     }
 
-    epCharger();
+    // Différé à DOMContentLoaded : SUPABASE_URL / SUPABASE_ANON_KEY sont
+    // déclarés dans le script principal, plus bas dans la page - un appel
+    // immédiat partirait avant leur définition et perdrait les chiffres du
+    // premier affichage.
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', epCharger);
+    else epCharger();
     setInterval(epCharger, EP_POLL_MS);
   })();
   </script>
@@ -4944,6 +5004,13 @@ function campagneCardHtml(c){
     </div>
 
     <div id="campDetails_${c.id}" class="${OPEN_CAMP_DETAILS.has(c.id)?"":"hidden"}" style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+      <!-- ID technique : à coller dans le CMS d'amstc.org (Événement phare >
+           Campagne consultations liée) pour brancher les chiffres du direct. -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="rec-meta" style="margin:0">ID pour le bandeau Événement phare :</span>
+        <code style="font-size:11.5px;background:var(--green-50);padding:3px 8px;border-radius:6px;word-break:break-all">${c.id}</code>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${c.id}').then(()=>toast('ID de la campagne copié'))">Copier l'ID</button>
+      </div>
       <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
       <div class="row2" style="gap:8px;margin-bottom:8px">
         <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="padding:7px 9px;font-size:13.5px">
@@ -5357,6 +5424,24 @@ function isRecoveryUrl(){
 sb.auth.onAuthStateChange((event)=>{
   if(event==="PASSWORD_RECOVERY"){ IS_RECOVERY=true; showResetPassword(); }
 });
+
+/* ---------- hauteur réelle de la barre de navigation de l'accueil ----------
+   Cette barre est en position absolue (elle se superpose à la photo de fond) et ne
+   réserve donc pas sa place. Tant que le contenu tenait dans l'écran, le centrage
+   vertical le repoussait dessous ; depuis l'ajout du bandeau "Événement phare", la page
+   dépasse la hauteur de l'écran et la barre recouvrait le haut du contenu (le logo
+   AMSTC disparaissait sous la barre : 24 px sur ordinateur portable, 72 px sur mobile,
+   où la barre passe sur deux lignes). On mesure donc sa hauteur réelle plutôt que de la
+   figer, pour qu'elle reste juste si son contenu change ou si les polices se chargent
+   plus tard. */
+(function(){
+  const nav=document.querySelector(".landing-nav"), ecran=document.getElementById("authScreen");
+  if(!nav||!ecran) return;
+  const sync=()=>ecran.style.setProperty("--landing-nav-h",nav.offsetHeight+"px");
+  sync();
+  if(window.ResizeObserver) new ResizeObserver(sync).observe(nav);
+  else window.addEventListener("resize",sync);
+})();
 
 /* ---------- diaporama de la page d'accueil ---------- */
 (function(){

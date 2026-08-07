@@ -132,9 +132,14 @@
     box-shadow:0 30px 70px rgba(0,0,0,.35),0 10px 26px rgba(0,0,0,.22);
     width:100%;max-width:400px;margin:0 auto;padding:32px 28px}
   @media(min-width:860px){
-    .auth-wrap{flex-direction:row;align-items:center;gap:48px;padding:40px}
+    /* Le retrait horizontal (20px) doit rester identique à celui du bandeau Événement
+       phare juste en dessous, sinon le bloc de bienvenue et la carte de l'événement ne
+       commencent pas sur la même verticale. Auparavant, les 40px d'ici s'ajoutaient aux
+       20px de .auth-hero-content : le hero était décalé de 40px vers la droite par
+       rapport au bandeau. Les deux conteneurs ayant la même largeur maximale (1080px),
+       un retrait identique suffit à les aligner des deux côtés. */
+    .auth-wrap{flex-direction:row;align-items:center;gap:48px;padding:40px 20px}
     .auth-hero{flex:1.15}
-    .auth-hero-content{padding:0 20px}
     .auth-hero h1{font-size:26px}
     .auth-card{flex:0 0 400px;max-width:420px;margin:0}
   }

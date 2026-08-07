@@ -97,9 +97,14 @@
   .auth-wrap{position:relative;z-index:1;width:100%;max-width:1080px;display:flex;flex-direction:column;gap:28px;padding:28px 20px}
   .auth-hero{color:#fff;display:flex;align-items:center}
   .auth-hero-content{width:100%}
-  .auth-hero-badge{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:14px;
-    padding:10px 16px;margin-bottom:18px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
-  .auth-hero-badge img{height:38px;width:auto;display:block}
+  /* Logo posé directement sur la photo, sans encadré blanc. */
+  .auth-hero-badge{display:inline-flex;align-items:center;justify-content:center;margin-bottom:18px}
+  /* brightness(0) écrase d'abord toutes les couleurs en noir, invert(1) les repasse en
+     blanc : le logo devient une silhouette blanche uniforme, quelles que soient ses
+     couleurs d'origine (pas besoin d'un second fichier image à maintenir). L'ombre
+     portée le garde lisible quand la photo de fond est claire à cet endroit. */
+  .auth-hero-badge img{height:46px;width:auto;display:block;
+    filter:brightness(0) invert(1) drop-shadow(0 2px 6px rgba(0,0,0,.45))}
   .auth-hero h1{font-size:21px;font-weight:800;line-height:1.28;margin-bottom:10px;max-width:520px;letter-spacing:-.3px}
   .auth-hero p{font-size:13.5px;opacity:.94;line-height:1.62;max-width:480px;margin-bottom:18px}
   .auth-hero-features{display:flex;flex-wrap:wrap;gap:9px}
@@ -858,8 +863,13 @@
        Masqué si inactif ou si le fichier ne charge pas. -->
   <style>
     #evenement-phare{display:none;position:relative;z-index:1;width:100%;max-width:1080px;padding:0 20px 40px;}
+    /* Ombre portée dédiée, et non var(--shadow-lg) : cette variable est calibrée pour des
+       cartes posées sur le fond clair de l'application (vert à 7% d'opacité), donc
+       totalement invisible ici, sur une photo sombre. Les trois couches donnent le relief :
+       un contact net, une diffusion large, et un liseré clair sur l'arête haute. */
     .ep-card{position:relative;overflow:hidden;border-radius:18px;padding:32px 34px;color:var(--white);
-      background:var(--gradient-brand-rich);box-shadow:var(--shadow-lg);}
+      background:var(--gradient-brand-rich);
+      box-shadow:0 2px 6px rgba(0,0,0,.22), 0 18px 42px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.10);}
     .ep-card::after{content:"";position:absolute;right:-70px;bottom:-70px;width:230px;height:230px;border-radius:50%;background:rgba(255,255,255,0.06);}
     .ep-eyebrow{font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;color:var(--gold);display:flex;align-items:center;gap:9px;margin-bottom:12px;}
     .ep-eyebrow .ep-dot{width:9px;height:9px;border-radius:50%;background:var(--gold);flex-shrink:0;}

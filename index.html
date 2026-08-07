@@ -921,6 +921,17 @@
       document.getElementById('evenement-phare').style.display = 'block';
       document.getElementById('epTitle').textContent = epData.titre;
 
+      // Image de fond choisie dans le CMS d'amstc.org : son chemin relatif
+      // ("/assets/uploads/...") vise amstc.org, pas ce site - on l'absolutise.
+      const carte = document.querySelector('#evenement-phare .ep-card');
+      if (epData.image) {
+        const brut = String(epData.image);
+        const urlImage = (/^https?:/i.test(brut) ? brut : 'https://amstc.org' + (brut.startsWith('/') ? brut : '/' + brut)).replace(/"/g, '%22');
+        carte.style.background = 'linear-gradient(100deg, rgba(6,68,28,0.96) 0%, rgba(8,74,32,0.88) 45%, rgba(23,118,59,0.55) 100%), url("' + urlImage + '") center/cover no-repeat';
+      } else {
+        carte.style.background = '';
+      }
+
       const eyebrow = document.getElementById('epEyebrow');
       const eyebrowText = document.getElementById('epEyebrowText');
       const sub = document.getElementById('epSub');

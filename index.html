@@ -1520,7 +1520,17 @@ const SITE_CONFIRMED_KEY = "amstc_site_confirmed"; // sessionStorage - RG4 (site
 const PROFILE_CACHE_KEY = "amstc_profile_cache";
 const SITES_CACHE_KEY = "amstc_sites_cache";
 const CAMPAGNES_CACHE_KEY = "amstc_campagnes_cache";
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Session en sessionStorage (et non localStorage, le défaut) : fermer
+// l'onglet déconnecte réellement - demande explicite, un compte étant
+// resté ouvert après fermeture de la page sur un poste partagé. La
+// déconnexion après 30 min d'inactivité (plus bas) reste en place.
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: window.sessionStorage },
+});
+
+// Purge les sessions déjà enregistrées en localStorage par l'ancienne
+// configuration : sans cela, elles resteraient valides indéfiniment.
+try{ localStorage.removeItem("sb-api-auth-token"); localStorage.removeItem("sb-api-auth-token-user"); }catch{}
 
 /* ---------- Mode sombre ----------
    L'amorçage (avant le premier rendu, tout en haut du <head>) a déjà posé data-theme="dark"

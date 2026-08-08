@@ -5069,6 +5069,7 @@ function campagneCardHtml(c){
       <div class="actions" style="margin:8px 0 14px">
         <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
         <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
+        <button class="btn btn-ghost btn-sm" onclick="bilanCampagnePdf('${c.id}',this)">Bilan PDF</button>
         ${c.archivee
           ? `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',false)">Désarchiver</button>
              <button class="btn btn-danger btn-sm" onclick="deleteCampagne('${c.id}')">Supprimer définitivement</button>`
@@ -5129,6 +5130,95 @@ function viewCampagneStats(id){
 async function reloadCampagnes(){
   const {data}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false,nullsFirst:false});
   CAMPAGNES=data||[];
+}
+
+/* ---------- Bilan PDF d'une campagne (réservé à l'onglet admin) ----------
+   Récapitulatif A4 pour partenaires et bailleurs : totaux, âge moyen,
+   répartition des sexes, ordonnances, et détail par site. */
+async function bilanCampagnePdf(id, btn){
+  const c = CAMPAGNES.find(x => x.id === id);
+  if(!c){ toast("Campagne introuvable", true); return; }
+  const sitesCampagne = SITES.filter(s => s.campagne_id === id);
+  if(sitesCampagne.length === 0){ toast("Cette campagne n'a aucun site : rien à totaliser", true); return; }
+
+  if(btn) btn.disabled = true;
+  try {
+    const idsSites = sitesCampagne.map(s => s.id);
+    const {data, error} = await sb.from("consultations")
+      .select("id,patient_id,sexe,age,medicaments,site_id")
+      .in("site_id", idsSites).limit(10000);
+    if(error){ toast("Lecture impossible : " + errMsg(error), true); return; }
+    const rows = data || [];
+
+    const patients = new Set(rows.map(r => r.patient_id || r.id)).size;
+    const ages = rows.map(r => r.age).filter(a => typeof a === "number" && a >= 0 && a <= 120);
+    const ageMoyen = ages.length ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : null;
+    const hommes = rows.filter(r => r.sexe === "M").length;
+    const femmes = rows.filter(r => r.sexe === "F").length;
+    const ordonnances = rows.filter(r => Array.isArray(r.medicaments) && r.medicaments.length > 0).length;
+
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF({unit: "mm", format: "a4"});
+    const W = 210;
+    doc.setFillColor(6, 68, 28); doc.rect(0, 0, W, 34, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15);
+    doc.text("BILAN DE CAMPAGNE", 14, 15);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+    doc.text("AMSTC - Association Médico-Sociale des Talibés Cheikh", 14, 23);
+    doc.setFontSize(8);
+    doc.text("Généré le " + new Date().toLocaleDateString("fr-FR", {day: "numeric", month: "long", year: "numeric"}), W - 14, 23, {align: "right"});
+
+    let y = 46;
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text(c.nom, 14, y); y += 7;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 100, 100);
+    const periode = (c.date_debut || c.date_fin) ? (fmtDate(c.date_debut) + " - " + fmtDate(c.date_fin)) : "Dates non renseignées";
+    doc.text([c.lieu, periode].filter(Boolean).join(" · "), 14, y); y += 10;
+
+    // Quatre indicateurs en tuiles
+    const tuiles = [
+      [String(patients), "Malades consultés"],
+      [ageMoyen != null ? ageMoyen + " ans" : "-", "Âge moyen"],
+      [(hommes + femmes) ? Math.round(hommes / (hommes + femmes) * 100) + "% H / " + Math.round(femmes / (hommes + femmes) * 100) + "% F" : "-", "Répartition des sexes"],
+      [String(ordonnances), "Ordonnances délivrées"],
+    ];
+    const tw = (W - 28 - 3 * 6) / 4;
+    tuiles.forEach(([v, l], i) => {
+      const x = 14 + i * (tw + 6);
+      doc.setFillColor(243, 247, 243); doc.roundedRect(x, y, tw, 24, 2, 2, "F");
+      doc.setTextColor(6, 68, 28); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+      doc.text(v, x + tw / 2, y + 11, {align: "center"});
+      doc.setTextColor(100, 110, 100); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+      doc.text(l, x + tw / 2, y + 19, {align: "center"});
+    });
+    y += 34;
+
+    // Détail par site
+    const parSite = sitesCampagne.map(s => {
+      const rs = rows.filter(r => r.site_id === s.id);
+      const ords = rs.filter(r => Array.isArray(r.medicaments) && r.medicaments.length > 0).length;
+      return [s.nom, String(rs.length), String(rs.filter(r => r.sexe === "M").length),
+              String(rs.filter(r => r.sexe === "F").length), String(ords)];
+    });
+    doc.autoTable({
+      startY: y,
+      head: [["Site", "Consultations", "Hommes", "Femmes", "Ordonnances"]],
+      body: parSite,
+      styles: {fontSize: 9, cellPadding: 2.5},
+      headStyles: {fillColor: [6, 68, 28]},
+      margin: {left: 14, right: 14},
+    });
+
+    doc.setTextColor(140, 150, 143); doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+    doc.text("Données agrégées et anonymes - plateforme consultations-amstc.org", W / 2, 287, {align: "center"});
+
+    const slug = c.nom.toLowerCase().normalize("NFD").split("").filter(ch => { const cc = ch.charCodeAt(0); return cc < 0x300 || cc > 0x36f; }).join("").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    doc.save("bilan-" + (slug || "campagne") + ".pdf");
+  } finally {
+    if(btn) btn.disabled = false;
+  }
 }
 
 async function addCampagne(btn){

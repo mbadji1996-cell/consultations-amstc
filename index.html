@@ -1044,6 +1044,7 @@
         const res = await fetch(EP_SOURCE + '?t=' + Date.now(), { cache: 'no-store' });
         if (!res.ok) return;
         epData = await res.json();
+        await epChargerStats(); // les chiffres AVANT le rendu, comme sur amstc.org
         epRender();
       } catch (e) { /* bandeau simplement absent si le contenu ne charge pas */ }
     }

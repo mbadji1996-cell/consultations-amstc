@@ -2592,7 +2592,7 @@ async function saveInfirmierIntake(){
   $("intakeSaveBtn").disabled=true;
   let confirmMsg="Patient référé au médecin.";
   if(navigator.onLine){
-    const {error}=await sb.from("consultations").insert(rec);
+    const {error}=await insererConsultation(rec);
     $("intakeSaveBtn").disabled=false;
     if(error){
       const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
@@ -2835,7 +2835,7 @@ async function saveConsultation(){
   $("saveBtn").disabled=true;
   let confirmMsg="Consultation enregistrée.";
   if(navigator.onLine){
-    const {error}=await sb.from("consultations").insert(rec);
+    const {error}=await insererConsultation(rec);
     $("saveBtn").disabled=false;
     if(error){ // bascule en file d'attente si l'envoi échoue
       const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
@@ -2852,13 +2852,43 @@ async function saveConsultation(){
   alertIn("formAlert","ok",confirmMsg);
 }
 
+// Un réseau saturé - le cas de Tivaouane pendant le Gamou - ne fait PAS
+// passer navigator.onLine à false : la requête part et reste simplement
+// en attente, parfois plusieurs minutes, bouton d'enregistrement bloqué.
+// On borne donc l'attente : au-delà, on considère l'envoi échoué et on
+// bascule en file d'attente, comme pour un échec réseau ordinaire. Si la
+// requête finit malgré tout par aboutir, le dédoublonnage sur l'id (plus
+// bas) rattrape la ligne au lieu de la créer en double.
+const DELAI_ENVOI_MS = 12000;
+
+async function insererConsultation(rec){
+  let minuteur;
+  const expiration = new Promise(resolve => {
+    minuteur = setTimeout(() => resolve({ error:{ message:"Délai d'envoi dépassé", _delaiDepasse:true } }), DELAI_ENVOI_MS);
+  });
+  try {
+    return await Promise.race([ sb.from("consultations").insert(rec), expiration ]);
+  } catch(e) {
+    return { error:{ message:String(e&&e.message||e) } };
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+let flushEnCours=false;
+
 async function flushQueue(){
   let q=getQueue(); if(!q.length||!navigator.onLine) return;
+  // Sans ce verrou, la relance périodique et un refreshData simultané
+  // enverraient deux fois les mêmes lignes.
+  if(flushEnCours) return;
+  flushEnCours=true;
+  try{
   const remaining=[];
   let sentCount=0, recoveredCount=0;
   for(const item of q){
     const {_local,...rec}=item;
-    const {error}=await sb.from("consultations").insert(rec);
+    const {error}=await insererConsultation(rec);
     if(!error){ sentCount++; continue; }
     // Une violation de clé unique sur l'id signifie que cette consultation a DÉJÀ été
     // enregistrée lors d'une tentative précédente (l'envoi avait réussi, seule la
@@ -2871,6 +2901,7 @@ async function flushQueue(){
   setQueue(remaining);
   const total=sentCount+recoveredCount;
   if(total) toast(total>1?`${total} consultations synchronisées`:"Consultation synchronisée");
+  } finally { flushEnCours=false; }
 }
 
 function resetForm(){
@@ -5519,6 +5550,19 @@ document.addEventListener("keydown",e=>{
   if(!$("menuPop").classList.contains("hidden")) $("menuPop").classList.add("hidden");
 });
 window.addEventListener("online",async()=>{ updateSync(); await refreshData(); });
+
+// Relance périodique de la file d'attente. L'évènement "online" ne suffit
+// pas : sur un réseau saturé, le navigateur n'est jamais passé "hors
+// ligne", il n'y a donc aucun retour en ligne à signaler, et des
+// consultations pourraient attendre la fin de la journée.
+setInterval(()=>{ if(navigator.onLine && getQueue().length) flushQueue(); }, 30000);
+
+// Fermer l'onglet ne perd rien (la file est en localStorage), mais elle
+// n'est lisible que sur CET appareil : si personne ne rouvre la page, les
+// consultations en attente ne partent jamais. D'où l'avertissement.
+window.addEventListener("beforeunload",(ev)=>{
+  if(getQueue().length){ ev.preventDefault(); ev.returnValue=""; }
+});
 window.addEventListener("offline",updateSync);
 
 /* ---------- déconnexion automatique après inactivité ----------

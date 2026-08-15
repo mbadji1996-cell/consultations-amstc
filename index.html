@@ -889,7 +889,13 @@
        cartes posées sur le fond clair de l'application (vert à 7% d'opacité), donc
        totalement invisible ici, sur une photo sombre. Les trois couches donnent le relief :
        un contact net, une diffusion large, et un liseré clair sur l'arête haute. */
-    .ep-card{position:relative;overflow:hidden;border-radius:18px;padding:20px 26px;color:var(--white);
+    /* ATTENTION - ne pas réintroduire var(--white) dans ce bloc : en mode sombre cette
+       variable devient #182019 (une SURFACE sombre, pas la couleur blanche). Cet encart
+       est toujours une carte vert foncé posée sur une photo, quel que soit le thème :
+       son texte et ses pastilles doivent donc être d'un blanc littéral. Utiliser
+       var(--white) rendait le titre et les chiffres du compte à rebours noirs sur fond
+       vert foncé chez les utilisateurs en mode sombre. */
+    .ep-card{position:relative;overflow:hidden;border-radius:18px;padding:20px 26px;color:#fff;
       background:var(--gradient-brand-rich);
       box-shadow:0 2px 6px rgba(0,0,0,.22), 0 18px 42px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.10);}
     .ep-card::after{content:"";position:absolute;right:-70px;bottom:-70px;width:230px;height:230px;border-radius:50%;background:rgba(255,255,255,0.06);}
@@ -897,21 +903,25 @@
     .ep-eyebrow .ep-dot{width:9px;height:9px;border-radius:50%;background:var(--gold);flex-shrink:0;}
     .ep-eyebrow.live .ep-dot{background:#FF5A5A;animation:ep-pulse 1.4s ease-in-out infinite;}
     @keyframes ep-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,90,90,0.55);}50%{box-shadow:0 0 0 8px rgba(255,90,90,0);}}
-    .ep-title{font-family:var(--font-display);font-size:clamp(1.15rem,2.4vw,1.6rem);line-height:1.2;margin:0 0 6px;color:var(--white);}
+    .ep-title{font-family:var(--font-display);font-size:clamp(1.15rem,2.4vw,1.6rem);line-height:1.2;margin:0 0 6px;color:#fff;}
     .ep-sub{max-width:560px;font-size:0.9rem;color:rgba(255,255,255,0.85);margin:0 0 12px;}
     .ep-countdown{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
     .ep-cd-box{min-width:60px;text-align:center;background:rgba(0,0,0,0.28);border-radius:10px;padding:7px 8px;}
-    .ep-cd-box b{display:block;font-family:var(--font-display);font-size:1.3rem;line-height:1;color:var(--white);}
+    .ep-cd-box b{display:block;font-family:var(--font-display);font-size:1.3rem;line-height:1;color:#fff;}
     .ep-cd-box span{font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.75);}
     .ep-phases{display:flex;gap:10px;flex-wrap:wrap;}
     .ep-phase{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;font-size:0.78rem;font-weight:600;
       background:rgba(255,255,255,0.14);color:rgba(255,255,255,0.92);}
-    .ep-phase.encours{background:var(--white);color:var(--green-900);}
+    .ep-phase.encours{background:#fff;color:var(--green-900);}
     .ep-link{display:inline-block;margin-top:16px;font-weight:700;color:var(--gold);}
     .ep-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px;}
-    .ep-stat{background:var(--white);border-radius:12px;padding:10px 10px;text-align:center;box-shadow:var(--shadow);}
+    /* Pastilles de chiffres : toujours blanches sur la photo, donc couleurs fixes elles
+       aussi. var(--muted) vire au gris clair en mode sombre et deviendrait illisible sur
+       ces pastilles restées blanches ; var(--green-900), lui, ne change pas selon le
+       thème et peut être utilisé tel quel. */
+    .ep-stat{background:#fff;border-radius:12px;padding:10px 10px;text-align:center;box-shadow:var(--shadow);}
     .ep-stat b{display:block;font-family:var(--font-display);font-size:1.4rem;color:var(--green-900);line-height:1.1;}
-    .ep-stat span{font-size:0.76rem;color:var(--muted);}
+    .ep-stat span{font-size:0.76rem;color:#5f6b62;}
     @media(max-width:560px){.ep-card{padding:24px 18px;}.ep-cd-box{min-width:60px;}}
   </style>
   <section id="evenement-phare">

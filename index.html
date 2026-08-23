@@ -1462,7 +1462,13 @@
         <fieldset>
           <legend>Stock par site</legend>
           <div class="field"><label for="pharmaAdminStockSite">Site</label>
-            <select id="pharmaAdminStockSite" onchange="loadPharmaAdminStock()"></select></div>
+            <select id="pharmaAdminStockSite" onchange="onAdminStockSiteChange()"></select></div>
+          <fieldset style="margin-bottom:14px"><legend>Importer depuis Excel</legend>
+            <p class="rec-meta" style="margin-bottom:10px">Colonnes attendues : Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte. Les lignes correspondant à un article déjà en stock sur ce site vous seront présentées une par une pour choisir quoi en faire.</p>
+            <button class="btn btn-ghost btn-sm" onclick="downloadStockTemplate()">Télécharger le modèle</button>
+            <input type="file" id="astockImportFile" accept=".xlsx,.xls,.csv" style="margin-top:10px;display:block" onchange="handleStockImportFile(event)">
+            <div id="astockImportPreview" class="hidden" style="margin-top:14px"></div>
+          </fieldset>
           <fieldset style="margin-bottom:14px"><legend>Ajouter un article à ce site</legend>
             <div class="row2">
               <div class="field"><label for="astock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="astock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
@@ -4877,7 +4883,7 @@ let STOCK_IMPORT_ROWS=[]; // lignes en attente de décision (nouvelles + conflit
 async function handleStockImportFile(evt){
   const file=evt.target.files[0]; if(!file) return;
   const siteId=currentStockSiteId();
-  if(!siteId){ toast("Aucun site attribué",true); return; }
+  if(!siteId){ toast(ME.role==="admin"?"Sélectionnez d'abord un site":"Aucun site attribué",true); return; }
 
   const buf=await file.arrayBuffer();
   const wb=XLSX.read(buf,{type:"array"});
@@ -4912,8 +4918,15 @@ async function handleStockImportFile(evt){
   renderStockImportPreview();
 }
 
+// Conteneur d'aperçu de l'import : le panneau pharmacien et le panneau admin ont chacun
+// le leur, et ne sont jamais affichés en même temps (ils dépendent du rôle).
+function stockImportPreviewBox(){
+  return ME.role==="admin" ? $("astockImportPreview") : $("stockImportPreview");
+}
+
 function renderStockImportPreview(){
-  const box=$("stockImportPreview");
+  const box=stockImportPreviewBox();
+  if(!box) return;
   if(!STOCK_IMPORT_ROWS.length){ box.classList.add("hidden"); box.innerHTML=""; return; }
   box.classList.remove("hidden");
   const nbConflits=STOCK_IMPORT_ROWS.filter(r=>r.conflict).length;
@@ -4968,7 +4981,20 @@ async function confirmStockImport(){
   STOCK_IMPORT_ROWS=[];
   renderStockImportPreview();
   toast(`Import terminé : ${inserted} ajouté(s), ${updated} mis à jour, ${ignored} ignoré(s)`);
-  loadStock();
+  reloadStockView();
+}
+
+// L'administrateur peut changer de site alors qu'un import est en attente de
+// confirmation. Or cet import a été préparé pour l'ANCIEN site : la détection des
+// doublons a été faite sur son stock à lui. Le conserver écrirait les lignes sur le
+// mauvais site, en croyant à tort que rien n'y existe déjà. On l'abandonne donc.
+function onAdminStockSiteChange(){
+  if(STOCK_IMPORT_ROWS.length){
+    STOCK_IMPORT_ROWS=[];
+    renderStockImportPreview();
+    toast("Import abandonné : vous avez changé de site. Resélectionnez le fichier.",true);
+  }
+  loadPharmaAdminStock();
 }
 
 // prefix : "stock" pour le formulaire du pharmacien, "astock" pour celui de
@@ -5533,12 +5559,22 @@ function renderAide(){
       ${!isPharma?`<p><b>Rapports PDF et Word :</b> les boutons de téléchargement génèrent un rapport reprenant exactement les chiffres et graphiques affichés à l'écran au moment du clic.</p>`:""}`},
 
     { show:isPharma||isAdmin, titre:"Pharmacie : délivrances", corps:`
-      ${isAdmin?`<p>En tant qu'administrateur, l'onglet Pharmacie vous donne un <b>aperçu en lecture seule</b> : les délivrances (en attente et déjà effectuées), le total des médicaments délivrés, le stock global toutes campagnes, et le stock détaillé par site. La gestion elle-même est réservée aux comptes Pharmacien.</p>`
+      ${isAdmin?`<p>En tant qu'administrateur, l'onglet Pharmacie vous donne une vue d'ensemble : les délivrances (en attente et déjà effectuées), le total des médicaments délivrés, le stock global toutes campagnes, et le stock détaillé par site. Le <b>détail des prescriptions</b> reste réservé aux comptes Pharmacien, pour ne pas interférer avec leur travail ; le <b>stock</b>, lui, est modifiable par vos soins (voir la section suivante).</p>`
       :`<p>L'onglet <b>Pharmacie › Délivrances</b> liste les prescriptions liées au stock, patient par patient. Par défaut, seules celles <b>en attente</b> s'affichent ; une case permet d'afficher aussi celles déjà délivrées.</p>
       <ul>
         <li>Pour délivrer : indiquez la <b>quantité</b> et l'<b>unité</b> remises, puis « Délivré ». Le <b>stock est ajusté automatiquement</b> si l'article est retrouvé (par lien direct, ou par nom pour les anciennes prescriptions).</li>
         <li>Une délivrance peut être <b>annulée</b> : la quantité est alors restituée au stock.</li>
       </ul>`}`},
+
+    { show:isAdmin, titre:"Pharmacie : gérer le stock d'un site", corps:`
+      <p>Dans <b>Pharmacie › Stock par site</b>, choisissez d'abord le <b>site</b> : tout ce qui suit s'applique à lui.</p>
+      <ul>
+        <li><b>Ajouter un article :</b> nom, type (médicament, consommable, matériel), catégorie, quantité, unité et seuil d'alerte.</li>
+        <li><b>Modifier / Supprimer :</b> bouton « Modifier » sur chaque ligne, pour ajuster quantité, unité et seuil.</li>
+        <li><b>Importer depuis Excel :</b> téléchargez le <b>modèle</b>, remplissez-le, puis importez. Les articles déjà présents sur ce site vous sont présentés un par un : <b>ajouter à l'existant</b>, <b>remplacer</b>, ou <b>ignorer</b>.</li>
+      </ul>
+      <div class="aide-note">L'import est préparé pour le site affiché au moment où vous choisissez le fichier. Si vous changez de site avant de confirmer, il est <b>abandonné</b> et à refaire : c'est volontaire, cela évite d'écrire sur un site que vous ne regardez plus.</div>
+      <div class="aide-note">Pouvoir agir sur tous les sites est surtout utile <b>avant une campagne</b>, tant qu'aucun pharmacien en chef n'est désigné - sans cela, personne ne pourrait constituer le stock initial. Une fois la campagne lancée, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Chaque modification enregistre votre nom.</div>`},
 
     { show:isPharma, titre:"Pharmacie : gestion du stock", corps:`
       <p>L'onglet <b>Pharmacie › Stock</b> affiche les articles de votre site, groupés par catégorie, avec une alerte <b>« Stock bas »</b> quand la quantité passe sous le seuil défini.</p>

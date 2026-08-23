@@ -759,20 +759,25 @@
             <li><strong>Fiche campagne</strong> : nom, lieu, dates, statut Active / Terminée ; « Voir les statistiques » bascule le tableau de bord filtré ;</li>
             <li><strong>Archiver</strong> : déplace dans l'onglet Archives (désarchivable, ou supprimable définitivement - les sites deviennent « sans campagne », les consultations sont conservées) ;</li>
             <li><strong>Sites</strong> : ajout, renommage, activation, suppression sous chaque campagne ; bloc « Sites autonomes » pour les sites sans campagne ;</li>
-            <li><strong>Pharmacien en chef</strong> : désigné site par site parmi les pharmaciens affectés - seul habilité à modifier le stock de ce site.</li>
+            <li><strong>Pharmacien en chef</strong> : désigné site par site parmi les pharmaciens affectés - c'est le seul <em>pharmacien</em> autorisé à modifier le stock de ce site (l'administrateur le peut aussi, sur tous les sites).</li>
           </ul>
         </div>
       </details>
 
       <details class="page-card" id="admin-pharmacie">
         <summary>
-          <span class="page-title">Pharmacie (aperçu)</span>
+          <span class="page-title">Pharmacie</span>
           <span class="page-path">onglet « Pharmacie »</span>
           <span class="page-badges"><span class="badge admin">Admin</span></span>
           <span class="chev">▶</span>
         </summary>
         <div class="page-body">
-          <p>Vue en <strong>lecture seule</strong> : total des médicaments délivrés, stock global toutes campagnes (regroupé par article), stock détaillé par site. La gestion elle-même reste réservée aux comptes Pharmacien, pour ne pas interférer avec leur travail.</p>
+          <p>Total des médicaments délivrés, stock global toutes campagnes (regroupé par article), et stock détaillé <strong>site par site</strong>.</p>
+          <ul>
+            <li><strong>Ajouter un article</strong> : choisissez le site, puis renseignez nom, type, catégorie, quantité, unité et seuil d'alerte ;</li>
+            <li><strong>Modifier / Supprimer</strong> : bouton « Modifier » sur chaque ligne, pour ajuster quantité, unité et seuil.</li>
+          </ul>
+          <p>Vous pouvez agir sur <strong>n'importe quel site</strong> : c'est indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est désigné. Au quotidien, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Le <strong>détail des prescriptions</strong>, lui, reste réservé aux comptes Pharmacien.</p>
         </div>
       </details>
     </section>

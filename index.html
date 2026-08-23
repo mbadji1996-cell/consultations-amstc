@@ -1463,9 +1463,22 @@
           <legend>Stock par site</legend>
           <div class="field"><label for="pharmaAdminStockSite">Site</label>
             <select id="pharmaAdminStockSite" onchange="loadPharmaAdminStock()"></select></div>
+          <fieldset style="margin-bottom:14px"><legend>Ajouter un article à ce site</legend>
+            <div class="row2">
+              <div class="field"><label for="astock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="astock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
+              <div class="field"><label for="astock_type">Type d'article</label><select id="astock_type"></select></div>
+            </div>
+            <div class="field"><label for="astock_categorie">Catégorie</label><select id="astock_categorie"></select></div>
+            <div class="row2">
+              <div class="field"><label for="astock_qte">Quantité</label><input type="number" id="astock_qte" min="0" placeholder="0"></div>
+              <div class="field"><label for="astock_unite">Unité</label><select id="astock_unite"></select></div>
+            </div>
+            <div class="field"><label for="astock_seuil">Seuil d'alerte (stock bas)</label><input type="number" id="astock_seuil" min="0" placeholder="ex : 5"></div>
+            <button class="btn btn-primary btn-sm" onclick="addStockItem(this,'astock')">Ajouter au stock</button>
+          </fieldset>
           <div id="pharmaAdminStockBody"></div>
         </fieldset>
-        <p class="rec-meta">Le détail des prescriptions et la gestion du stock sont réservés aux comptes Pharmacien, pour ne pas interférer avec leur travail.</p>
+        <p class="rec-meta">Vous pouvez constituer et corriger le stock de n'importe quel site - utile avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné. Au quotidien, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Le détail des prescriptions, lui, reste réservé aux comptes Pharmacien.</p>
       </div>
     </div>
 
@@ -4675,6 +4688,11 @@ function loadPharmacieTab(){
   if(ME.role==="admin"){
     $("pharmaAgentView").classList.add("hidden");
     $("pharmaAdminOverview").classList.remove("hidden");
+    if(!$("astock_categorie").innerHTML){
+      $("astock_categorie").innerHTML=`<option value="">- Choisir -</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      $("astock_type").innerHTML=`<option value="">- Choisir -</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
+      $("astock_unite").innerHTML=`<option value="">- Choisir -</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+    }
     loadPharmaAdminOverview();
   } else {
     $("pharmaAgentView").classList.remove("hidden");
@@ -4735,24 +4753,8 @@ async function loadPharmaAdminStock(){
   $("pharmaAdminStockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
   if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
-  if(!(data||[]).length){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
-  const groups={};
-  data.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
-  const cats=Object.keys(groups).sort();
-  $("pharmaAdminStockBody").innerHTML=cats.map(cat=>`
-    <div style="margin-bottom:14px">
-      <div style="font-size:12px;font-weight:700;color:var(--heading);margin-bottom:6px">${esc(cat)}</div>
-      ${groups[cat].map(it=>{
-        const low=it.quantite<=(it.seuil_alerte||0);
-        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)${low?';background:var(--danger-bg)':''}">
-          <div>
-            <b>${esc(it.nom)}</b>${low?' <span class="tag tag-queue">Bas</span>':''}
-            <div class="rec-meta">${esc(STOCK_TYPES[it.type_article]||"Médicament")}</div>
-          </div>
-          <div style="text-align:right;flex-shrink:0"><b>${it.quantite}</b> <span class="rec-meta">${esc(it.unite||"")}</span></div>
-        </div>`;
-      }).join("")}
-    </div>`).join("");
+  // Même tableau modifiable que celui du pharmacien en chef, sur le site sélectionné.
+  renderStock(data||[],"pharmaAdminStockBody",canEditStock(siteId));
 }
 
 function switchPharmaSubTab(sub){
@@ -4772,11 +4774,34 @@ function goToPharmaSubTab(sub,showDelivered){
   switchPharmaSubTab(sub);
 }
 
-function currentStockSiteId(){ return ME.site_id||null; } // ce panneau n'est plus accessible qu'au pharmacien, sur son propre site
+// Site dont le stock est à l'écran : celui choisi dans le sélecteur pour un
+// administrateur (il voit tous les sites), son propre site pour un pharmacien.
+function currentStockSiteId(){
+  if(ME.role==="admin") return $("pharmaAdminStockSite")?.value||null;
+  return ME.site_id||null;
+}
 
 function isChiefPharmacien(){
   const site=SITES.find(s=>s.id===ME.site_id);
   return !!(site && site.pharmacien_chef_id===ME.id);
+}
+
+// Qui peut faire évoluer le stock d'un site : l'administrateur (sur tous les sites,
+// notamment pour constituer le stock initial avant qu'un pharmacien en chef ne soit
+// désigné) ou le pharmacien en chef de ce site précis. Les mêmes droits sont appliqués
+// côté base par les politiques RLS (voir rls_stock_admin.sql) : contourner cette
+// fonction depuis la console du navigateur ne permettrait rien de plus.
+function canEditStock(siteId){
+  if(ME.role==="admin") return true;
+  const site=SITES.find(s=>s.id===siteId);
+  return !!(site && site.pharmacien_chef_id===ME.id);
+}
+
+// Recharge la vue stock affichée, qui n'est pas la même selon le rôle - évite que les
+// actions partagées (modifier, supprimer, ajouter) ne rafraîchissent le mauvais panneau.
+function reloadStockView(){
+  if(ME.role==="admin"){ loadPharmaAdminStock(); loadPharmaAdminGlobalStock(); }
+  else loadStock();
 }
 
 async function loadStock(){
@@ -4790,16 +4815,19 @@ async function loadStock(){
   $("stockBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
   if(error){ $("stockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
-  renderStock(data||[]);
+  renderStock(data||[],"stockBody",isChief);
 }
 
-function renderStock(items){
-  if(!items.length){ $("stockBody").innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
-  const isChief=isChiefPharmacien();
+// Tableau du stock, partagé par le panneau du pharmacien et celui de l'administrateur :
+// seuls le conteneur d'accueil et le droit de modifier changent d'un cas à l'autre.
+function renderStock(items,containerId,canEdit){
+  containerId=containerId||"stockBody";
+  if(!items.length){ $(containerId).innerHTML=`<div class="empty">Aucun article en stock pour ce site.</div>`; return; }
+  const isChief=canEdit;
   const groups={};
   items.forEach(it=>{ const cat=it.categorie||"Sans catégorie"; (groups[cat]=groups[cat]||[]).push(it); });
   const cats=Object.keys(groups).sort();
-  $("stockBody").innerHTML=cats.map(cat=>`
+  $(containerId).innerHTML=cats.map(cat=>`
     <div style="margin-bottom:18px">
       <div style="font-size:12.5px;font-weight:700;color:var(--heading);margin-bottom:8px">${esc(cat)}</div>
       <div class="table-wrap"><table><thead><tr>
@@ -4829,7 +4857,7 @@ function toggleStockEdit(id){
   $("stockactions_"+id).innerHTML=`
     <button class="btn btn-primary btn-sm" onclick="updateStockQty('${id}',this)">Enregistrer</button>
     <button class="btn btn-danger btn-sm" onclick="deleteStockItem('${id}')">Supprimer</button>
-    <button class="btn btn-ghost btn-sm" onclick="loadStock()">Annuler</button>`;
+    <button class="btn btn-ghost btn-sm" onclick="reloadStockView()">Annuler</button>`;
 }
 
 /* ---------- Import du stock depuis un fichier Excel (pharmacien en chef uniquement) ---------- */
@@ -4943,15 +4971,19 @@ async function confirmStockImport(){
   loadStock();
 }
 
-async function addStockItem(btn){
+// prefix : "stock" pour le formulaire du pharmacien, "astock" pour celui de
+// l'administrateur - les deux formulaires sont identiques, seuls leurs identifiants
+// de champs diffèrent (ils coexistent dans la page).
+async function addStockItem(btn,prefix){
+  prefix=prefix||"stock";
   const siteId=currentStockSiteId();
   if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
-  const nom=$("stock_nom").value.trim();
-  const qte=parseInt($("stock_qte").value)||0;
-  const unite=$("stock_unite").value;
-  const categorie=$("stock_categorie").value;
-  const type_article=$("stock_type").value;
-  const seuil_alerte=parseInt($("stock_seuil").value)||0;
+  const nom=$(prefix+"_nom").value.trim();
+  const qte=parseInt($(prefix+"_qte").value)||0;
+  const unite=$(prefix+"_unite").value;
+  const categorie=$(prefix+"_categorie").value;
+  const type_article=$(prefix+"_type").value;
+  const seuil_alerte=parseInt($(prefix+"_seuil").value)||0;
   if(!nom){ toast("Le nom de l'article est requis",true); return; }
   if(!type_article){ toast("Choisissez un type d'article",true); return; }
   if(!unite){ toast("Choisissez une unité",true); return; }
@@ -4962,9 +4994,9 @@ async function addStockItem(btn){
   });
   if(btn) btn.disabled=false;
   if(error){ toast("Échec : "+errMsg(error),true); return; }
-  $("stock_nom").value=""; $("stock_qte").value=""; $("stock_seuil").value="";
+  $(prefix+"_nom").value=""; $(prefix+"_qte").value=""; $(prefix+"_seuil").value="";
   toast("Article ajouté au stock");
-  loadStock();
+  reloadStockView();
 }
 
 async function updateStockQty(id,btn){
@@ -4978,7 +5010,7 @@ async function updateStockQty(id,btn){
   }).eq("id",id);
   if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   toast("Stock mis à jour");
-  loadStock();
+  reloadStockView();
 }
 
 async function deleteStockItem(id){
@@ -4986,7 +5018,7 @@ async function deleteStockItem(id){
   const {error}=await sb.from("stock_medicaments").delete().eq("id",id);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   toast("Retiré du stock");
-  loadStock();
+  reloadStockView();
 }
 
 /* =====================================================================
@@ -5069,7 +5101,7 @@ function siteListHtml(sites){
         <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (seul habilité à gérer le stock de ce site)</label>
+        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (gère le stock de ce site, avec l'administrateur)</label>
         <select onchange="setPharmacienChef('${s.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
           <option value="">- Aucun -</option>
           ${candidats.map(p=>`<option value="${p.id}"${s.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
@@ -5516,7 +5548,8 @@ function renderAide(){
         <li><b>Modifier / Supprimer :</b> bouton « Modifier » sur chaque ligne pour ajuster quantité, unité et seuil à tout moment (réassorts, corrections...).</li>
         <li><b>Importer depuis Excel :</b> téléchargez d'abord le <b>modèle</b> (colonnes : Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte), remplissez-le, puis importez. Les lignes correspondant à un article déjà en stock vous sont présentées une par une : <b>ajouter à l'existant</b>, <b>remplacer</b>, ou <b>ignorer</b>.</li>
       </ul>
-      <div class="aide-note">La délivrance ajuste le stock par correspondance de nom pour les anciennes prescriptions : gardez des noms d'articles cohérents et vérifiez vos chiffres régulièrement.</div>`},
+      <div class="aide-note">La délivrance ajuste le stock par correspondance de nom pour les anciennes prescriptions : gardez des noms d'articles cohérents et vérifiez vos chiffres régulièrement.</div>
+      <div class="aide-note">L'administrateur peut lui aussi ajouter ou corriger le stock d'un site (c'est ainsi que le stock initial est souvent constitué, avant le début de la campagne). Si vous constatez une quantité modifiée sans action de votre part, c'est l'explication la plus probable : la colonne de suivi enregistre qui a fait la dernière modification.</div>`},
 
     { show:true, titre:"Mon profil", corps:`
       <p>Depuis le menu de votre compte (icône en haut à droite) › <b>Mon profil</b> :</p>
@@ -5544,7 +5577,7 @@ function renderAide(){
         <li><b>Détails :</b> modifier nom, lieu, dates, statut (Active / Terminée) ; <b>Archiver</b> déplace la campagne dans l'onglet Archives (désarchivable, ou supprimable définitivement depuis là).</li>
         <li><b>Sites :</b> ajout, renommage, activation et suppression directement sous chaque campagne ; les <b>sites autonomes</b> (sans campagne) ont leur propre bloc.</li>
         <li><b>Site indisponible pour un nouveau choix :</b> un site marqué "Inactif", ou rattaché à une campagne archivée, n'apparaît plus dans les listes de choix (nouvelle consultation, affectation d'un utilisateur, écran de connexion). Il reste visible et gérable ici dans l'onglet Campagnes, et un agent déjà affecté à ce site le garde sans interruption. Désarchiver la campagne (ou réactiver le site) le rend de nouveau choisissable immédiatement. Cela ne touche jamais aux consultations déjà enregistrées : elles restent consultables et ne disparaissent que si on les supprime manuellement.</li>
-        <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - seul habilité à modifier le stock de ce site.</li>
+        <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
       </ul>`},
 

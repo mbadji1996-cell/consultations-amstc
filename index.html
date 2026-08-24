@@ -367,6 +367,9 @@
   .rec-diag b{color:var(--heading)}
   .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:var(--radius-full);white-space:nowrap}
   .tag-sent{background:var(--green-50);color:var(--heading)} .tag-queue{background:var(--amber-bg);color:var(--amber-text)}
+  /* Refus définitif du serveur : à distinguer nettement d'une simple attente d'envoi,
+     qui, elle, se résout toute seule. */
+  .tag-err{background:var(--danger-bg);color:var(--danger)}
   .rec-foot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--white);border-radius:var(--radius);overflow:hidden}
@@ -2933,9 +2936,15 @@ async function saveConsultation(){
     const {error}=await insererConsultation(rec);
     $("saveBtn").disabled=false;
     if(error){ // bascule en file d'attente si l'envoi échoue
-      const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
-      toast("Enregistré localement (envoi différé)");
-      confirmMsg="Consultation enregistrée localement - l'envoi sera retenté automatiquement.";
+      // La raison est conservée AVEC la ligne : sans elle, l'utilisateur voyait
+      // "en attente d'envoi" alors que sa connexion était bonne, sans aucun moyen de
+      // savoir que c'était en réalité la base qui refusait l'enregistrement.
+      const cause=analyserErreurEnvoi(error);
+      const q=getQueue(); q.push({...rec,_local:Date.now(),_erreur:cause.texte,_definitif:cause.definitif}); setQueue(q);
+      toast("Non envoyé : "+cause.texte,true);
+      confirmMsg = cause.definitif
+        ? `Consultation enregistrée sur cet appareil, mais le serveur l'a refusée : ${cause.texte}. Elle ne partira pas toute seule - signalez-le à l'administrateur.`
+        : `Consultation enregistrée sur cet appareil : ${cause.texte}. L'envoi sera retenté automatiquement.`;
     } else { toast("Consultation enregistrée"); await refreshData(); }
   } else {
     const q=getQueue(); q.push({...rec,_local:Date.now()}); setQueue(q);
@@ -2955,6 +2964,29 @@ async function saveConsultation(){
 // requête finit malgré tout par aboutir, le dédoublonnage sur l'id (plus
 // bas) rattrape la ligne au lieu de la créer en double.
 const DELAI_ENVOI_MS = 12000;
+
+// Traduit un échec d'envoi en langage clair, et dit s'il est DÉFINITIF - c'est-à-dire si
+// une nouvelle tentative échouera exactement pareil. La distinction est essentielle : une
+// coupure réseau se règle toute seule, alors qu'un refus de la base (droits manquants,
+// colonne SQL absente) laisse la consultation "à envoyer" pour toujours sans que personne
+// comprenne pourquoi, la connexion étant par ailleurs parfaitement bonne.
+function analyserErreurEnvoi(error){
+  const code=error&&error.code||"", msg=error&&error.message||"";
+  if(error&&error._delaiDepasse) return {definitif:false, texte:"le serveur n'a pas répondu dans le délai imparti"};
+  if(code==="42501" || /row-level security|permission denied/i.test(msg))
+    return {definitif:true, texte:"le serveur a refusé l'enregistrement (droits insuffisants sur ce site)"};
+  if(code==="42703" || /column .* does not exist/i.test(msg))
+    return {definitif:true, texte:"la base n'a pas une colonne attendue (script SQL non exécuté)"};
+  if(code==="42P01") return {definitif:true, texte:"une table est introuvable côté base"};
+  if(code==="23502") return {definitif:true, texte:"un champ obligatoire est refusé comme vide par la base"};
+  if(code==="23503") return {definitif:true, texte:"une donnée liée est introuvable (site ou compte supprimé ?)"};
+  if(code==="22P02" || code==="22007") return {definitif:true, texte:"une valeur n'a pas le format attendu"};
+  if(code==="PGRST301" || code==="401" || /jwt|token/i.test(msg))
+    return {definitif:true, texte:"votre session a expiré - reconnectez-vous"};
+  if(/failed to fetch|networkerror|load failed|network request failed/i.test(msg))
+    return {definitif:false, texte:"la connexion au serveur a échoué"};
+  return {definitif:false, texte:msg||"raison inconnue"};
+}
 
 async function insererConsultation(rec){
   let minuteur;
@@ -2982,7 +3014,10 @@ async function flushQueue(){
   const remaining=[];
   let sentCount=0, recoveredCount=0;
   for(const item of q){
-    const {_local,...rec}=item;
+    // On retire TOUTES les clés techniques (préfixées "_"), et pas seulement _local :
+    // elles n'existent pas en base, et en envoyer une provoquerait un rejet définitif
+    // "colonne inconnue" - donc exactement la panne que ce mécanisme doit signaler.
+    const rec={}; Object.keys(item).forEach(k=>{ if(k[0]!=="_") rec[k]=item[k]; });
     const {error}=await insererConsultation(rec);
     if(!error){ sentCount++; continue; }
     // Une violation de clé unique sur l'id signifie que cette consultation a DÉJÀ été
@@ -2991,11 +3026,18 @@ async function flushQueue(){
     // "en attente d'envoi" pour toujours, en échouant à chaque nouvelle tentative.
     const isDuplicate = error.code==="23505" || /duplicate key/i.test(error.message||"");
     if(isDuplicate){ recoveredCount++; continue; }
-    remaining.push(item); // échec réel (réseau, droits…) : on retentera au prochain passage
+    // Échec réel : on garde la ligne (jamais de perte de données) mais on note la raison,
+    // pour qu'elle s'affiche sur la fiche au lieu d'un "à envoyer" muet et perpétuel.
+    const cause=analyserErreurEnvoi(error);
+    remaining.push({...item,_erreur:cause.texte,_definitif:cause.definitif});
   }
   setQueue(remaining);
   const total=sentCount+recoveredCount;
   if(total) toast(total>1?`${total} consultations synchronisées`:"Consultation synchronisée");
+  // Un blocage définitif ne se résoudra jamais tout seul : il faut le dire, sinon la
+  // consultation reste en attente indéfiniment sans que personne s'en inquiète.
+  const bloquees=remaining.filter(x=>x._definitif);
+  if(bloquees.length) toast(`${bloquees.length} consultation(s) refusée(s) par le serveur : ${bloquees[0]._erreur}`,true);
   } finally { flushEnCours=false; }
 }
 
@@ -3043,7 +3085,16 @@ function renderList(){
   if(!rows.length){ $("listBody").innerHTML=`<div class="empty">Aucune consultation${$("search").value?" pour cette recherche":""}.</div>`; return; }
   $("listBody").innerHTML=rows.map(r=>{
     const d=new Date(r.created_at).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
-    const tag=r._queued?`<span class="tag tag-queue">À envoyer</span>`:`<span class="tag tag-sent">Synchronisée</span>`;
+    const tag=r._queued
+      ? `<span class="tag ${r._definitif?"tag-err":"tag-queue"}">${r._definitif?"Refusée":"À envoyer"}</span>`
+      : `<span class="tag tag-sent">Synchronisée</span>`;
+    // La raison de l'échec s'affiche sur la fiche elle-même : c'est là que l'utilisateur
+    // regarde quand il se demande pourquoi sa consultation n'est pas partie.
+    const raisonAttente = r._queued && r._erreur
+      ? `<div class="rec-meta" style="margin-top:6px;color:${r._definitif?"var(--danger)":"var(--orange-dark)"}">
+           ${r._definitif?"Refusée par le serveur":"Envoi différé"} : ${esc(r._erreur)}${r._definitif?" - prévenez l'administrateur, elle ne partira pas seule.":""}
+         </div>`
+      : "";
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
     const medecin=ME.role==="admin"&&r.medecin_nom?` · Praticien : ${esc(r.medecin_nom)}`:"";
     const sexeLabel=r.sexe==="M"?"Masculin":r.sexe==="F"?"Féminin":(r.sexe||"?");
@@ -3075,6 +3126,7 @@ function renderList(){
         </div>
         ${tag}
       </div>
+      ${raisonAttente}
       ${motifsLine}
       ${signesLine}
       ${diagLine}

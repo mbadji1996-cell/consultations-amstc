@@ -1202,7 +1202,7 @@
       <div id="formAlert"></div>
       <div class="field hidden" id="c_site_wrap">
         <label for="c_site">Site de consultation <span class="req">*</span></label>
-        <select id="c_site" onchange="refreshStockForForm(this.value); setupReferField(this.value)"><option value="">- Sélectionner un site -</option></select>
+        <select id="c_site" onchange="refreshFormStockForSite(this.value); setupReferField(this.value)"><option value="">- Sélectionner un site -</option></select>
       </div>
       <div class="field hidden" id="typePickerWrap">
         <label for="c_type">Type de consultation</label>
@@ -1470,6 +1470,7 @@
             <div id="astockImportPreview" class="hidden" style="margin-top:14px"></div>
           </fieldset>
           <fieldset style="margin-bottom:14px"><legend>Ajouter un article à ce site</legend>
+            <p class="rec-meta" style="margin-bottom:10px">Seuls les articles de type <b>Médicament</b> dont la quantité est <b>supérieure à 0</b> apparaissent dans la liste de prescription des praticiens. Les consommables et le matériel sont suivis ici, mais ne se prescrivent pas.</p>
             <div class="row2">
               <div class="field"><label for="astock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="astock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
               <div class="field"><label for="astock_type">Type d'article</label><select id="astock_type"></select></div>
@@ -1483,6 +1484,9 @@
             <button class="btn btn-primary btn-sm" onclick="addStockItem(this,'astock')">Ajouter au stock</button>
           </fieldset>
           <div id="pharmaAdminStockBody"></div>
+          <div class="actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+            <button class="btn btn-danger btn-sm" onclick="wipeSiteStock(this)">Vider tout le stock de ce site</button>
+          </div>
         </fieldset>
         <p class="rec-meta">Vous pouvez constituer et corriger le stock de n'importe quel site - utile avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné. Au quotidien, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Le détail des prescriptions, lui, reste réservé aux comptes Pharmacien.</p>
       </div>
@@ -2244,7 +2248,8 @@ const DIAGNOSTIC_LIST=["Paludisme","Hypertension artérielle","Diabète","Ulcèr
   "Asthme","Anémie","Lombalgie","Arthrose et douleurs articulaires","Gastro-entérites",
   "Pneumonies et autres affections respiratoires","Drépanocytose","Infections urinaires",
   "Parasitoses intestinales","Reflux gastro-œsophagien (RGO)","Malnutrition","Fièvre typhoïde",
-  "Hépatites virales","Épilepsie","Troubles anxieux et dépression"].sort((a,b)=>a.localeCompare(b,"fr"));
+  "Hépatites virales","Épilepsie","Troubles anxieux et dépression",
+  "Grippe","Rhume (rhinopharyngite)"].sort((a,b)=>a.localeCompare(b,"fr"));
 
 function diagPickerHtml(){
   return DIAGNOSTIC_LIST.map(d=>`<label><input type="checkbox" class="diag-check" value="${esc(d)}" onchange="onDiagCheckChange()">${esc(d)}</label>`).join("")
@@ -2698,8 +2703,44 @@ async function refreshStockForForm(siteId){
 
 function stockPickerOptions(){
   return `<option value="">- Choisir dans le stock du site -</option>`+
+    // Sans cette ligne, une liste vide ne se distingue pas d'une liste non chargée :
+    // le praticien ne sait pas s'il doit attendre ou passer en saisie libre.
+    (STOCK_FOR_FORM.length?"":`<option value="" disabled>Aucun médicament en stock sur ce site</option>`)+
     STOCK_FOR_FORM.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
     `<option value="__hors_stock__">Médicament non trouvé dans la liste…</option>`;
+}
+
+// Site auquel se rapporte le formulaire de consultation : celui choisi dans le sélecteur
+// pour un administrateur, le site fixe de l'agent sinon.
+function formSiteId(){
+  return ME.role==="admin" ? ($("c_site")?.value||"") : (ME.site_id||"");
+}
+
+// Le stock n'était chargé qu'UNE fois, à la connexion. Un article ajouté ensuite par
+// l'administrateur ou le pharmacien en chef n'apparaissait donc dans la liste de
+// prescription qu'après une déconnexion/reconnexion - et les quantités affichées
+// vieillissaient au fil des délivrances. On recharge désormais à chaque ouverture de
+// l'onglet "Nouvelle consultation" et à chaque changement de site.
+async function refreshFormStockForSite(siteId){
+  await refreshStockForForm(siteId);
+  refreshMedRowOptions();
+}
+
+// Les lignes de médicament déjà à l'écran gardent la liste figée à leur création :
+// il faut la reconstruire, sans perdre ce que le praticien a déjà sélectionné.
+function refreshMedRowOptions(){
+  document.querySelectorAll("#panel-form .med-stock-select").forEach(sel=>{
+    const avant=sel.value;
+    const optAvant=avant?sel.querySelector(`option[value="${CSS.escape(avant)}"]`):null;
+    const htmlAvant=optAvant?optAvant.outerHTML:null;
+    sel.innerHTML=stockPickerOptions();
+    // L'article a pu disparaître entre-temps (épuisé, retiré du stock) : on réinsère
+    // l'option d'origine plutôt que de vider en silence une ligne déjà remplie.
+    if(avant && htmlAvant && ![...sel.options].some(o=>o.value===avant)){
+      sel.insertAdjacentHTML("beforeend",htmlAvant);
+    }
+    if(avant) sel.value=avant;
+  });
 }
 
 function addMedRow(scope){
@@ -2777,6 +2818,9 @@ function switchTab(tab){
   document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
   $("panel-"+tab).classList.add("active");
   if(tab==="dashboard") renderDashboard();
+  // Recharge le stock disponible : il a pu changer depuis la connexion (réassort saisi
+  // par l'administrateur, délivrances du pharmacien).
+  if(tab==="form" && !isPharmacien() && !isInfirmier()) refreshFormStockForSite(formSiteId());
   if(tab==="list") renderList();
   if(tab==="users") loadUsers();
   // Un seul rendu, après rafraîchissement du cache des pharmaciens (l'ancien double appel -
@@ -5021,7 +5065,12 @@ async function addStockItem(btn,prefix){
   if(btn) btn.disabled=false;
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   $(prefix+"_nom").value=""; $(prefix+"_qte").value=""; $(prefix+"_seuil").value="";
-  toast("Article ajouté au stock");
+  // La liste de prescription ne montre que les MÉDICAMENTS dont la quantité est > 0.
+  // Sans ce message, un article saisi sans quantité (donc enregistré à 0) ou classé en
+  // consommable/matériel semble « ne pas s'afficher » côté consultation, sans explication.
+  if(qte<=0) toast("Article ajouté avec une quantité de 0 : il n'apparaîtra en prescription qu'une fois réapprovisionné",true);
+  else if(type_article!=="medicament") toast(`Article ajouté (${STOCK_TYPES[type_article]||type_article}) : seuls les articles de type Médicament apparaissent en prescription`,true);
+  else toast("Article ajouté au stock");
   reloadStockView();
 }
 
@@ -5036,6 +5085,40 @@ async function updateStockQty(id,btn){
   }).eq("id",id);
   if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   toast("Stock mis à jour");
+  reloadStockView();
+}
+
+// Suppression en masse du stock d'un site (remise à zéro avant une nouvelle campagne,
+// correction d'un import raté). Volontairement limitée AU SITE SÉLECTIONNÉ : effacer
+// l'inventaire de tous les sites d'un seul geste serait bien plus dangereux qu'utile.
+// La confirmation exige de recopier un mot : un simple clic "OK" se donne par réflexe,
+// ce qui est trop peu pour une action irréversible sur un inventaire réel.
+async function wipeSiteStock(btn){
+  const siteId=currentStockSiteId();
+  if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
+  const s=SITES.find(x=>x.id===siteId);
+  const nomSite=s?s.nom:"ce site";
+  // On compte d'abord : annoncer le nombre exact d'articles évite de vider un site par
+  // erreur en croyant en viser un autre.
+  const {data,error}=await sb.from("stock_medicaments").select("id").eq("site_id",siteId);
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  const n=(data||[]).length;
+  if(!n){ toast("Le stock de ce site est déjà vide"); return; }
+  const ok=await confirmModal(
+    `<p>Vous allez supprimer <b>l'intégralité du stock</b> du site <b>${esc(nomSite)}</b>, soit <b>${n} article${n>1?"s":""}</b>.</p>
+     <p>Cette action est <b>irréversible</b>. Les consultations et les délivrances déjà enregistrées ne sont pas touchées.</p>
+     <p style="margin-top:10px">Pour confirmer, recopiez <b>SUPPRIMER</b> ci-dessous :</p>
+     <input type="text" id="wipeStockConfirm" autocomplete="off" placeholder="SUPPRIMER" style="margin-top:6px">`,
+    {title:"Vider le stock du site", okLabel:"Tout supprimer"});
+  if(!ok) return;
+  if(($("wipeStockConfirm")?.value||"").trim().toUpperCase()!=="SUPPRIMER"){
+    toast("Suppression annulée : le mot de confirmation ne correspond pas",true); return;
+  }
+  if(btn) btn.disabled=true;
+  const {error:delErr}=await sb.from("stock_medicaments").delete().eq("site_id",siteId);
+  if(btn) btn.disabled=false;
+  if(delErr){ toast("Échec : "+errMsg(delErr),true); return; }
+  toast(`${n} article${n>1?"s":""} supprimé${n>1?"s":""} du stock de ${nomSite}`);
   reloadStockView();
 }
 
@@ -5572,7 +5655,9 @@ function renderAide(){
         <li><b>Ajouter un article :</b> nom, type (médicament, consommable, matériel), catégorie, quantité, unité et seuil d'alerte.</li>
         <li><b>Modifier / Supprimer :</b> bouton « Modifier » sur chaque ligne, pour ajuster quantité, unité et seuil.</li>
         <li><b>Importer depuis Excel :</b> téléchargez le <b>modèle</b>, remplissez-le, puis importez. Les articles déjà présents sur ce site vous sont présentés un par un : <b>ajouter à l'existant</b>, <b>remplacer</b>, ou <b>ignorer</b>.</li>
+        <li><b>Vider tout le stock de ce site :</b> bouton rouge en bas de la liste. Il ne touche <b>que le site sélectionné</b>, jamais les autres. La fenêtre de confirmation annonce le nombre exact d'articles et demande de recopier le mot <b>SUPPRIMER</b> : l'action est irréversible.</li>
       </ul>
+      <div class="aide-note">Seuls les articles de type <b>Médicament</b> dont la quantité est <b>supérieure à 0</b> apparaissent dans la liste de prescription des praticiens. Un article saisi sans quantité est enregistré à 0 : il reste visible ici, mais ne sera prescriptible qu'une fois réapprovisionné. Les consommables et le matériel se suivent ici sans jamais se prescrire.</div>
       <div class="aide-note">L'import est préparé pour le site affiché au moment où vous choisissez le fichier. Si vous changez de site avant de confirmer, il est <b>abandonné</b> et à refaire : c'est volontaire, cela évite d'écrire sur un site que vous ne regardez plus.</div>
       <div class="aide-note">Pouvoir agir sur tous les sites est surtout utile <b>avant une campagne</b>, tant qu'aucun pharmacien en chef n'est désigné - sans cela, personne ne pourrait constituer le stock initial. Une fois la campagne lancée, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Chaque modification enregistre votre nom.</div>`},
 

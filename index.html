@@ -2300,6 +2300,11 @@ async function confirmSiteSelection(){
 /* =====================================================================
    ONGLETS SELON LE RÔLE
    ===================================================================== */
+// Professions déclarables dans les effectifs d'une campagne, dans l'ordre d'affichage.
+const EFFECTIF_PROFESSIONS=[["generaliste","Médecins"],["dentiste","Dentistes"],
+  ["specialiste","Spécialistes"],["sage_femme","Sages-femmes"],
+  ["infirmier","Infirmiers"],["pharmacien","Pharmaciens"]];
+
 const SPEC_LABELS={generaliste:"Médecin",dentiste:"Dentiste",specialiste:"Spécialiste",sage_femme:"Sage-femme",pharmacien:"Pharmacien",infirmier:"Infirmier"};
 // Libellé affiché (badge, cartes collègues, panneau admin) - dérivé du domaine d'exercice
 // réel (specialite), fusionné avec lui depuis "Mon profil" : plus de champ "profession"
@@ -4551,15 +4556,28 @@ function reportTitleLines(S){
 // sinon tous sites confondus - pour que le rapport affiche toujours ce chiffre,
 // même quand aucune campagne particulière n'est sélectionnée (admin, vue globale).
 // Seuls les comptes "agent" sont comptés (l'admin n'a pas de domaine d'exercice fixe).
+// Effectifs d'une campagne. Deux sources possibles, et la distinction compte :
+//   - DÉCLARÉE : ce que l'équipe indique avoir mobilisé. Seule à connaître les renforts
+//     venus sans compte dans l'application - un infirmier de passage, un bénévole.
+//   - CALCULÉE : le nombre de comptes rattachés à la campagne. Toujours inférieure ou
+//     égale à la réalité, puisqu'elle ignore quiconque n'a pas de compte.
+// La déclaration l'emporte dès qu'elle existe, et le rapport indique laquelle il montre.
 async function getEffectifs(campagneId){
+  const counts={generaliste:0,dentiste:0,specialiste:0,sage_femme:0,infirmier:0,pharmacien:0};
+  const nbSites = campagneId ? SITES.filter(s=>s.campagne_id===campagneId).length : SITES.length;
+
+  const camp = campagneId ? CAMPAGNES.find(c=>c.id===campagneId) : null;
+  const dec = camp && camp.effectifs_declares;
+  if(dec && Object.keys(counts).some(k=>Number(dec[k])>0)){
+    Object.keys(counts).forEach(k=>{ counts[k]=Number(dec[k])||0; });
+    return { nbSites, counts, total:Object.values(counts).reduce((a,b)=>a+b,0), declare:true };
+  }
+
   let q=sb.from("profiles").select("specialite").eq("actif",true).eq("role","agent");
   if(campagneId) q=q.eq("campagne_id",campagneId);
   const {data}=await q;
-  const counts={generaliste:0,dentiste:0,specialiste:0,sage_femme:0,infirmier:0,pharmacien:0};
   (data||[]).forEach(p=>{ const s=p.specialite||"generaliste"; if(counts[s]!==undefined) counts[s]++; });
-  const nbSites = campagneId ? SITES.filter(s=>s.campagne_id===campagneId).length : SITES.length;
-  const total=Object.values(counts).reduce((a,b)=>a+b,0);
-  return { nbSites, counts, total };
+  return { nbSites, counts, total:Object.values(counts).reduce((a,b)=>a+b,0), declare:false };
 }
 
 // Régénère tous les graphiques du rapport dans des <canvas> détachés (jamais affichés),
@@ -4789,7 +4807,11 @@ async function downloadReportPDF(){
       head:[["Élément","Nombre","% des effectifs"]],
       body:rows,
     });
-    y=doc.lastAutoTable.finalY+10;
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW, eff.declare
+      ? "Effectifs déclarés par l'équipe : ils incluent les renforts intervenus sans compte dans l'application."
+      : "Effectifs comptés d'après les comptes rattachés à la campagne : toute personne intervenue sans compte n'y figure pas.");
+    y+=12;
   }
 
   // Répartition des sites de la campagne, pour situer le dispositif.
@@ -5222,6 +5244,9 @@ async function downloadReportWord(){
     );
     children.push(sectionHeading(S.campagneInfo?"Durée et effectifs de la campagne":"Effectifs mobilisés"));
     children.push(mkTable(["Élément","Nombre","% des effectifs"], rows));
+    children.push(note(eff.declare
+      ? "Effectifs déclarés par l'équipe : ils incluent les renforts intervenus sans compte dans l'application."
+      : "Effectifs comptés d'après les comptes rattachés à la campagne : toute personne intervenue sans compte n'y figure pas."));
   }
 
   if(S.siteStats.length){
@@ -6739,6 +6764,20 @@ function campagneCardHtml(c){
         ${!pharmaciensDeCampagne(c.id).length?'<span class="rec-meta">Aucun pharmacien affecté aux sites de cette campagne.</span>':""}
       </div>
       ${actesHorsHtml(c)}
+      <!-- Effectifs réellement mobilisés. Le comptage automatique ne voit que les comptes
+           de l'application : il manque forcément les renforts venus sans compte. -->
+      <div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
+        <div class="rec-meta" style="margin-bottom:6px"><b>Effectifs mobilisés</b> — laissez vide pour compter automatiquement les comptes rattachés</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${EFFECTIF_PROFESSIONS.map(([cle,libelle])=>`
+            <div style="flex:1;min-width:96px">
+              <label style="font-size:11px;color:var(--muted)">${libelle}</label>
+              <input type="number" min="0" id="eff_${cle}_${c.id}" value="${(c.effectifs_declares&&c.effectifs_declares[cle])||""}"
+                     placeholder="-" style="padding:6px 8px;font-size:13px">
+            </div>`).join("")}
+        </div>
+      </div>
+
       <!-- Analyse de fin de campagne : ces trois textes ne se calculent pas, ils s'écrivent.
            Ils sont repris tels quels dans la dernière page du rapport. -->
       <div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
@@ -6940,6 +6979,16 @@ async function updateCampagne(id,btn){
     const v=($(bilan[col]+id)?.value||"").trim();
     if(v) maj[col]=v;
   });
+  // Effectifs déclarés : envoyés seulement si au moins un chiffre est saisi, pour que la
+  // colonne reste absente tant que rls_effectifs_declares.sql n'a pas été exécuté.
+  {
+    const eff={}; let saisi=false;
+    EFFECTIF_PROFESSIONS.forEach(([cle])=>{
+      const v=($("eff_"+cle+"_"+id)?.value||"").trim();
+      if(v!==""){ eff[cle]=Math.max(0,parseInt(v)||0); saisi=true; }
+    });
+    if(saisi) maj.effectifs_declares=eff;
+  }
   const {error}=await sb.from("campagnes").update(maj).eq("id",id);
   if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   await reloadCampagnes();
@@ -7199,6 +7248,7 @@ function renderAide(){
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
         <li><b>Actes hors consultation :</b> pour les actes réalisés <b>sans qu'un patient soit enregistré</b> (pansements, mises en observation lors d'un afflux). On saisit un simple nombre par acte et par site. Ces actes sont comptés dans le tableau de bord et le bilan, avec la mention de leur origine - mais <b>aucune fiche patient n'est créée</b> : inventer des patients fausserait l'âge moyen, la répartition par sexe et les diagnostics.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
+        <li><b>Effectifs mobilisés :</b> saisissez le nombre réel de professionnels par métier. Laissés vides, ils sont comptés automatiquement d'après les comptes rattachés à la campagne - ce qui sous-estime l'équipe dès qu'une personne est intervenue sans compte. Le rapport indique toujours laquelle des deux sources il présente.</li>
         <li><b>Analyse de fin de campagne :</b> trois zones de texte - difficultés rencontrées, besoins constatés, recommandations. Elles ne se calculent pas : elles sont reprises telles quelles dans la dernière page du rapport, avant les annexes.</li>
       </ul>`},
 

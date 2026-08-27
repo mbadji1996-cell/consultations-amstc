@@ -1260,6 +1260,15 @@
         </div>
         <div class="field"><label for="c_explorations">Explorations complémentaires demandées</label>
           <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
+        <!-- Actes réalisés pendant la consultation, avant le traitement prescrit. Facultatif :
+             beaucoup de consultations n'en comportent aucun. -->
+        <div class="field">
+          <label>Actes réalisés</label>
+          <div class="diag-picker" id="acteMedPicker_generaliste"></div>
+          <div class="field hidden" id="acteMedAutreWrap_generaliste" style="margin-top:8px">
+            <input type="text" id="c_actes_medicaux_autre_generaliste" placeholder="Précisez le(s) acte(s)">
+          </div>
+        </div>
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
           <div id="medsList_generaliste"></div>
@@ -1294,6 +1303,13 @@
           <textarea id="c_diagnostic_spec" placeholder="Diagnostic principal"></textarea></div>
         <div class="field"><label for="c_explorations_spec">Explorations complémentaires demandées</label>
           <textarea id="c_explorations_spec"></textarea></div>
+        <div class="field">
+          <label>Actes réalisés</label>
+          <div class="diag-picker" id="acteMedPicker_specialiste"></div>
+          <div class="field hidden" id="acteMedAutreWrap_specialiste" style="margin-top:8px">
+            <input type="text" id="c_actes_medicaux_autre_specialiste" placeholder="Précisez le(s) acte(s)">
+          </div>
+        </div>
         <div class="field">
           <label>Conduite à tenir / Traitement <span class="req">*</span></label>
           <div id="medsList_specialiste"></div>
@@ -2314,6 +2330,41 @@ function resetActePicker(){
   if($("c_acte_dentaire_autre")) $("c_acte_dentaire_autre").value="";
   $("acteAutreWrap")?.classList.add("hidden");
 }
+
+// Actes réalisés pendant la consultation, côté médecin. Volontairement court : cette liste
+// alimente les statistiques, or y ajouter une entrée plus tard est sans conséquence tandis
+// qu'en retirer une fausserait les chiffres déjà collectés.
+const ACTES_MEDICAUX_LIST=["Mise en observation","Pansement"];
+
+// Le formulaire généraliste/dentiste et le formulaire spécialiste coexistent dans la page :
+// chacun a son propre sélecteur, distingué par le suffixe de portée.
+function acteMedPickerHtml(scope){
+  return ACTES_MEDICAUX_LIST.map(a=>`<label><input type="checkbox" class="actemed-check-${scope}" value="${esc(a)}" onchange="onActeMedCheckChange('${scope}')">${esc(a)}</label>`).join("")
+    +`<label><input type="checkbox" id="actemed_autre_check_${scope}" onchange="onActeMedCheckChange('${scope}')">Autres (préciser)</label>`;
+}
+function onActeMedCheckChange(scope){
+  const coche=$("actemed_autre_check_"+scope).checked;
+  $("acteMedAutreWrap_"+scope).classList.toggle("hidden", !coche);
+  if(coche) $("c_actes_medicaux_autre_"+scope).focus();
+}
+// Même sérialisation "; " que les diagnostics et les actes dentaires : countTop() sait déjà
+// re-scinder cette chaîne pour compter chaque acte séparément.
+function readActesMedicauxSelection(scope){
+  const checked=[...document.querySelectorAll(".actemed-check-"+scope+":checked")].map(c=>c.value);
+  if($("actemed_autre_check_"+scope)?.checked){
+    const autre=$("c_actes_medicaux_autre_"+scope).value.trim();
+    if(autre) checked.push(autre);
+  }
+  return checked.join("; ");
+}
+function resetActesMedicauxPicker(){
+  ["generaliste","specialiste"].forEach(scope=>{
+    document.querySelectorAll(".actemed-check-"+scope).forEach(c=>c.checked=false);
+    const autre=$("actemed_autre_check_"+scope); if(autre) autre.checked=false;
+    const champ=$("c_actes_medicaux_autre_"+scope); if(champ) champ.value="";
+    $("acteMedAutreWrap_"+scope)?.classList.add("hidden");
+  });
+}
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
 
 /* ---------- Choix du domaine d'exercice (spécialité fonctionnelle) -----------
@@ -3012,6 +3063,9 @@ async function saveConsultation(){
     rec.signes=$("c_signes_spec").value.trim();
     rec.diagnostic=$("c_diagnostic_spec").value.trim();
     rec.explorations=$("c_explorations_spec").value.trim()||null;
+    // Comme refere_hopital : le champ n'est ajouté QUE s'il est renseigné, pour que
+    // l'application continue de fonctionner tant que le script SQL n'a pas été exécuté.
+    { const actes=readActesMedicauxSelection("specialiste"); if(actes) rec.actes_medicaux=actes; }
     rec.medicaments=readMedRows("specialiste");
     { const notes=$("c_conduite_notes_spec").value.trim();
       const pasTraitement=$("c_pas_traitement_spec").checked;
@@ -3031,6 +3085,7 @@ async function saveConsultation(){
     rec.signes=$("c_signes").value.trim();
     rec.diagnostic = type==="dentiste" ? $("c_diagnostic_texte").value.trim() : readDiagnosticSelection();
     rec.explorations=$("c_explorations").value.trim()||null;
+    { const actes=readActesMedicauxSelection("generaliste"); if(actes) rec.actes_medicaux=actes; }
     rec.medicaments=readMedRows("generaliste");
     { const notes=$("c_conduite_notes").value.trim();
       const pasTraitement=$("c_pas_traitement").checked;
@@ -3184,6 +3239,7 @@ function resetForm(){
   $("refereHopitalWrap")?.classList.add("hidden");
   $("referMotifWrap")?.classList.add("hidden");
   resetActePicker();
+  resetActesMedicauxPicker();
 }
 
 function currentRows(){
@@ -3233,6 +3289,7 @@ function renderList(){
     const diagLine=r.diagnostic?`<div class="rec-diag"><b>Diagnostic :</b> ${esc(r.diagnostic)}</div>`:"";
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
+    const actesLine=r.actes_medicaux?`<div class="rec-meta"><b>Actes :</b> ${esc(r.actes_medicaux)}</div>`:"";
     const telLine=r.telephone_patient?`<div class="rec-meta"><b>Tel :</b> ${esc(r.telephone_patient)}</div>`:"";
     // Une référence vers l'extérieur est une décision clinique importante : elle doit se
     // voir sur la fiche, au même titre que le traitement.
@@ -3257,6 +3314,7 @@ function renderList(){
       ${signesLine}
       ${diagLine}
       ${traitement}
+      ${actesLine}
       ${explo}
       ${refHopitalLine}
       ${telLine}
@@ -3380,6 +3438,7 @@ async function renderFicheAndPrint(r){
   if(r.diagnostic) rows.push(["Diagnostic", r.diagnostic]);
   if(r.conduite) rows.push(["Traitement", r.conduite]);
   if(r.acte_infirmier) rows.push(["Acte réalisé", r.acte_infirmier+(r.acte_infirmier_note?" - "+r.acte_infirmier_note:"")]);
+  if(r.actes_medicaux) rows.push(["Actes réalisés", r.actes_medicaux]);
   if(r.refere_motif && !r.diagnostic) rows.push(["Motif de référence", r.refere_motif]);
   // La référence vers un hôpital figure sur la fiche remise au patient : c'est elle qu'il
   // présentera à la structure d'accueil.
@@ -3611,15 +3670,23 @@ function computeDashboardStats(){
     });
   }
 
-  // Taux de référencement : part des consultations orientées ailleurs - un indicateur parlant
-  // pour un partenaire/bailleur. Les deux formes comptent : vers un confrère sur place
-  // (coordination de l'équipe) comme vers un hôpital (prise en charge dépassant la campagne).
-  const referes=rows.filter(r=>r.refere_vers_id||r.refere_hopital).length;
-  const tauxReferencement=total?Math.round(referes/total*100):null;
+  // Seules les références HORS SITE sont comptées. Orienter un patient vers un confrère
+  // présent sur place est un mouvement interne à l'équipe, qui n'apprend rien sur la prise
+  // en charge : le patient reste dans la campagne et sa consultation est déjà comptée.
+  // Une orientation vers un hôpital, elle, marque un besoin qui dépasse nos moyens - c'est
+  // ce chiffre qui a du sens pour un bilan ou un partenaire.
+  const referencesHorsSite=rows.filter(r=>r.refere_hopital).length;
+
+  // Actes réalisés : nombre de consultations en comportant au moins un, et détail acte par
+  // acte. splitMulti re-scinde la chaîne "; " pour qu'une consultation "Pansement + Mise en
+  // observation" alimente les deux lignes plutôt que de créer une catégorie composite.
+  const actesTotal=rows.filter(r=>r.actes_medicaux&&r.actes_medicaux.trim()).length;
+  const actesBreakdown=countTop(rows,"actes_medicaux",10,true);
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
-    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referes, tauxReferencement };
+    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
+    actesTotal, actesBreakdown };
 }
 
 async function loadCollegues(siteId){
@@ -3655,7 +3722,7 @@ async function renderDashboard(){
   $("dashBody").innerHTML=LOADING_HTML;
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, tauxReferencement } = S;
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite } = S;
   const collegues = ME.role==="admin" ? [] : await loadCollegues();
   let referencesRecues=[];
   {
@@ -3675,6 +3742,7 @@ async function renderDashboard(){
   const ICON_USER=`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>`;
   const ICON_FLASK=`<path d="M10 2v7.31"></path><path d="M14 9.3V2"></path><path d="M8.5 2h7"></path><path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path><path d="M5.5 16h13"></path>`;
   const ICON_REFER=`<circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>`;
+  const ICON_CHECK=`<path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>`;
   const svg=(paths,cls)=>`<svg class="${cls||""}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
   // Bandeau d'accueil, personnalisé et daté
@@ -3701,7 +3769,8 @@ async function renderDashboard(){
     ${statCard(ICON_TREND,"teal",semaine,"7 derniers jours")}
     ${statCard(ICON_USER,"blue",ageMoyen??"-","Âge moyen (ans)")}
     ${statCard(ICON_FLASK,"purple",explorations,"Explorations demandées")}
-    ${statCard(ICON_REFER,"red",tauxReferencement!=null?tauxReferencement+"%":"-","Taux de référencement")}
+    ${statCard(ICON_REFER,"red",referencesHorsSite,"Nombre référence")}
+    ${statCard(ICON_CHECK,"gold",S.actesTotal,"Actes réalisés")}
   </div>`;
 
   const cardOpen=(icon,title)=>`<div class="dash-card"><div class="dash-card-head">${svg(icon)}<span>${title}</span></div>`;
@@ -3772,6 +3841,8 @@ async function renderDashboard(){
     ${hasAgeData?`${cardOpen(ICON_USERS,"Pyramide des âges")}<div style="height:${Math.max(220,AGE_BRACKETS.length*34)}px"><canvas id="dashAgeChart"></canvas></div></div>`:""}
 
     ${topDiag.length?`${cardOpen(ICON_FLASK,"Pathologies les plus fréquentes")}<div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></div>`:""}
+
+    ${S.actesBreakdown.length?`${cardOpen(ICON_CHECK,"Actes réalisés")}<div style="height:${Math.max(140,S.actesBreakdown.length*42)}px"><canvas id="dashActesChart"></canvas></div></div>`:""}
 
     ${(ME.role==="admin"&&medDeliveredBreakdown.length)?`${cardOpen(ICON_FLASK,"Pharmacie - médicaments les plus délivrés")}<div style="height:${Math.max(140,medDeliveredBreakdown.length*40)}px"><canvas id="dashMedDeliveredChart"></canvas></div></div>`:""}
 
@@ -3871,6 +3942,17 @@ async function renderDashboard(){
     CHARTS.diag=new Chart($("dashDiagChart"),{
       type:"bar",
       data:{ labels:topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:topDiag.map(([,c])=>c), backgroundColor:chartColors(topDiag.length), borderRadius:6, maxBarThickness:22 }] },
+      options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
+    });
+  }
+
+  if(S.actesBreakdown.length){
+    killChart("actes");
+    CHARTS.actes=new Chart($("dashActesChart"),{
+      type:"bar",
+      data:{ labels:S.actesBreakdown.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:S.actesBreakdown.map(([,c])=>c), backgroundColor:chartColors(S.actesBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{ x:{ beginAtZero:true, ticks:{precision:0}, grid:{color:grid} }, y:{ grid:{display:false} } } }
@@ -3977,6 +4059,12 @@ async function generateReportCharts(S){
     make("diag",{ type:"bar", data:{ labels:S.topDiag.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:S.topDiag.map(([,c])=>c), backgroundColor:chartColors(S.topDiag.length), borderRadius:6, maxBarThickness:22 }] },
       options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
     },900,Math.max(260,S.topDiag.length*70));
+  }
+
+  if(S.actesBreakdown.length){
+    make("actes",{ type:"bar", data:{ labels:S.actesBreakdown.map(([l])=>l.length>40?l.slice(0,40)+"…":l), datasets:[{ data:S.actesBreakdown.map(([,c])=>c), backgroundColor:chartColors(S.actesBreakdown.length), borderRadius:6, maxBarThickness:22 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true,ticks:{precision:0},grid:{color:grid}}, y:{grid:{display:false}} } }
+    },900,Math.max(260,S.actesBreakdown.length*70));
   }
 
   return images;
@@ -4088,7 +4176,7 @@ async function downloadReportPDF(){
   ], y, 26);
   y=tileRow([
     { color:teal, value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes" },
-    { color:red, value:S.tauxReferencement!=null?S.tauxReferencement+"%":"-", label:"Taux de référencement vers un confrère" },
+    { color:red, value:String(S.referencesHorsSite), label:"Nombre référence" },
   ], y, 26);
 
   doc.addPage(); y=20;
@@ -4157,6 +4245,7 @@ async function downloadReportPDF(){
   addChartImage("sex","Répartition par sexe");
   addChartImage("age","Pyramide des âges");
   addChartImage("diag","Pathologies les plus fréquentes");
+  addChartImage("actes","Actes réalisés");
   addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
   // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
@@ -4168,6 +4257,19 @@ async function downloadReportPDF(){
       headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
       head:[["Pathologie","Nombre de cas"]],
       body:S.topDiag.map(([l,c])=>[l,String(c)]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
+  // Tableau des actes réalisés (en plus du graphique ci-dessus)
+  if(S.actesBreakdown.length){
+    if(y>250){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Détail - Actes réalisés",gold); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Acte","Nombre"]],
+      body:S.actesBreakdown.map(([l,c])=>[l,String(c)]),
     });
     y=doc.lastAutoTable.finalY+10;
   }
@@ -4297,7 +4399,7 @@ async function downloadReportWord(){
     new Paragraph({text:"",spacing:{after:100}}),
     kpiRow([
       { value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes", color:TEAL },
-      { value:S.tauxReferencement!=null?S.tauxReferencement+"%":"-", label:"Taux de référencement vers un confrère", color:RED },
+      { value:String(S.referencesHorsSite), label:"Nombre référence", color:RED },
     ]),
   );
 
@@ -4348,11 +4450,17 @@ async function downloadReportWord(){
   addChartImage("sex","Répartition par sexe");
   addChartImage("age","Pyramide des âges");
   addChartImage("diag","Pathologies les plus fréquentes");
+  addChartImage("actes","Actes réalisés");
   addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
   if(S.topDiag.length){
     children.push(sectionHeading("Détail - Pathologies les plus fréquentes"));
     children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
+  }
+
+  if(S.actesBreakdown.length){
+    children.push(sectionHeading("Détail - Actes réalisés"));
+    children.push(mkTable(["Acte","Nombre"], S.actesBreakdown.map(([l,c])=>[l,c])));
   }
 
   // Tableau des médicaments les plus dispensés (en plus du graphique ci-dessus)
@@ -4414,7 +4522,7 @@ async function downloadFullBackup(){
 
 function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
-  const cols=["numero_consultation","patient_id","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
+  const cols=["numero_consultation","patient_id","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","actes_medicaux","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
   const rowsForExport=rows.map(r=>{
     const meds=Array.isArray(r.medicaments)?r.medicaments:[];
     const resume=meds.map(m=>`${m.nom}${m.posologie?" ("+m.posologie+")":""}${m.quantite?" x"+m.quantite:""} [${m.delivre?"délivré":"en attente"}]`).join("; ");
@@ -6151,6 +6259,8 @@ sb.auth.onAuthStateChange((event)=>{
 /* ---------- démarrage ---------- */
 $("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule fois
 $("actePicker").innerHTML=actePickerHtml(); // idem pour les actes dentaires
+$("acteMedPicker_generaliste").innerHTML=acteMedPickerHtml("generaliste"); // actes réalisés
+$("acteMedPicker_specialiste").innerHTML=acteMedPickerHtml("specialiste");
 $("suSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("su","",""); // domaine d'exercice du formulaire d'inscription
 
 (async function(){

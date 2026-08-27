@@ -2704,13 +2704,66 @@ async function refreshStockForForm(siteId){
   STOCK_FOR_FORM=data||[];
 }
 
-function stockPickerOptions(){
-  return `<option value="">- Choisir dans le stock du site -</option>`+
-    // Sans cette ligne, une liste vide ne se distingue pas d'une liste non chargée :
-    // le praticien ne sait pas s'il doit attendre ou passer en saisie libre.
-    (STOCK_FOR_FORM.length?"":`<option value="" disabled>Aucun médicament en stock sur ce site</option>`)+
-    STOCK_FOR_FORM.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
+// Comparaison tolérante : sans accents et sans casse. Indispensable pour des noms comme
+// "Acéclofenac" ou "Céfixime", qu'on ne tape pas accentués sur un clavier de téléphone.
+function sansAccents(s){
+  return (s||"").toString().normalize("NFD")
+    .split("").filter(ch=>{ const c=ch.charCodeAt(0); return c<0x300 || c>0x36f; }).join("")
+    .toLowerCase();
+}
+
+// Filtre le stock sur une recherche libre. Chaque mot tapé doit se retrouver quelque part
+// dans le nom, dans n'importe quel ordre : "amox 500" trouve "Amoxicilline 500 mg", et
+// comme les noms saisis contiennent en général la DCI ET le nom commercial
+// ("Acéclofenac 100mg (Acelix)"), la même recherche couvre les deux.
+function filtrerStock(recherche){
+  const mots=sansAccents(recherche).split(/\s+/).filter(Boolean);
+  if(!mots.length) return STOCK_FOR_FORM;
+  return STOCK_FOR_FORM.filter(s=>{ const n=sansAccents(s.nom); return mots.every(m=>n.includes(m)); });
+}
+
+function stockPickerOptions(recherche){
+  const liste=filtrerStock(recherche);
+  const rechercheActive=!!(recherche||"").trim();
+  let vide="";
+  // Une liste vide doit toujours dire POURQUOI : stock réellement vide, ou simplement
+  // aucune correspondance avec ce qui vient d'être tapé.
+  if(!STOCK_FOR_FORM.length) vide=`<option value="" disabled>Aucun médicament en stock sur ce site</option>`;
+  else if(!liste.length) vide=`<option value="" disabled>Aucun médicament ne correspond à cette recherche</option>`;
+  return `<option value="">- Choisir dans le stock du site -</option>`+vide+
+    liste.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
     `<option value="__hors_stock__">Médicament non trouvé dans la liste…</option>`;
+}
+
+// Recherche tapée dans une ligne : on reconstruit SA liste déroulante, sans toucher aux
+// autres lignes. Le médicament déjà choisi est conservé même s'il ne correspond plus à la
+// recherche en cours - sinon taper un mot effacerait en silence une ligne déjà remplie.
+function onMedSearchInput(input){
+  const row=input.closest(".med-row");
+  const sel=row.querySelector(".med-stock-select");
+  const avant=sel.value;
+  const optAvant=avant?sel.querySelector(`option[value="${CSS.escape(avant)}"]`):null;
+  const htmlAvant=optAvant?optAvant.outerHTML:null;
+  sel.innerHTML=stockPickerOptions(input.value);
+  if(avant && htmlAvant && ![...sel.options].some(o=>o.value===avant)){
+    sel.insertAdjacentHTML("beforeend",htmlAvant);
+  }
+  if(avant) sel.value=avant;
+  // Un seul résultat : on le sélectionne d'office, le praticien n'a plus qu'à saisir la
+  // posologie. C'est le cas le plus fréquent dès qu'on tape trois ou quatre lettres.
+  else {
+    const liste=filtrerStock(input.value);
+    if(liste.length===1 && (input.value||"").trim()){ sel.value=liste[0].id; onMedStockSelectChange(sel); }
+  }
+  majCompteurRecherche(row,input.value);
+}
+
+function majCompteurRecherche(row,recherche){
+  const info=row.querySelector(".med-stock-count"); if(!info) return;
+  const n=filtrerStock(recherche).length;
+  info.textContent = (recherche||"").trim()
+    ? (n?`${n} résultat${n>1?"s":""}`:"Aucun résultat")
+    : (STOCK_FOR_FORM.length?`${STOCK_FOR_FORM.length} médicaments en stock`:"");
 }
 
 // Site auquel se rapporte le formulaire de consultation : celui choisi dans le sélecteur
@@ -2732,17 +2785,22 @@ async function refreshFormStockForSite(siteId){
 // Les lignes de médicament déjà à l'écran gardent la liste figée à leur création :
 // il faut la reconstruire, sans perdre ce que le praticien a déjà sélectionné.
 function refreshMedRowOptions(){
-  document.querySelectorAll("#panel-form .med-stock-select").forEach(sel=>{
+  document.querySelectorAll("#panel-form .med-row").forEach(row=>{
+    const sel=row.querySelector(".med-stock-select"); if(!sel) return;
+    // La recherche déjà tapée dans CETTE ligne est conservée : recharger le stock ne doit
+    // pas ramener brutalement la liste complète sous les yeux du praticien.
+    const recherche=row.querySelector(".med-stock-search")?.value||"";
     const avant=sel.value;
     const optAvant=avant?sel.querySelector(`option[value="${CSS.escape(avant)}"]`):null;
     const htmlAvant=optAvant?optAvant.outerHTML:null;
-    sel.innerHTML=stockPickerOptions();
+    sel.innerHTML=stockPickerOptions(recherche);
     // L'article a pu disparaître entre-temps (épuisé, retiré du stock) : on réinsère
     // l'option d'origine plutôt que de vider en silence une ligne déjà remplie.
     if(avant && htmlAvant && ![...sel.options].some(o=>o.value===avant)){
       sel.insertAdjacentHTML("beforeend",htmlAvant);
     }
     if(avant) sel.value=avant;
+    majCompteurRecherche(row,recherche);
   });
 }
 
@@ -2753,13 +2811,17 @@ function addMedRow(scope){
   row.innerHTML=`
     <div style="flex:2;min-width:180px">
       <label style="font-size:11px;color:var(--muted)">Médicament</label>
+      <input type="search" class="med-stock-search" placeholder="Rechercher (nom ou DCI)…" autocomplete="off"
+             oninput="onMedSearchInput(this)" style="margin-bottom:6px">
       <select class="med-stock-select" onchange="onMedStockSelectChange(this)">${stockPickerOptions()}</select>
+      <div class="med-stock-count rec-meta" style="font-size:11px;margin-top:3px"></div>
       <input type="text" class="med-nom-libre hidden" placeholder="Nom du médicament (hors stock)" style="margin-top:6px">
     </div>
     <div style="flex:1;min-width:140px"><label style="font-size:11px;color:var(--muted)">Posologie</label>
       <input type="text" class="med-poso" placeholder="1 cp x3/j"></div>
     <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.med-row').remove()">Retirer</button>`;
   container.appendChild(row);
+  majCompteurRecherche(row,""); // annonce d'emblée combien de médicaments sont disponibles
 }
 
 function onMedStockSelectChange(sel){

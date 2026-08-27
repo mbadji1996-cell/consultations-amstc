@@ -4607,7 +4607,9 @@ async function deleteUser(id){
 async function loadDispensation(){
   $("dispensationBody").innerHTML=LOADING_HTML;
   const {data,error}=await sb.from("consultations")
-    .select("id,numero_consultation,created_at,prenom,nom,medicaments,medecin_nom,site_id")
+    // age, telephone_patient et patient_id servent au regroupement par malade et à
+    // l'en-tête de sa fiche. Ces colonnes existent déjà : rien à modifier en base.
+    .select("id,numero_consultation,created_at,prenom,nom,age,telephone_patient,patient_id,medicaments,medecin_nom,site_id")
     .order("created_at",{ascending:false})
     .limit(300);
   if(error){ $("dispensationBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
@@ -4630,12 +4632,16 @@ async function loadDispensation(){
 // Rendu d'UN médicament, isolé dans sa propre fonction pour pouvoir être régénéré seul
 // après une délivrance, sans reconstruire toute la page (voir majLigneMedicament).
 // L'identifiant dispmed_<consultation>_<index> est l'ancre de cette mise à jour ciblée.
-function medicamentDispensationHtml(r,m,i){
+function medicamentDispensationHtml(r,m,i,origine){
   const cle=`dispmed_${r.id}_${i}`;
+  // Quand un malade a plusieurs ordonnances réunies sur la même fiche, on rappelle de
+  // laquelle vient chaque médicament - sinon le pharmacien ne peut plus les distinguer.
+  const ligneOrigine=origine?`<div class="rec-meta" style="font-size:11px">${esc(origine)}</div>`:"";
   if(m.delivre){
     return `<div id="${cle}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
       <div>
         <b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}
+        ${ligneOrigine}
         <div class="rec-meta">Délivré : ${esc(m.quantite||"-")} · par ${esc(m.delivre_par||"-")}</div>
       </div>
       <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},false)">Annuler</button>
@@ -4649,6 +4655,7 @@ function medicamentDispensationHtml(r,m,i){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <b>${esc(m.nom)}</b>${m.posologie?`<span class="rec-meta"> · ${esc(m.posologie)}</span>`:""}
     </div>
+    ${ligneOrigine}
     <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end">
       <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
         <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
@@ -4659,33 +4666,142 @@ function medicamentDispensationHtml(r,m,i){
   </div>`;
 }
 
-function renderDispensation(){
-  const showAll=$("dispShowDelivered")?.checked;
-  const cards=DISPENSATION_LIST.map(r=>{
+// Clé de regroupement d'un malade. patient_id est l'identifiant stable, présent depuis
+// qu'il existe ; les consultations plus anciennes n'en ont pas, on retombe alors sur
+// nom + prénom + téléphone. Ce repli peut réunir à tort deux homonymes sans téléphone,
+// mais ne jamais regrouper les anciennes ordonnances serait bien plus gênant au comptoir.
+function clePatient(r){
+  if(r.patient_id) return "pid:"+r.patient_id;
+  return "nom:"+sansAccents(`${r.prenom||""} ${r.nom||""}`).trim()
+        +"|"+((r.telephone_patient||"").replace(/\D/g,""));
+}
+// La clé sert d'identifiant HTML : on la réduit à des caractères sûrs.
+function idCarteGroupe(cle){ return "dispcard_"+cle.replace(/[^a-zA-Z0-9]/g,"_"); }
+
+// Regroupe les prescriptions par MALADE plutôt que par consultation : au comptoir, on
+// sert une personne, pas une ordonnance. Toutes ses lignes en attente arrivent donc
+// ensemble, même issues de consultations différentes.
+function grouperDispensationParPatient(showAll){
+  const groupes=new Map();
+  DISPENSATION_LIST.forEach(r=>{
     // On garde toujours l'indice ORIGINAL de chaque médicament dans le tableau complet - indispensable
     // pour que le bouton "Délivré" agisse sur le bon médicament après filtrage à l'affichage.
-    const indexed=r.medicaments.map((m,i)=>({m,i})).filter(({m})=>m.en_stock);
-    const visible=indexed.filter(({m})=>showAll || !m.delivre);
-    if(!visible.length) return "";
+    const visible=r.medicaments.map((m,i)=>({m,i,r}))
+      .filter(({m})=>m.en_stock)
+      .filter(({m})=>showAll || !m.delivre);
+    if(!visible.length) return;
+    const cle=clePatient(r);
+    if(!groupes.has(cle)) groupes.set(cle,{cle, ref:r, lignes:[], consultations:new Set()});
+    const g=groupes.get(cle);
+    g.lignes.push(...visible);
+    g.consultations.add(r.id);
+    // L'identité affichée (âge, téléphone) vient de la consultation la PLUS RÉCENTE :
+    // c'est la plus à jour si le patient a été revu depuis.
+    if(new Date(r.created_at)>new Date(g.ref.created_at)) g.ref=r;
+  });
+  return [...groupes.values()];
+}
+
+function renderDispensation(){
+  const showAll=$("dispShowDelivered")?.checked;
+  const cards=grouperDispensationParPatient(showAll).map(g=>{
+    const r=g.ref;
+    const plusieurs=g.consultations.size>1;
+    const medsHtml=g.lignes.map(({m,i,r:rc})=>{
+      const d=new Date(rc.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+      // L'origine n'est rappelée que si elle est réellement ambiguë (plusieurs ordonnances).
+      const origine=plusieurs?`Ordonnance ${rc.numero_consultation||""} du ${d} · ${rc.medecin_nom||"-"}`:"";
+      return medicamentDispensationHtml(rc,m,i,origine);
+    }).join("");
     const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
-    const medsHtml=visible.map(({m,i})=>medicamentDispensationHtml(r,m,i)).join("");
-    return `<div class="rec" id="dispcard_${r.id}">
+    const age=r.age!=null?`${r.age} ans`:"âge non renseigné";
+    const tel=r.telephone_patient?esc(r.telephone_patient):"téléphone non renseigné";
+    const enAttente=g.lignes.filter(({m})=>!m.delivre).length;
+    const idCarte=idCarteGroupe(g.cle);
+    return `<div class="rec" id="${idCarte}">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
-          <div class="rec-meta">${d}${site} · Prescrit par ${esc(r.medecin_nom||"-")}</div>
-          <div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation||"")}</div></div>
+          <div class="rec-meta">${age} · ${tel}</div>
+          <div class="rec-meta">${plusieurs?`${g.consultations.size} ordonnances`:`Ordonnance du ${d} · ${esc(r.medecin_nom||"-")}`}${site}</div>
+          ${plusieurs?"":`<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation||"")}</div>`}</div>
       </div>
       ${medsHtml}
+      ${enAttente>1?`<div class="rec-foot" style="margin-top:10px">
+        <button class="btn btn-accent btn-sm" onclick="delivrerToutLeGroupe('${idCarte}',this)">Tout délivrer (${enAttente})</button>
+      </div>`:""}
     </div>`;
-  }).filter(Boolean);
+  });
   $("dispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
+}
+
+// Délivre d'un coup toutes les lignes de la fiche dont la quantité ET l'unité sont
+// renseignées. Les autres sont laissées telles quelles et signalées : mieux vaut ne rien
+// délivrer d'incomplet que de deviner une quantité à la place du pharmacien.
+async function delivrerToutLeGroupe(idCarte,btn){
+  const carte=document.getElementById(idCarte); if(!carte) return;
+  // La liste est figée AVANT de commencer : chaque délivrance retire sa ligne du DOM,
+  // parcourir en direct sauterait des éléments.
+  const aFaire=[], incomplets=[];
+  carte.querySelectorAll("[id^='dispmed_']").forEach(el=>{
+    const m=el.id.match(/^dispmed_(.+)_(\d+)$/); if(!m) return;
+    const consultId=m[1], idx=Number(m[2]);
+    const q=document.getElementById(`dispqte_${consultId}_${idx}`);
+    if(!q) return; // ligne déjà délivrée (pas de champ de saisie)
+    const qte=(q.value||"").trim();
+    const unite=document.getElementById(`dispunite_${consultId}_${idx}`)?.value||"";
+    if(qte && unite) aFaire.push({consultId,idx,qte,unite}); else incomplets.push(1);
+  });
+  if(!aFaire.length){ toast("Renseignez d'abord une quantité et une unité",true); return; }
+  btn.disabled=true; const libelle=btn.textContent; btn.textContent="Délivrance…";
+  // Séquentiel et non parallèle : chaque délivrance ajuste le stock, les lancer ensemble
+  // ferait travailler plusieurs mises à jour sur une même quantité de départ.
+  // Le drapeau évite que le bouton soit recalculé (voire retiré) à chaque tour de boucle,
+  // alors qu'on est justement en train de s'en servir.
+  DELIVRANCE_GROUPEE_EN_COURS=true;
+  try{
+    for(const l of aFaire) await toggleMedDelivered(l.consultId,l.idx,true,`${l.qte} ${l.unite}`);
+  } finally { DELIVRANCE_GROUPEE_EN_COURS=false; }
+  if(btn.isConnected){ btn.disabled=false; btn.textContent=libelle; }
+  majBoutonToutDelivrer(document.getElementById(idCarte));
+  toast(incomplets.length
+    ? `${aFaire.length} médicament(s) délivré(s) - ${incomplets.length} ligne(s) laissée(s) faute de quantité ou d'unité`
+    : `${aFaire.length} médicaments délivrés`);
+}
+
+let DELIVRANCE_GROUPEE_EN_COURS=false;
+
+// Le bouton "Tout délivrer" doit suivre l'état réel de la fiche : son compteur change à
+// chaque délivrance, il disparaît quand il ne reste qu'une ligne (le bouton individuel
+// suffit), et il réapparaît si une annulation ramène plusieurs lignes en attente.
+function majBoutonToutDelivrer(carte){
+  if(!carte || DELIVRANCE_GROUPEE_EN_COURS) return;
+  const enAttente=[...carte.querySelectorAll("[id^='dispmed_']")].filter(el=>{
+    const m=el.id.match(/^dispmed_(.+)_(\d+)$/);
+    return m && document.getElementById(`dispqte_${m[1]}_${m[2]}`); // champ de saisie = non délivré
+  }).length;
+  const pied=carte.querySelector(".rec-foot");
+  if(enAttente>1){
+    if(pied) pied.querySelector("button").textContent=`Tout délivrer (${enAttente})`;
+    else carte.insertAdjacentHTML("beforeend",
+      `<div class="rec-foot" style="margin-top:10px"><button class="btn btn-accent btn-sm" onclick="delivrerToutLeGroupe('${carte.id}',this)">Tout délivrer (${enAttente})</button></div>`);
+  } else if(pied) pied.remove();
 }
 
 // Met à jour à l'écran le SEUL médicament concerné, au lieu de recharger toute la liste.
 // Recharger faisait repartir une requête de 300 consultations, reconstruisait toute la
 // page, replaçait le pharmacien en haut de la liste et effaçait les quantités déjà tapées
 // sur les autres lignes - insupportable quand on délivre plusieurs médicaments d'affilée.
+// Rappel d'origine à réafficher quand on régénère une ligne seule. La multiplicité est
+// évaluée sur TOUTES les ordonnances du malade, indépendamment du filtre d'affichage :
+// "ce patient a plusieurs ordonnances" ne doit pas changer selon ce qui est masqué.
+function origineLigne(r){
+  const g=grouperDispensationParPatient(true).find(x=>x.consultations.has(r.id));
+  if(!g || g.consultations.size<=1) return "";
+  const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+  return `Ordonnance ${r.numero_consultation||""} du ${d} · ${r.medecin_nom||"-"}`;
+}
+
 function majLigneMedicament(consultId,idx){
   const r=DISPENSATION_LIST.find(x=>x.id===consultId); if(!r) return;
   const m=r.medicaments[idx]; if(!m) return;
@@ -4699,13 +4815,19 @@ function majLigneMedicament(consultId,idx){
     const carte=ligne?ligne.closest(".rec"):null;
     if(ligne) ligne.remove();
     if(carte && !carte.querySelector("[id^='dispmed_']")) carte.remove();
+    else majBoutonToutDelivrer(carte); // le compteur du bouton doit suivre
     if(!$("dispensationBody").querySelector(".rec")){
       $("dispensationBody").innerHTML=`<div class="empty">Aucune prescription en attente pour l'instant.</div>`;
     }
     return;
   }
-  const html=medicamentDispensationHtml(r,m,idx);
-  if(ligne){ ligne.outerHTML=html; return; }
+  const html=medicamentDispensationHtml(r,m,idx,origineLigne(r));
+  if(ligne){
+    const carte=ligne.closest(".rec");
+    ligne.outerHTML=html;
+    majBoutonToutDelivrer(carte);
+    return;
+  }
   // La ligne n'était pas affichée (cas d'une annulation alors que les délivrées sont
   // masquées) : un rendu complet est alors le plus sûr, elle doit réapparaître à sa place.
   renderDispensation();

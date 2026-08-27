@@ -1269,20 +1269,14 @@
           </label>
           <textarea id="c_conduite_notes" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
+        <!-- Choix multiple : une même séance associe souvent plusieurs actes (détartrage
+             ET soin de carie, par exemple). Même mécanisme que le sélecteur de diagnostics. -->
         <div class="field hidden" id="acteDentaireWrap">
-          <label for="c_acte_dentaire">Acte dentaire <span class="req">*</span></label>
-          <select id="c_acte_dentaire" onchange="onActeDentaireChange()">
-            <option value="">- Sélectionner -</option>
-            <option value="Consultation / Contrôle">Consultation / Contrôle</option>
-            <option value="Détartrage">Détartrage</option>
-            <option value="Soin de carie (obturation)">Soin de carie (obturation)</option>
-            <option value="Extraction dentaire">Extraction dentaire</option>
-            <option value="Dévitalisation (traitement de canal)">Dévitalisation (traitement de canal)</option>
-            <option value="Pose de prothèse / bridge">Pose de prothèse / bridge</option>
-            <option value="Chirurgie buccale">Chirurgie buccale</option>
-            <option value="__autre__">Autre…</option>
-          </select>
-          <input type="text" id="c_acte_dentaire_autre" class="hidden" placeholder="Précisez l'acte" style="margin-top:8px">
+          <label>Actes dentaires <span class="req">*</span></label>
+          <div class="diag-picker" id="actePicker"></div>
+          <div class="field hidden" id="acteAutreWrap" style="margin-top:8px">
+            <input type="text" id="c_acte_dentaire_autre" placeholder="Précisez le(s) acte(s) supplémentaire(s)">
+          </div>
         </div>
       </div>
 
@@ -2280,6 +2274,37 @@ function resetDiagnosticPicker(){
   if($("c_diagnostic_autre")) $("c_diagnostic_autre").value="";
   $("diagAutreWrap")?.classList.add("hidden");
 }
+
+// Actes dentaires - volontairement NON triés par ordre alphabétique, contrairement aux
+// diagnostics : cet ordre suit le déroulé d'une séance, du plus courant au plus lourd.
+const ACTE_DENTAIRE_LIST=["Consultation / Contrôle","Détartrage","Soin de carie (obturation)",
+  "Extraction dentaire","Dévitalisation (traitement de canal)","Pose de prothèse / bridge",
+  "Chirurgie buccale"];
+
+function actePickerHtml(){
+  return ACTE_DENTAIRE_LIST.map(a=>`<label><input type="checkbox" class="acte-check" value="${esc(a)}" onchange="onActeCheckChange()">${esc(a)}</label>`).join("")
+    +`<label><input type="checkbox" id="acte_autre_check" onchange="onActeCheckChange()">Autres (préciser)</label>`;
+}
+function onActeCheckChange(){
+  $("acteAutreWrap").classList.toggle("hidden", !$("acte_autre_check").checked);
+  if($("acte_autre_check").checked) $("c_acte_dentaire_autre").focus();
+}
+// Même sérialisation que les diagnostics, dans la colonne "acte_dentaire" existante :
+// aucune modification de base, et countTop() sait déjà re-scinder sur "; " au besoin.
+function readActeDentaireSelection(){
+  const checked=[...document.querySelectorAll(".acte-check:checked")].map(c=>c.value);
+  if($("acte_autre_check")?.checked){
+    const autre=$("c_acte_dentaire_autre").value.trim();
+    if(autre) checked.push(autre);
+  }
+  return checked.join("; ");
+}
+function resetActePicker(){
+  document.querySelectorAll(".acte-check").forEach(c=>c.checked=false);
+  if($("acte_autre_check")) $("acte_autre_check").checked=false;
+  if($("c_acte_dentaire_autre")) $("c_acte_dentaire_autre").value="";
+  $("acteAutreWrap")?.classList.add("hidden");
+}
 function mySpecialite(){ return ME.role==="admin" ? null : (ME.specialite||"generaliste"); }
 
 /* ---------- Choix du domaine d'exercice (spécialité fonctionnelle) -----------
@@ -2682,11 +2707,6 @@ function onConsultTypeChange(){
   $("diagPickerWrap").classList.toggle("hidden", isDentiste);
   $("c_diagnostic_texte").classList.toggle("hidden", !isDentiste);
 }
-function onActeDentaireChange(){
-  const sel=$("c_acte_dentaire").value;
-  $("c_acte_dentaire_autre").classList.toggle("hidden", sel!=="__autre__");
-  if(sel==="__autre__") $("c_acte_dentaire_autre").focus();
-}
 
 function onCSpecialiteMedSelectChange(){
   const sel=$("c_specialite_med_select").value;
@@ -2984,9 +3004,8 @@ async function saveConsultation(){
     if(!rec.diagnostic) missing.push("diagnostic");
     if(!rec.conduite) missing.push("conduite à tenir (médicament, note, ou \"pas de traitement\")");
     if(type==="dentiste"){
-      const sel=$("c_acte_dentaire").value;
-      rec.acte_dentaire = sel==="__autre__" ? ($("c_acte_dentaire_autre").value.trim()||null) : (sel||null);
-      if(!rec.acte_dentaire) missing.push("acte dentaire");
+      rec.acte_dentaire = readActeDentaireSelection()||null;
+      if(!rec.acte_dentaire) missing.push("acte dentaire (au moins un)");
     }
   }
 
@@ -3123,8 +3142,7 @@ function resetForm(){
   if($("c_conduite_notes_spec")){ $("c_conduite_notes_spec").disabled=false; $("c_conduite_notes_spec").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
   if($("c_refere_vers")){ $("c_refere_vers").value=""; $("referMotifWrap")?.classList.add("hidden"); }
   if($("c_refere_motif")) $("c_refere_motif").value="";
-  if($("c_acte_dentaire")) $("c_acte_dentaire").value="";
-  if($("c_acte_dentaire_autre")){ $("c_acte_dentaire_autre").value=""; $("c_acte_dentaire_autre").classList.add("hidden"); }
+  resetActePicker();
 }
 
 function currentRows(){
@@ -5851,7 +5869,7 @@ function renderAide(){
         <li><b>Constantes vitales</b> (tension, température, fréquence cardiaque, taille, poids) : facultatives.</li>
         <li><b>Signes cliniques :</b> obligatoires - le résultat de votre examen.</li>
         <li><b>Diagnostic (Médecin) :</b> cochez une ou <b>plusieurs pathologies</b> dans la liste ; « Autres (préciser) » permet d'ajouter un diagnostic hors liste en texte libre.</li>
-        <li><b>Dentiste :</b> le diagnostic est en texte libre, et l'<b>acte dentaire</b> réalisé (détartrage, extraction...) est obligatoire, en bas du formulaire.</li>
+        <li><b>Dentiste :</b> le diagnostic est en texte libre, et les <b>actes dentaires</b> réalisés sont obligatoires, en bas du formulaire. Le choix est <b>multiple</b> : cochez tous les actes de la séance (par exemple détartrage <i>et</i> soin de carie), plus « Autres » pour ce qui ne figure pas dans la liste.</li>
         <li><b>Spécialiste :</b> la spécialité médicale est rattachée à la consultation (fixée par l'administrateur pour un agent spécialiste).</li>
         <li><b>Traitement :</b> ajoutez des médicaments soit depuis le <b>stock du site</b> (la quantité exacte sera fixée par le pharmacien à la délivrance), soit « hors stock » en texte libre. Si aucun traitement n'est nécessaire, cochez la case dédiée. Une note libre (recommandations, suivi) peut compléter.</li>
       </ul>
@@ -6081,6 +6099,7 @@ sb.auth.onAuthStateChange((event)=>{
 
 /* ---------- démarrage ---------- */
 $("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule fois
+$("actePicker").innerHTML=actePickerHtml(); // idem pour les actes dentaires
 $("suSpecialiteWrap").innerHTML=buildSpecialiteFieldsHtml("su","",""); // domaine d'exercice du formulaire d'inscription
 
 (async function(){

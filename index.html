@@ -1270,7 +1270,20 @@
           <textarea id="c_diagnostic_texte" class="hidden" placeholder="Diagnostic dentaire (ex : carie, gingivite…)"></textarea>
         </div>
         <div class="field"><label for="c_explorations">Explorations complémentaires demandées</label>
-          <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…"></textarea></div>
+          <textarea id="c_explorations" placeholder="Bilan biologique, imagerie, examens spécialisés…" oninput="onExplorationsInput('')"></textarea></div>
+        <!-- Suivi de l'examen demandé. Sans ces trois informations, le bilan ne peut dire
+             que ce qui a été PRESCRIT, jamais ce qui a été réalisé ni ce qu'on a trouvé. -->
+        <div class="field hidden" id="exploSuiviWrap" style="margin-top:-6px">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px">
+            <input type="checkbox" id="c_exploration_faite" onchange="onExploFaiteChange('')"> Examen réalisé
+          </label>
+          <div class="hidden" id="exploResultatWrap" style="margin-top:8px">
+            <input type="text" id="c_exploration_resultat" placeholder="Résultat de l'examen">
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:400;font-size:14px">
+              <input type="checkbox" id="c_exploration_anormale"> Résultat anormal
+            </label>
+          </div>
+        </div>
         <!-- Actes réalisés pendant la consultation, avant le traitement prescrit. Facultatif :
              beaucoup de consultations n'en comportent aucun. -->
         <div class="field">
@@ -1313,7 +1326,20 @@
         <div class="field"><label for="c_diagnostic_spec">Diagnostic <span class="req">*</span></label>
           <textarea id="c_diagnostic_spec" placeholder="Diagnostic principal"></textarea></div>
         <div class="field"><label for="c_explorations_spec">Explorations complémentaires demandées</label>
-          <textarea id="c_explorations_spec"></textarea></div>
+          <textarea id="c_explorations_spec" oninput="onExplorationsInput('_spec')"></textarea></div>
+        <!-- Suivi de l'examen demandé. Sans ces trois informations, le bilan ne peut dire
+             que ce qui a été PRESCRIT, jamais ce qui a été réalisé ni ce qu'on a trouvé. -->
+        <div class="field hidden" id="exploSuiviWrap_spec" style="margin-top:-6px">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px">
+            <input type="checkbox" id="c_exploration_faite_spec" onchange="onExploFaiteChange('_spec')"> Examen réalisé
+          </label>
+          <div class="hidden" id="exploResultatWrap_spec" style="margin-top:8px">
+            <input type="text" id="c_exploration_resultat_spec" placeholder="Résultat de l'examen">
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:400;font-size:14px">
+              <input type="checkbox" id="c_exploration_anormale_spec"> Résultat anormal
+            </label>
+          </div>
+        </div>
         <div class="field">
           <label>Actes réalisés</label>
           <div class="diag-picker" id="acteMedPicker_specialiste"></div>
@@ -1330,6 +1356,20 @@
           </label>
           <textarea id="c_conduite_notes_spec" placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)" style="margin-top:10px"></textarea>
         </div>
+      </div>
+
+      <div class="field" id="devenirWrap">
+        <label for="c_devenir">Devenir du patient</label>
+        <select id="c_devenir">
+          <option value="">- Non renseigné -</option>
+          <option value="Retour à domicile">Retour à domicile</option>
+          <option value="Mise en observation">Mise en observation</option>
+          <option value="Hospitalisation">Hospitalisation</option>
+          <option value="Référé vers une autre structure">Référé vers une autre structure</option>
+          <option value="Évacuation sanitaire">Évacuation sanitaire</option>
+          <option value="Sortie contre avis médical">Sortie contre avis médical</option>
+          <option value="Décès">Décès</option>
+        </select>
       </div>
 
       <fieldset id="referFieldset" class="hidden"><legend>Référer ce patient à un confrère (facultatif)</legend>
@@ -2617,6 +2657,39 @@ async function setupReferField(siteId){
   $("refereAucunCollegue").textContent=collegues.length?"":"Aucun autre praticien n'est affecté à ce site.";
 }
 
+// Le suivi d'examen n'a de sens que si un examen a été demandé : il apparaît à la frappe
+// et disparaît si le champ est vidé, plutôt que d'encombrer un formulaire déjà long.
+function onExplorationsInput(suffixe){
+  const demande=($("c_explorations"+suffixe)?.value||"").trim();
+  const wrap=$("exploSuiviWrap"+suffixe); if(!wrap) return;
+  wrap.classList.toggle("hidden", !demande);
+  if(!demande){
+    const f=$("c_exploration_faite"+suffixe); if(f) f.checked=false;
+    onExploFaiteChange(suffixe);
+  }
+}
+function onExploFaiteChange(suffixe){
+  const faite=$("c_exploration_faite"+suffixe)?.checked;
+  $("exploResultatWrap"+suffixe)?.classList.toggle("hidden", !faite);
+  if(!faite){
+    const r=$("c_exploration_resultat"+suffixe); if(r) r.value="";
+    const a=$("c_exploration_anormale"+suffixe); if(a) a.checked=false;
+  }
+}
+
+// Ces champs ne sont ajoutés à l'enregistrement QUE s'ils sont renseignés : tant que
+// rls_bilan_campagne.sql n'a pas été exécuté, les colonnes n'existent pas et les envoyer
+// ferait échouer TOUT enregistrement de consultation.
+function ajouterSuiviExamen(rec, suffixe){
+  if(!($("c_explorations"+suffixe)?.value||"").trim()) return;
+  const faite=$("c_exploration_faite"+suffixe)?.checked;
+  if(!faite) return;
+  rec.exploration_faite=true;
+  const res=($("c_exploration_resultat"+suffixe)?.value||"").trim();
+  if(res) rec.exploration_resultat=res;
+  if($("c_exploration_anormale"+suffixe)?.checked) rec.exploration_anormale=true;
+}
+
 function onRefereTypeChange(){
   const t=$("c_refere_type").value;
   $("refereVersWrap").classList.toggle("hidden", t!=="site");
@@ -3104,6 +3177,7 @@ async function saveConsultation(){
   // Ainsi, seule une référence vers un hôpital réclame la mise à jour de la base.
   if(hopital) rec.refere_hopital=hopital;
   if(typeRef) rec.refere_motif=$("c_refere_motif").value.trim()||null;
+  { const dev=$("c_devenir")?.value||""; if(dev) rec.devenir=dev; }
 
   const missing=[];
   if(ME.role==="admin" && !siteId) missing.push("site de consultation");
@@ -3123,6 +3197,7 @@ async function saveConsultation(){
     // Comme refere_hopital : le champ n'est ajouté QUE s'il est renseigné, pour que
     // l'application continue de fonctionner tant que le script SQL n'a pas été exécuté.
     { const actes=readActesMedicauxSelection("specialiste"); if(actes) rec.actes_medicaux=actes; }
+    ajouterSuiviExamen(rec,"_spec");
     rec.medicaments=readMedRows("specialiste");
     { const notes=$("c_conduite_notes_spec").value.trim();
       const pasTraitement=$("c_pas_traitement_spec").checked;
@@ -3143,6 +3218,7 @@ async function saveConsultation(){
     rec.diagnostic = type==="dentiste" ? $("c_diagnostic_texte").value.trim() : readDiagnosticSelection();
     rec.explorations=$("c_explorations").value.trim()||null;
     { const actes=readActesMedicauxSelection("generaliste"); if(actes) rec.actes_medicaux=actes; }
+    ajouterSuiviExamen(rec,"");
     rec.medicaments=readMedRows("generaliste");
     { const notes=$("c_conduite_notes").value.trim();
       const pasTraitement=$("c_pas_traitement").checked;
@@ -3215,7 +3291,9 @@ const CHAMPS_MODIFIABLES={
   conduite:"Conduite à tenir", acte_dentaire:"Actes dentaires", actes_medicaux:"Actes réalisés",
   specialite_medicale:"Spécialité", type_consultation:"Type de consultation",
   site_id:"Site", refere_vers_id:"Référé vers (sur place)", refere_hopital:"Référé vers (hôpital)",
-  refere_motif:"Motif de référence",
+  refere_motif:"Motif de référence", devenir:"Devenir du patient",
+  exploration_faite:"Examen réalisé", exploration_resultat:"Résultat de l'examen",
+  exploration_anormale:"Résultat anormal",
 };
 
 function modifierConsultation(id){
@@ -3306,6 +3384,15 @@ function remplirFormulaireDepuis(r){
   if(r.conduite==="Pas de traitement nécessaire"){
     const cb=$(spec?"c_pas_traitement_spec":"c_pas_traitement"); if(cb){ cb.checked=true; onPasTraitementChange(scope); }
   } else set(spec?"c_conduite_notes_spec":"c_conduite_notes", notes);
+
+  // Devenir et suivi de l'examen demandé
+  if(r.devenir) set("c_devenir", r.devenir);
+  onExplorationsInput(spec?"_spec":"");
+  if(r.exploration_faite){
+    const f=$("c_exploration_faite"+(spec?"_spec":"")); if(f){ f.checked=true; onExploFaiteChange(spec?"_spec":""); }
+    set("c_exploration_resultat"+(spec?"_spec":""), r.exploration_resultat);
+    const a=$("c_exploration_anormale"+(spec?"_spec":"")); if(a) a.checked=!!r.exploration_anormale;
+  }
 
   // Référence
   if(r.refere_hopital){ set("c_refere_type","hopital"); onRefereTypeChange(); set("c_refere_hopital",r.refere_hopital); }
@@ -3548,6 +3635,14 @@ function resetForm(){
   if($("addMedBtn_specialiste")) $("addMedBtn_specialiste").disabled=false;
   if($("c_conduite_notes")){ $("c_conduite_notes").disabled=false; $("c_conduite_notes").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
   if($("c_conduite_notes_spec")){ $("c_conduite_notes_spec").disabled=false; $("c_conduite_notes_spec").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
+  if($("c_devenir")) $("c_devenir").value="";
+  ["","_spec"].forEach(sx=>{
+    const f=$("c_exploration_faite"+sx); if(f) f.checked=false;
+    const r=$("c_exploration_resultat"+sx); if(r) r.value="";
+    const a=$("c_exploration_anormale"+sx); if(a) a.checked=false;
+    $("exploSuiviWrap"+sx)?.classList.add("hidden");
+    $("exploResultatWrap"+sx)?.classList.add("hidden");
+  });
   if($("c_refere_type")) $("c_refere_type").value="";
   if($("c_refere_vers")) $("c_refere_vers").value="";
   if($("c_refere_hopital")) $("c_refere_hopital").value="";
@@ -4105,7 +4200,33 @@ function computeDashboardStats(){
            : /observation/i.test(r.actes_medicaux||"") ? "Mise en observation" : "-",
   }));
 
+  // --- Devenir des patients. Le champ n'existe que depuis la mise en place du bilan :
+  // les consultations antérieures n'en ont pas, on les compte à part plutôt que de les
+  // ranger d'office en « retour à domicile », ce qui serait une invention.
+  const devenirMap={};
+  rows.forEach(r=>{ const d=(r.devenir||"").trim(); if(d) devenirMap[d]=(devenirMap[d]||0)+1; });
+  const devenirBreakdown=Object.entries(devenirMap).sort((a,b)=>b[1]-a[1]);
+  const devenirRenseigne=Object.values(devenirMap).reduce((a,b)=>a+b,0);
+
+  // --- Explorations : demandées, réalisées, résultats obtenus, anomalies dépistées.
+  const explorationsFaites=rows.filter(r=>r.exploration_faite).length;
+  const explorationsResultats=rows.filter(r=>(r.exploration_resultat||"").trim()).length;
+  const explorationsAnormales=rows.filter(r=>r.exploration_anormale).length;
+  const explorationsDetail=rows
+    .filter(r=>(r.explorations||"").trim())
+    .map(r=>({ patient:`${r.prenom||"-"} ${r.nom||"-"}`.trim(), site:siteName(r.site_id)||"-",
+               demande:r.explorations, faite:r.exploration_faite?"Oui":"-",
+               resultat:(r.exploration_resultat||"").trim()||"-",
+               anormal:r.exploration_anormale?"Anormal":"-" }));
+
+  // --- Pic d'activité : la journée la plus chargée, utile pour dimensionner l'édition
+  // suivante. Sans date exploitable, il n'y a pas de pic à annoncer.
+  const picActivite = dailyCounts.length
+    ? dailyCounts.reduce((a,b)=>b.count>a.count?b:a) : null;
+
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
+    devenirBreakdown, devenirRenseigne, explorationsFaites, explorationsResultats,
+    explorationsAnormales, explorationsDetail, picActivite,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
     actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
@@ -4824,6 +4945,64 @@ async function downloadReportPDF(){
     addChartImage("medDelivered","Répartition des médicaments dispensés");
   }
 
+  // ---------- Examens et explorations ----------
+  if(S.explorations>0){
+    doc.addPage(); y=20;
+    pdfSectionHeader(doc,margin,y,"Examens et explorations",purple); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:purple, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Indicateur","Nombre","Part des examens demandés"]],
+      body:[
+        ["Examens demandés", String(S.explorations), "100%"],
+        ["Examens réalisés", String(S.explorationsFaites), S.explorations?Math.round(S.explorationsFaites/S.explorations*100)+"%":"-"],
+        ["Résultats consignés", String(S.explorationsResultats), S.explorations?Math.round(S.explorationsResultats/S.explorations*100)+"%":"-"],
+        ["Résultats anormaux", String(S.explorationsAnormales), S.explorations?Math.round(S.explorationsAnormales/S.explorations*100)+"%":"-"],
+      ],
+    });
+    y=doc.lastAutoTable.finalY+6;
+    if(S.explorationsFaites===0){
+      pdfNote(doc,margin,y,pageW,"Le suivi des examens (réalisation, résultat, anomalie) n'était pas collecté lors de cette campagne : seuls les examens demandés sont connus.");
+      y+=10;
+    }
+    if(S.explorationsDetail.length){
+      if(y>230){ doc.addPage(); y=20; }
+      pdfSectionHeader(doc,margin,y,"Détail des examens demandés",purple); y+=6;
+      doc.autoTable({
+        startY:y, margin:{left:10,right:10}, theme:"grid",
+        headStyles:{ fillColor:purple, textColor:255, fontStyle:"bold", fontSize:8 },
+        styles:{ fontSize:7.5, cellPadding:1.4, overflow:"linebreak" },
+        head:[["Patient","Site","Examen demandé","Réalisé","Résultat","Anomalie"]],
+        body:S.explorationsDetail.map(e=>[e.patient,e.site,tronque(e.demande,60),e.faite,
+                                          tronque(e.resultat,45),e.anormal]),
+      });
+      y=doc.lastAutoTable.finalY+10;
+    }
+  }
+
+  // ---------- Devenir des patients ----------
+  {
+    doc.addPage(); y=20;
+    pdfSectionHeader(doc,margin,y,"Devenir des patients",blue); y+=6;
+    const corps=S.devenirBreakdown.map(([l,c])=>[l,String(c),
+      S.devenirRenseigne?Math.round(c/S.devenirRenseigne*100)+"%":"-"]);
+    const nonRens=S.total-S.devenirRenseigne;
+    if(nonRens>0) corps.push(["Non renseigné",String(nonRens),"-"]);
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:blue, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Devenir","Patients","Part des devenirs renseignés"]],
+      body:corps,
+    });
+    y=doc.lastAutoTable.finalY+6;
+    if(S.devenirRenseigne===0){
+      pdfNote(doc,margin,y,pageW,"Le devenir du patient n'était pas collecté lors de cette campagne. Les orientations connues figurent au chapitre des actes et des références.");
+    } else if(nonRens>0){
+      pdfNote(doc,margin,y,pageW,`${nonRens} consultation(s) sans devenir renseigné : elles ne sont pas réparties, faute d'information.`);
+    }
+    y+=12;
+  }
+
   // ---------- PAGE 7 — Analyse comparative par site ----------
   if(S.siteStats.length){
     doc.addPage(); y=20;
@@ -4837,6 +5016,43 @@ async function downloadReportPDF(){
                                s.moy??"-",s.topPath||"-"]),
     });
     y=doc.lastAutoTable.finalY+10;
+  }
+
+  // ---------- Analyse et recommandations ----------
+  {
+    const c=S.campagneInfo||{};
+    const textes=[["Difficultés rencontrées",c.bilan_difficultes],
+                  ["Besoins constatés",c.bilan_besoins],
+                  ["Recommandations",c.bilan_recommandations]].filter(([,v])=>(v||"").trim());
+    const constats=[];
+    if(S.topDiag.length) constats.push(["Pathologie dominante", `${S.topDiag[0][0]} (${S.topDiag[0][1]} cas)`]);
+    if(S.picActivite) constats.push(["Journée la plus chargée", `${S.picActivite.date} — ${S.picActivite.count} consultations`]);
+    if(S.actesTotal) constats.push(["Actes réalisés", String(S.actesTotal)]);
+    if(S.referencesHorsSite) constats.push(["Patients référés hors site", String(S.referencesHorsSite)]);
+    constats.push(["Complétude moyenne des dossiers", S.completudeGlobale+"%"]);
+
+    if(constats.length || textes.length){
+      doc.addPage(); y=20;
+      pdfSectionHeader(doc,margin,y,"Analyse de la campagne",green); y+=6;
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Constat","Valeur"]], body:constats,
+      });
+      y=doc.lastAutoTable.finalY+10;
+      textes.forEach(([titre,texte])=>{
+        if(y>245){ doc.addPage(); y=20; }
+        pdfSectionHeader(doc,margin,y,titre,green); y+=7;
+        doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(40,50,44);
+        const lignes=doc.splitTextToSize(texte.trim(), pageW-margin*2);
+        lignes.forEach(l=>{ if(y>275){ doc.addPage(); y=20; } doc.text(l,margin,y); y+=5; });
+        y+=6;
+      });
+      if(!textes.length){
+        pdfNote(doc,margin,y,pageW,"Difficultés, besoins et recommandations se saisissent dans l'onglet Campagnes, sur la fiche de la campagne. Ils sont repris ici tels quels.");
+        y+=10;
+      }
+    }
   }
 
   // ---------- PAGE 8 — Annexes ----------
@@ -5085,12 +5301,67 @@ async function downloadReportWord(){
     children.push(mkTable(["Médicament","Quantité dispensée"], S.medDeliveredBreakdown.map(([l,c])=>[l,Math.round(c*10)/10])));
   }
 
+  // ---------- Examens et explorations ----------
+  if(S.explorations>0){
+    children.push(sectionHeading("Examens et explorations"));
+    children.push(mkTable(["Indicateur","Nombre","Part des examens demandés"],[
+      ["Examens demandés", S.explorations, "100%"],
+      ["Examens réalisés", S.explorationsFaites, S.explorations?Math.round(S.explorationsFaites/S.explorations*100)+"%":"-"],
+      ["Résultats consignés", S.explorationsResultats, S.explorations?Math.round(S.explorationsResultats/S.explorations*100)+"%":"-"],
+      ["Résultats anormaux", S.explorationsAnormales, S.explorations?Math.round(S.explorationsAnormales/S.explorations*100)+"%":"-"],
+    ]));
+    if(S.explorationsFaites===0)
+      children.push(note("Le suivi des examens (réalisation, résultat, anomalie) n'était pas collecté lors de cette campagne : seuls les examens demandés sont connus."));
+    if(S.explorationsDetail.length){
+      children.push(sectionHeading("Détail des examens demandés"));
+      children.push(mkTable(["Patient","Site","Examen demandé","Réalisé","Résultat","Anomalie"],
+        S.explorationsDetail.map(e=>[e.patient,e.site,tronque(e.demande,50),e.faite,tronque(e.resultat,40),e.anormal])));
+    }
+  }
+
+  // ---------- Devenir des patients ----------
+  {
+    const corps=S.devenirBreakdown.map(([l,c])=>[l,c,
+      S.devenirRenseigne?Math.round(c/S.devenirRenseigne*100)+"%":"-"]);
+    const nonRens=S.total-S.devenirRenseigne;
+    if(nonRens>0) corps.push(["Non renseigné",nonRens,"-"]);
+    children.push(sectionHeading("Devenir des patients"));
+    children.push(mkTable(["Devenir","Patients","Part des devenirs renseignés"], corps));
+    if(S.devenirRenseigne===0)
+      children.push(note("Le devenir du patient n'était pas collecté lors de cette campagne. Les orientations connues figurent au chapitre des actes et des références."));
+    else if(nonRens>0)
+      children.push(note(`${nonRens} consultation(s) sans devenir renseigné : elles ne sont pas réparties, faute d'information.`));
+  }
+
   // ---------- Analyse comparative par site ----------
   if(S.siteStats.length){
     children.push(sectionHeading("Analyse comparative des sites"));
     children.push(mkTable(["Site","Consult.","Part","% F","% M","Âge moyen","Pathologie la + fréquente"],
       S.siteStats.map(s=>[s.nom,s.n,S.total?Math.round(s.n/S.total*100)+"%":"-",
                           s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
+  }
+
+  // ---------- Analyse et recommandations ----------
+  {
+    const ci=S.campagneInfo||{};
+    const textes=[["Difficultés rencontrées",ci.bilan_difficultes],
+                  ["Besoins constatés",ci.bilan_besoins],
+                  ["Recommandations",ci.bilan_recommandations]].filter(([,v])=>(v||"").trim());
+    const constats=[];
+    if(S.topDiag.length) constats.push(["Pathologie dominante", `${S.topDiag[0][0]} (${S.topDiag[0][1]} cas)`]);
+    if(S.picActivite) constats.push(["Journée la plus chargée", `${S.picActivite.date} — ${S.picActivite.count} consultations`]);
+    if(S.actesTotal) constats.push(["Actes réalisés", String(S.actesTotal)]);
+    if(S.referencesHorsSite) constats.push(["Patients référés hors site", String(S.referencesHorsSite)]);
+    constats.push(["Complétude moyenne des dossiers", S.completudeGlobale+"%"]);
+    children.push(sectionHeading("Analyse de la campagne"));
+    children.push(mkTable(["Constat","Valeur"], constats));
+    textes.forEach(([titre,texte])=>{
+      children.push(sectionHeading(titre));
+      // Chaque saut de ligne saisi devient un paragraphe Word distinct.
+      texte.trim().split(/\r?\n+/).forEach(par=>children.push(new Paragraph({ text:par, spacing:{after:100} })));
+    });
+    if(!textes.length)
+      children.push(note("Difficultés, besoins et recommandations se saisissent dans l'onglet Campagnes, sur la fiche de la campagne. Ils sont repris ici tels quels."));
   }
 
   // ---------- Annexes ----------
@@ -6468,6 +6739,14 @@ function campagneCardHtml(c){
         ${!pharmaciensDeCampagne(c.id).length?'<span class="rec-meta">Aucun pharmacien affecté aux sites de cette campagne.</span>':""}
       </div>
       ${actesHorsHtml(c)}
+      <!-- Analyse de fin de campagne : ces trois textes ne se calculent pas, ils s'écrivent.
+           Ils sont repris tels quels dans la dernière page du rapport. -->
+      <div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
+        <div class="rec-meta" style="margin-bottom:6px"><b>Analyse de fin de campagne</b> — repris dans le rapport</div>
+        <textarea id="cp_difficultes_${c.id}" placeholder="Difficultés rencontrées" style="font-size:13px;min-height:54px">${esc(c.bilan_difficultes||"")}</textarea>
+        <textarea id="cp_besoins_${c.id}" placeholder="Besoins constatés" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_besoins||"")}</textarea>
+        <textarea id="cp_recommandations_${c.id}" placeholder="Recommandations pour la prochaine édition" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_recommandations||"")}</textarea>
+      </div>
       <div class="actions" style="margin:8px 0 14px">
         <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
         <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
@@ -6651,7 +6930,17 @@ async function updateCampagne(id,btn){
   if(!nom){ toast("Le nom de la campagne ne peut pas être vide",true); return; }
   if(date_debut && date_fin && date_fin<date_debut){ toast("La date de fin ne peut pas précéder la date de début",true); return; }
   if(btn) btn.disabled=true;
-  const {error}=await sb.from("campagnes").update({nom,lieu:lieu||null,date_debut,date_fin,actif}).eq("id",id);
+  const maj={nom,lieu:lieu||null,date_debut,date_fin,actif};
+  // Textes d'analyse ajoutés seulement s'ils sont saisis : tant que
+  // rls_bilan_campagne.sql n'a pas été exécuté, ces colonnes n'existent pas et les
+  // envoyer ferait échouer toute modification de campagne.
+  const bilan={bilan_difficultes:"cp_difficultes_", bilan_besoins:"cp_besoins_",
+               bilan_recommandations:"cp_recommandations_"};
+  Object.keys(bilan).forEach(col=>{
+    const v=($(bilan[col]+id)?.value||"").trim();
+    if(v) maj[col]=v;
+  });
+  const {error}=await sb.from("campagnes").update(maj).eq("id",id);
   if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
@@ -6910,6 +7199,7 @@ function renderAide(){
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
         <li><b>Actes hors consultation :</b> pour les actes réalisés <b>sans qu'un patient soit enregistré</b> (pansements, mises en observation lors d'un afflux). On saisit un simple nombre par acte et par site. Ces actes sont comptés dans le tableau de bord et le bilan, avec la mention de leur origine - mais <b>aucune fiche patient n'est créée</b> : inventer des patients fausserait l'âge moyen, la répartition par sexe et les diagnostics.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
+        <li><b>Analyse de fin de campagne :</b> trois zones de texte - difficultés rencontrées, besoins constatés, recommandations. Elles ne se calculent pas : elles sont reprises telles quelles dans la dernière page du rapport, avant les annexes.</li>
       </ul>`},
 
     { show:true, titre:"Sécurité et bonnes pratiques", corps:`

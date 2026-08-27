@@ -1203,6 +1203,13 @@
     <!-- AGENT: nouvelle consultation -->
     <div class="panel" id="panel-form">
       <div id="formAlert"></div>
+      <!-- Bandeau permanent en mode modification : sans lui, rien ne distinguerait ce
+           formulaire pré-rempli d'une nouvelle consultation, et on créerait un doublon
+           en croyant corriger. -->
+      <div class="alert alert-info hidden" id="editBanner" style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">
+        <span id="editBannerText"></span>
+        <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="annulerEdition()">Annuler</button>
+      </div>
       <div class="field hidden" id="c_site_wrap">
         <label for="c_site">Site de consultation <span class="req">*</span></label>
         <select id="c_site" onchange="refreshFormStockForSite(this.value); setupReferField(this.value)"><option value="">- Sélectionner un site -</option></select>
@@ -1339,7 +1346,7 @@
 
       <div class="actions">
         <button class="btn btn-primary" id="saveBtn" onclick="saveConsultation()">Enregistrer la consultation</button>
-        <button class="btn btn-ghost" onclick="resetForm()">Réinitialiser</button>
+        <button class="btn btn-ghost" onclick="annulerEdition()">Réinitialiser</button>
       </div>
     </div>
 
@@ -1358,6 +1365,7 @@
 
     <!-- AGENT: mes consultations / ADMIN: toutes -->
     <div class="panel" id="panel-list">
+      <div id="listAlert"></div>
       <div class="stat-row" id="listStats"></div>
       <div class="toolbar">
         <input type="text" id="search" placeholder="Rechercher (nom, numéro AMSTC-…, diagnostic…)" aria-label="Rechercher une consultation" oninput="renderList()">
@@ -2977,7 +2985,13 @@ function switchTab(tab){
   // Recharge le stock disponible : il a pu changer depuis la connexion (réassort saisi
   // par l'administrateur, délivrances du pharmacien).
   if(tab==="form" && !isPharmacien() && !isInfirmier()) refreshFormStockForSite(formSiteId());
-  if(tab==="list") renderList();
+  if(tab==="list"){
+    renderList();
+    // L'historique des modifications est chargé à l'ouverture de l'onglet, pour les seules
+    // consultations affichées : inutile d'interroger la base pour les 1500 lignes en cache.
+    chargerHistoriqueModifications(currentRows().filter(r=>!r._queued).map(r=>r.id).slice(0,200))
+      .then(renderList).catch(()=>{});
+  }
   if(tab==="users") loadUsers();
   // Un seul rendu, après rafraîchissement du cache des pharmaciens (l'ancien double appel -
   // rendu immédiat puis re-rendu au retour réseau - faisait flasher tout le panneau).
@@ -3019,13 +3033,22 @@ async function saveConsultation(){
   const siteId = ME.role==="admin" ? ($("c_site").value||null) : ME.site_id;
   const type = $("c_type").value || "generaliste";
 
+  // En modification, l'identité de la consultation est CELLE D'ORIGINE. Le numéro a déjà
+  // été remis au patient sur sa fiche, l'auteur et la date de création sont des faits, et
+  // le site ne doit pas suivre l'agent qui corrige (il pourrait exercer ailleurs
+  // aujourd'hui) : reprendre ces champs tels quels est la seule option correcte.
+  const O=EDIT_ORIGINAL;
   const rec={
-    id:newId, numero_consultation:numero, medecin_nom:medecinNom, type_consultation:type,
-    agent_id: ME.id, site_id: siteId,
+    id: O?O.id:newId,
+    numero_consultation: O?O.numero_consultation:numero,
+    medecin_nom: O?O.medecin_nom:medecinNom,
+    type_consultation:type,
+    agent_id: O?O.agent_id:ME.id,
+    site_id: O ? (ME.role==="admin" ? ($("c_site").value||O.site_id) : O.site_id) : siteId,
     // Identifiant patient stable : repris tel quel si cette consultation prolonge un dossier
     // existant (référencement, "Reprendre ce dossier" depuis l'historique), sinon nouveau -
     // c'est ce qui permet au QR de la fiche imprimée de retrouver directement le même patient.
-    patient_id: CURRENT_PATIENT_ID||crypto.randomUUID(),
+    patient_id: O ? O.patient_id : (CURRENT_PATIENT_ID||crypto.randomUUID()),
     prenom:$("c_prenom").value.trim(), nom:$("c_nom").value.trim(),
     sexe:$("c_sexe").value, age:$("c_age").value?parseInt($("c_age").value):null,
     adresse:$("c_adresse").value.trim(),
@@ -3102,6 +3125,9 @@ async function saveConsultation(){
 
   if(missing.length){ alertIn("formAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
 
+  // MODIFICATION d'une consultation existante : chemin entièrement distinct de la création.
+  if(EDIT_ID){ await enregistrerModification(rec); return; }
+
   $("saveBtn").disabled=true;
   let confirmMsg="Consultation enregistrée.";
   if(navigator.onLine){
@@ -3126,6 +3152,263 @@ async function saveConsultation(){
   }
   resetForm();
   alertIn("formAlert","ok",confirmMsg);
+}
+
+/* =====================================================================
+   MODIFIER UNE CONSULTATION DÉJÀ ENREGISTRÉE
+   Réutilise le formulaire de saisie plutôt qu'un second formulaire à
+   maintenir en parallèle : toute évolution du formulaire profite donc
+   automatiquement à la modification.
+   ===================================================================== */
+let EDIT_ID=null;        // consultation en cours de modification
+let EDIT_ORIGINAL=null;  // son contenu d'origine, pour calculer ce qui a changé
+let EDIT_QUEUED=false;   // vraie si la ligne est encore dans la file d'envoi (jamais partie)
+
+// Qui peut modifier : l'auteur, ou un administrateur. Sans limite de temps.
+function peutModifier(r){
+  if(!r) return false;
+  return ME.role==="admin" || r.agent_id===ME.id;
+}
+
+// Champs suivis par l'historique, avec leur libellé lisible. Volontairement limité aux
+// données cliniques et à l'identité du patient : ni les identifiants techniques, ni les
+// champs de délivrance (qui appartiennent au pharmacien, pas au praticien).
+const CHAMPS_MODIFIABLES={
+  prenom:"Prénom", nom:"Nom", sexe:"Sexe", age:"Âge", adresse:"Adresse",
+  telephone_patient:"Téléphone", motifs:"Motifs", ta:"Tension", temperature:"Température",
+  fc:"Fréquence cardiaque", taille:"Taille", poids:"Poids", antecedents:"Antécédents",
+  signes:"Signes cliniques", diagnostic:"Diagnostic", explorations:"Explorations",
+  conduite:"Conduite à tenir", acte_dentaire:"Actes dentaires", actes_medicaux:"Actes réalisés",
+  specialite_medicale:"Spécialité", type_consultation:"Type de consultation",
+  site_id:"Site", refere_vers_id:"Référé vers (sur place)", refere_hopital:"Référé vers (hôpital)",
+  refere_motif:"Motif de référence",
+};
+
+function modifierConsultation(id){
+  // La file d'attente est indexée par _local, mais affichée sous l'identifiant "q<_local>".
+  // On récupère la ligne BRUTE, qui porte le vrai identifiant (uuid) et le numéro de
+  // consultation déjà remis au patient : ils doivent être préservés dans les deux cas.
+  const enFile=String(id).startsWith("q")
+    ? getQueue().find(x=>x._local===Number(String(id).slice(1)))
+    : null;
+  const r = enFile || LIST.find(x=>x.id===id);
+  if(!r){ toast("Consultation introuvable",true); return; }
+  if(!enFile && !peutModifier(r)){ toast("Vous ne pouvez modifier que vos propres consultations",true); return; }
+
+  // Une prescription déjà servie par la pharmacie ne peut plus être retouchée : le stock a
+  // été décrémenté sur la base de cette liste, la modifier fausserait l'inventaire sans que
+  // personne s'en aperçoive. Le reste de la consultation reste modifiable.
+  const dejaDelivre=Array.isArray(r.medicaments) && r.medicaments.some(m=>m.delivre);
+
+  EDIT_ID=id;
+  EDIT_QUEUED=!!enFile;
+  EDIT_ORIGINAL=r;
+
+  switchTab("form");
+  remplirFormulaireDepuis(r);
+  verrouillerMedicaments(dejaDelivre);
+
+  $("saveBtn").textContent="Enregistrer les modifications";
+  $("editBanner").classList.remove("hidden");
+  $("editBannerText").innerHTML = `Modification de la consultation <b>${esc(r.numero_consultation||"")}</b> - ${esc(r.prenom||"")} ${esc(r.nom||"")}`
+    + (dejaDelivre?`<br><b>Les médicaments ne sont pas modifiables :</b> ils ont déjà été délivrés par la pharmacie.`:"");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function annulerEdition(){
+  EDIT_ID=null; EDIT_ORIGINAL=null; EDIT_QUEUED=false;
+  verrouillerMedicaments(false);
+  $("saveBtn").textContent="Enregistrer la consultation";
+  $("editBanner").classList.add("hidden");
+  resetForm();
+  alertIn("formAlert","","");
+}
+
+// Empêche de toucher à la liste des médicaments sans la masquer : le praticien doit
+// continuer de VOIR ce qui a été prescrit, il ne peut simplement plus le changer.
+function verrouillerMedicaments(verrou){
+  ["generaliste","specialiste"].forEach(scope=>{
+    const btn=$("addMedBtn_"+scope); if(btn) btn.disabled=verrou;
+    const liste=$("medsList_"+scope); if(!liste) return;
+    liste.querySelectorAll("input,select,button").forEach(el=>{ el.disabled=verrou; });
+  });
+}
+
+function remplirFormulaireDepuis(r){
+  resetForm();
+  const set=(id,v)=>{ const el=$(id); if(el) el.value=(v==null?"":v); };
+  if(ME.role==="admin" && $("c_site")) set("c_site", r.site_id||"");
+  set("c_type", r.type_consultation||"generaliste");
+  onConsultTypeChange();
+  ["prenom","nom","sexe","age","adresse","telephone_patient","motifs"].forEach(f=>set("c_"+f, r[f]));
+  const spec=(r.type_consultation||"generaliste")==="specialiste";
+  if(spec){
+    set("c_signes_spec", r.signes); set("c_diagnostic_spec", r.diagnostic);
+    set("c_explorations_spec", r.explorations);
+    if(ME.role==="admin"){ set("c_specialite_med_select", r.specialite_medicale||""); }
+    else set("c_specialite_med", r.specialite_medicale);
+  } else {
+    ["ta","temperature","fc","taille","poids","antecedents","signes","explorations"].forEach(f=>set("c_"+f, r[f]));
+    if((r.type_consultation||"")==="dentiste") set("c_diagnostic_texte", r.diagnostic);
+    else cocherListe(".diag-check","diag_autre_check","c_diagnostic_autre",r.diagnostic,()=>onDiagCheckChange());
+    if((r.type_consultation||"")==="dentiste")
+      cocherListe(".acte-check","acte_autre_check","c_acte_dentaire_autre",r.acte_dentaire,()=>onActeCheckChange());
+  }
+  const scope=spec?"specialiste":"generaliste";
+  cocherListe(".actemed-check-"+scope,"actemed_autre_check_"+scope,"c_actes_medicaux_autre_"+scope,
+              r.actes_medicaux,()=>onActeMedCheckChange(scope));
+
+  // La conduite est reconstruite à la saisie à partir des médicaments et des notes : on
+  // remet donc les médicaments, et le texte libre tel qu'il a été enregistré.
+  (Array.isArray(r.medicaments)?r.medicaments:[]).forEach(m=>{
+    addMedRow(scope);
+    const row=$("medsList_"+scope).lastElementChild;
+    const sel=row.querySelector(".med-stock-select");
+    if(m.stock_id && [...sel.options].some(o=>o.value===m.stock_id)) sel.value=m.stock_id;
+    else { sel.value="__hors_stock__"; onMedStockSelectChange(sel); row.querySelector(".med-nom-libre").value=m.nom||""; }
+    row.querySelector(".med-poso").value=m.posologie||"";
+  });
+  const notes=(r.conduite||"").split(" - Médicaments :")[0];
+  if(r.conduite==="Pas de traitement nécessaire"){
+    const cb=$(spec?"c_pas_traitement_spec":"c_pas_traitement"); if(cb){ cb.checked=true; onPasTraitementChange(scope); }
+  } else set(spec?"c_conduite_notes_spec":"c_conduite_notes", notes);
+
+  // Référence
+  if(r.refere_hopital){ set("c_refere_type","hopital"); onRefereTypeChange(); set("c_refere_hopital",r.refere_hopital); }
+  else if(r.refere_vers_id){ set("c_refere_type","site"); onRefereTypeChange(); set("c_refere_vers",r.refere_vers_id); }
+  if(r.refere_motif) set("c_refere_motif", r.refere_motif);
+}
+
+// Re-coche une liste à partir d'une chaîne "A; B; Autre chose" : les valeurs connues
+// deviennent des cases cochées, le reste retourne dans le champ "Autres".
+function cocherListe(selecteurCases,idCaseAutre,idChampAutre,valeur,onChange){
+  const parts=(valeur||"").split("; ").map(v=>v.trim()).filter(Boolean);
+  if(!parts.length) return;
+  const cases=[...document.querySelectorAll(selecteurCases)];
+  const connues=new Set(cases.map(c=>c.value));
+  const restantes=[];
+  parts.forEach(p=>{ if(connues.has(p)) cases.find(c=>c.value===p).checked=true; else restantes.push(p); });
+  if(restantes.length){
+    const ca=$(idCaseAutre); if(ca) ca.checked=true;
+    const champ=$(idChampAutre); if(champ) champ.value=restantes.join("; ");
+  }
+  if(onChange) onChange();
+}
+
+// Compare l'avant et l'après, champ par champ. Seuls les champs RÉELLEMENT modifiés sont
+// journalisés : un historique rempli de lignes inchangées serait illisible.
+// Champs contenant PLUSIEURS valeurs séparées par "; " (cases à cocher). Leur ordre ne
+// veut rien dire : il dépend de l'ordre d'affichage des cases, et les valeurs saisies en
+// "Autres" se placent toujours en fin. Les comparer comme du texte signalerait donc des
+// modifications inexistantes - "Pansement; Mise en observation" contre "Mise en
+// observation; Pansement" - et noierait les vraies corrections dans du bruit.
+const CHAMPS_MULTIVALUES=new Set(["diagnostic","acte_dentaire","actes_medicaux"]);
+
+function calculerChangements(avant,apres){
+  const norm=v=>(v==null||v==="")?"":String(v);
+  const normEnsemble=v=>norm(v).split("; ").map(x=>x.trim()).filter(Boolean).sort().join("; ");
+  const out=[];
+  Object.keys(CHAMPS_MODIFIABLES).forEach(champ=>{
+    const a=norm(avant?avant[champ]:""), b=norm(apres[champ]);
+    const identiques = CHAMPS_MULTIVALUES.has(champ)
+      ? normEnsemble(a)===normEnsemble(b)   // même contenu, ordre indifférent
+      : a===b;
+    if(!identiques) out.push({champ, libelle:CHAMPS_MODIFIABLES[champ], avant:a, apres:b});
+  });
+  // Les médicaments sont un tableau : on compare leur résumé lisible plutôt que le JSON brut.
+  const medsA=medsToText(Array.isArray(avant&&avant.medicaments)?avant.medicaments:[])||"";
+  const medsB=medsToText(Array.isArray(apres.medicaments)?apres.medicaments:[])||"";
+  if(medsA!==medsB) out.push({champ:"medicaments", libelle:"Médicaments", avant:medsA, apres:medsB});
+  return out;
+}
+
+async function enregistrerModification(rec){
+  // Ligne encore en file d'envoi : elle n'a jamais atteint le serveur, on remplace
+  // simplement son contenu local. Aucun historique - il n'y a rien eu à retracer.
+  if(EDIT_QUEUED){
+    const local=Number(String(EDIT_ID).slice(1));
+    const q=getQueue().map(x=>x._local===local?{...rec,_local:local}:x);
+    setQueue(q);
+    toast("Consultation modifiée (toujours en attente d'envoi)");
+    annulerEdition(); renderList();
+    return;
+  }
+
+  const changements=calculerChangements(EDIT_ORIGINAL,rec);
+  if(!changements.length){ toast("Aucune modification à enregistrer"); annulerEdition(); return; }
+  if(!navigator.onLine){ toast("Une connexion est nécessaire pour modifier une consultation",true); return; }
+
+  $("saveBtn").disabled=true;
+  const {id,...maj}=rec;
+  const {error}=await sb.from("consultations").update(maj).eq("id",EDIT_ID);
+  if(error){
+    $("saveBtn").disabled=false;
+    const cause=analyserErreurEnvoi(error);
+    alertIn("formAlert","err","Modification refusée : "+cause.texte);
+    toast("Modification refusée : "+cause.texte,true);
+    return;
+  }
+
+  // L'historique est écrit APRÈS la modification : si son enregistrement échoue, la
+  // correction clinique reste faite - on le signale clairement plutôt que de la perdre.
+  const {error:errHist}=await sb.from("consultations_modifications").insert({
+    consultation_id:EDIT_ID, modifie_par_id:ME.id,
+    modifie_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
+    changements,
+  });
+  $("saveBtn").disabled=false;
+  if(errHist) toast("Modification enregistrée, mais l'historique n'a pas pu être écrit : "+errMsg(errHist),true);
+  else toast(`Consultation modifiée (${changements.length} champ${changements.length>1?"s":""})`);
+
+  const idModifiee=EDIT_ID;
+  annulerEdition();
+  await refreshData();
+  switchTab("list");
+  alertIn("listAlert","ok",`Consultation modifiée - ${changements.map(c=>c.libelle).join(", ")}.`);
+  MODIFS_OUVERTES.add(idModifiee); // l'historique se déplie sur la fiche concernée
+  chargerHistoriqueModifications([idModifiee]).then(renderList);
+}
+
+/* ---------- Historique des modifications, affiché sur la fiche ---------- */
+let MODIFS_PAR_CONSULT={};   // id de consultation -> liste de modifications
+let MODIFS_OUVERTES=new Set();
+
+async function chargerHistoriqueModifications(ids){
+  if(!ids||!ids.length||!navigator.onLine) return;
+  const {data,error}=await sb.from("consultations_modifications")
+    .select("consultation_id,modifie_le,modifie_par,changements")
+    .in("consultation_id",ids).order("modifie_le",{ascending:false});
+  if(error) return; // table absente (script SQL non exécuté) : on n'affiche simplement rien
+  MODIFS_PAR_CONSULT={};
+  (data||[]).forEach(m=>{ (MODIFS_PAR_CONSULT[m.consultation_id]=MODIFS_PAR_CONSULT[m.consultation_id]||[]).push(m); });
+}
+
+function toggleHistoriqueModifs(id){
+  if(MODIFS_OUVERTES.has(id)) MODIFS_OUVERTES.delete(id); else MODIFS_OUVERTES.add(id);
+  renderList();
+}
+
+function historiqueModifsHtml(id){
+  const modifs=MODIFS_PAR_CONSULT[id];
+  if(!modifs||!modifs.length) return "";
+  const derniere=modifs[0];
+  const d=new Date(derniere.modifie_le).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+  const ouvert=MODIFS_OUVERTES.has(id);
+  const detail=ouvert?`<div style="margin-top:6px;border-left:2px solid var(--line);padding-left:10px">
+    ${modifs.map(m=>{
+      const dm=new Date(m.modifie_le).toLocaleString("fr-FR",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+      return `<div style="margin-bottom:8px">
+        <div class="rec-meta"><b>${esc(dm)}</b> - ${esc(m.modifie_par||"-")}</div>
+        ${(m.changements||[]).map(c=>`<div class="rec-meta" style="font-size:11.5px">
+            ${esc(c.libelle||c.champ)} : <span style="text-decoration:line-through;opacity:.7">${esc(c.avant||"(vide)")}</span> → <b>${esc(c.apres||"(vide)")}</b>
+          </div>`).join("")}
+      </div>`;
+    }).join("")}
+  </div>`:"";
+  return `<div class="rec-meta" style="margin-top:6px">
+    <button class="link-btn" onclick="toggleHistoriqueModifs('${id}')">
+      Modifiée le ${esc(d)} par ${esc(derniere.modifie_par||"-")} · ${ouvert?"masquer":"voir"} l'historique (${modifs.length})
+    </button>${detail}</div>`;
 }
 
 // Un réseau saturé - le cas de Tivaouane pendant le Gamou - ne fait PAS
@@ -3318,8 +3601,10 @@ function renderList(){
       ${explo}
       ${refHopitalLine}
       ${telLine}
+      ${r._queued?"":historiqueModifsHtml(r.id)}
       <div class="rec-foot">
         <button class="btn btn-ghost btn-sm" onclick="imprimerFiche('${r.id}')">Imprimer la fiche</button>
+        ${(r._queued||peutModifier(r))?`<button class="btn btn-ghost btn-sm" onclick="modifierConsultation('${r.id}')">Modifier</button>`:""}
         <button class="btn btn-danger btn-sm" onclick="deleteConsultation('${r.id}',${!!r._queued})">Supprimer</button>
       </div>
     </div>`;
@@ -6033,6 +6318,16 @@ function renderAide(){
         <li><b>Traitement :</b> ajoutez des médicaments soit depuis le <b>stock du site</b> (la quantité exacte sera fixée par le pharmacien à la délivrance), soit « hors stock » en texte libre. Si aucun traitement n'est nécessaire, cochez la case dédiée. Une note libre (recommandations, suivi) peut compléter.</li>
       </ul>
       <p>Chaque consultation reçoit immédiatement un numéro unique <b>AMSTC-XXXXXXXX</b>, même hors connexion.</p>`},
+
+    { show:true, titre:"Modifier une consultation enregistrée", corps:`
+      <p>Le bouton <b>« Modifier »</b> sur une fiche de consultation rouvre le formulaire pré-rempli. Il apparaît si vous en êtes l'<b>auteur</b>, ou si vous êtes <b>administrateur</b>. Il n'y a <b>aucune limite de temps</b>.</p>
+      <ul>
+        <li>Le <b>numéro de consultation ne change pas</b> : il a déjà été remis au patient sur sa fiche. L'auteur et la date de création d'origine sont également conservés.</li>
+        <li><b>Chaque modification est tracée :</b> qui, quand, et pour chaque champ sa valeur avant et après. Le résumé apparaît en bas de la fiche (« Modifiée le … par … »), le détail complet se déplie d'un clic.</li>
+        <li>Cet historique ne peut être <b>ni modifié ni supprimé</b>, par personne, administrateur compris.</li>
+        <li>Une consultation encore <b>en attente d'envoi</b> se modifie directement sur l'appareil, sans historique : elle n'a jamais été enregistrée ailleurs, il n'y a rien à retracer.</li>
+      </ul>
+      <div class="aide-note">Les <b>médicaments déjà délivrés</b> par la pharmacie ne sont plus modifiables : le stock a été décompté sur leur base, les changer fausserait l'inventaire. Ils restent visibles, et tout le reste de la consultation demeure modifiable.</div>`},
 
     { show:isPraticien||isAdmin, titre:"Référer un patient", corps:`
       <p>En bas du formulaire de consultation, un encart permet d'orienter le patient. <b>Deux formes de référence</b> sont possibles :</p>

@@ -1486,20 +1486,20 @@
           <div id="pharmaAdminDispensationBody"></div>
         </fieldset>
         <fieldset>
-          <legend>Stock total - toute la campagne</legend>
+          <legend>Stock total - toutes campagnes</legend>
           <div id="pharmaAdminGlobalStockBody"></div>
         </fieldset>
         <fieldset>
-          <legend>Stock par site</legend>
-          <div class="field"><label for="pharmaAdminStockSite">Site</label>
-            <select id="pharmaAdminStockSite" onchange="onAdminStockSiteChange()"></select></div>
+          <legend>Stock de la campagne</legend>
+          <div class="field"><label for="pharmaAdminStockCampagne">Campagne</label>
+            <select id="pharmaAdminStockCampagne" onchange="onAdminStockCampagneChange()"></select></div>
           <fieldset style="margin-bottom:14px"><legend>Importer depuis Excel</legend>
             <p class="rec-meta" style="margin-bottom:10px">Colonnes attendues : Nom, Catégorie, Type, Quantité, Unité, Seuil d'alerte. Les lignes correspondant à un article déjà en stock sur ce site vous seront présentées une par une pour choisir quoi en faire.</p>
             <button class="btn btn-ghost btn-sm" onclick="downloadStockTemplate()">Télécharger le modèle</button>
             <input type="file" id="astockImportFile" accept=".xlsx,.xls,.csv" style="margin-top:10px;display:block" onchange="handleStockImportFile(event)">
             <div id="astockImportPreview" class="hidden" style="margin-top:14px"></div>
           </fieldset>
-          <fieldset style="margin-bottom:14px"><legend>Ajouter un article à ce site</legend>
+          <fieldset style="margin-bottom:14px"><legend>Ajouter un article à cette campagne</legend>
             <p class="rec-meta" style="margin-bottom:10px">Seuls les articles de type <b>Médicament</b> dont la quantité est <b>supérieure à 0</b> apparaissent dans la liste de prescription des praticiens. Les consommables et le matériel sont suivis ici, mais ne se prescrivent pas.</p>
             <div class="row2">
               <div class="field"><label for="astock_nom">Nom de l'article <span class="req">*</span></label><input type="text" id="astock_nom" placeholder="ex : Paracétamol 500mg cp"></div>
@@ -1515,10 +1515,10 @@
           </fieldset>
           <div id="pharmaAdminStockBody"></div>
           <div class="actions" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-            <button class="btn btn-danger btn-sm" onclick="wipeSiteStock(this)">Vider tout le stock de ce site</button>
+            <button class="btn btn-danger btn-sm" onclick="wipeSiteStock(this)">Vider tout le stock de cette campagne</button>
           </div>
         </fieldset>
-        <p class="rec-meta">Vous pouvez constituer et corriger le stock de n'importe quel site - utile avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné. Au quotidien, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Le détail des prescriptions, lui, reste réservé aux comptes Pharmacien.</p>
+        <p class="rec-meta">Vous pouvez constituer et corriger le stock de n'importe quelle campagne - utile avant son lancement, tant qu'aucun pharmacien en chef n'est encore désigné. Au quotidien, laissez de préférence la main au pharmacien en chef de la campagne, qui suit les délivrances au plus près. Le détail des prescriptions, lui, reste réservé aux comptes Pharmacien.</p>
       </div>
     </div>
 
@@ -1640,7 +1640,7 @@ let SITES = [];           // liste des sites
 let LIST = [];            // consultations chargées depuis le serveur
 let CURRENT_TAB = null;
 let USERS_CACHE = [];     // dernière liste d'utilisateurs chargée (pour éviter les soucis d'échappement de noms)
-let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien en chef" par site
+let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien en chef" de campagne
 let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
 let DISPENSATION_STOCK_UNITS = {}; // stock_id -> unité actuelle en stock (pré-sélectionne l'unité à la délivrance)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
@@ -2794,12 +2794,15 @@ function onCSpecialiteMedSelectChange(){
 }
 
 // Liste de médicaments saisis un par un - utilisée par les formulaires généraliste et spécialiste.
-let STOCK_FOR_FORM=[]; // médicaments disponibles en stock pour le site courant du formulaire de prescription
+let STOCK_FOR_FORM=[]; // médicaments disponibles pour la campagne du formulaire de prescription
 
+// Le stock est tenu par CAMPAGNE : on reçoit un site (celui de la consultation) et on
+// remonte à sa campagne. Un site non rattaché n'a donc aucun stock à proposer.
 async function refreshStockForForm(siteId){
-  if(!siteId){ STOCK_FOR_FORM=[]; return; }
+  const campagneId=campagneDuSite(siteId);
+  if(!campagneId){ STOCK_FOR_FORM=[]; return; }
   const {data}=await sb.from("stock_medicaments").select("id,nom,quantite,unite")
-    .eq("site_id",siteId).eq("type_article","medicament").gt("quantite",0).order("nom");
+    .eq("campagne_id",campagneId).eq("type_article","medicament").gt("quantite",0).order("nom");
   STOCK_FOR_FORM=data||[];
 }
 
@@ -2827,9 +2830,9 @@ function stockPickerOptions(recherche){
   let vide="";
   // Une liste vide doit toujours dire POURQUOI : stock réellement vide, ou simplement
   // aucune correspondance avec ce qui vient d'être tapé.
-  if(!STOCK_FOR_FORM.length) vide=`<option value="" disabled>Aucun médicament en stock sur ce site</option>`;
+  if(!STOCK_FOR_FORM.length) vide=`<option value="" disabled>Aucun médicament en stock sur cette campagne</option>`;
   else if(!liste.length) vide=`<option value="" disabled>Aucun médicament ne correspond à cette recherche</option>`;
-  return `<option value="">- Choisir dans le stock du site -</option>`+vide+
+  return `<option value="">- Choisir dans le stock de la campagne -</option>`+vide+
     liste.map(s=>`<option value="${s.id}" data-nom="${esc(s.nom)}">${esc(s.nom)} (${s.quantite} ${esc(s.unite||"")} restant${s.quantite>1?"s":""})</option>`).join("")+
     `<option value="__hors_stock__">Médicament non trouvé dans la liste…</option>`;
 }
@@ -4844,10 +4847,19 @@ async function refreshPharmaciensCache(){
   PHARMACIENS_CACHE=data||[];
 }
 
-async function setPharmacienChef(siteId,pharmacienId){
-  const {error}=await sb.from("sites").update({pharmacien_chef_id:pharmacienId||null}).eq("id",siteId);
+// Candidats au rôle de chef d'une campagne : les pharmaciens affectés à l'un de ses sites.
+function pharmaciensDeCampagne(campagneId){
+  const sitesIds=new Set(SITES.filter(s=>s.campagne_id===campagneId).map(s=>s.id));
+  return PHARMACIENS_CACHE.filter(p=>sitesIds.has(p.site_id));
+}
+
+// Le pharmacien en chef est désigné par CAMPAGNE : c'est elle qui porte le stock depuis
+// que celui-ci n'est plus tenu site par site.
+async function setPharmacienChefCampagne(campagneId,pharmacienId){
+  const {error}=await sb.from("campagnes").update({pharmacien_chef_id:pharmacienId||null}).eq("id",campagneId);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
-  const {data}=await sb.from("sites").select("*").order("nom"); SITES=data||[];
+  const {data}=await sb.from("campagnes").select("*").order("date_debut",{ascending:false});
+  CAMPAGNES=data||[];
   toast(pharmacienId?"Pharmacien en chef désigné":"Pharmacien en chef retiré");
   renderCampagnes();
 }
@@ -5345,10 +5357,16 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
     if(med.stock_id){
       const {data}=await sb.from("stock_medicaments").select("id,quantite,nom").eq("id",med.stock_id).maybeSingle();
       item=data||null;
-    } else if(med.nom && ME.site_id){
-      const {data}=await sb.from("stock_medicaments").select("id,quantite,nom")
-        .eq("site_id",ME.site_id).ilike("nom",med.nom.trim()).limit(1);
-      item=(data&&data[0])||null;
+    } else if(med.nom){
+      // Repli par nom pour les anciennes prescriptions sans lien direct : on cherche dans
+      // le stock de la campagne à laquelle appartient le site de CETTE consultation, et
+      // non celui du pharmacien - il peut délivrer pour un patient d'un autre site.
+      const campagneId=campagneDuSite(consult&&consult.site_id)||currentStockCampagneId();
+      if(campagneId){
+        const {data}=await sb.from("stock_medicaments").select("id,quantite,nom")
+          .eq("campagne_id",campagneId).ilike("nom",med.nom.trim()).limit(1);
+        item=(data&&data[0])||null;
+      }
     }
   }
   if(item){
@@ -5395,9 +5413,14 @@ async function renderPharmacienDashboard(){
   const siteId=ME.site_id;
   $("dashBody").innerHTML=LOADING_HTML;
   if(!siteId){ $("dashBody").innerHTML=`<div class="empty">Aucun site attribué pour l'instant.</div>`; return; }
+  // Le stock est celui de la CAMPAGNE ; les délivrances restent celles du site où le
+  // pharmacien exerce - ce sont bien deux périmètres différents.
+  const campagneId=currentStockCampagneId();
 
   const [{data:stock},{data:consults},collegues] = await Promise.all([
-    sb.from("stock_medicaments").select("*").eq("site_id",siteId),
+    campagneId
+      ? sb.from("stock_medicaments").select("*").eq("campagne_id",campagneId)
+      : Promise.resolve({data:[]}),
     sb.from("consultations").select("medicaments").eq("site_id",siteId).limit(2000),
     loadCollegues(),
   ]);
@@ -5507,8 +5530,8 @@ async function loadPharmaAdminOverview(){
     (data||[]).forEach(r=>{ (r.medicaments||[]).forEach(m=>{ if(m.delivre) count++; }); });
     $("pharmaAdminDeliveredCount").textContent=count;
   }
-  if(!$("pharmaAdminStockSite").innerHTML){
-    $("pharmaAdminStockSite").innerHTML=SITES.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("");
+  if(!$("pharmaAdminStockCampagne").innerHTML){
+    $("pharmaAdminStockCampagne").innerHTML=CAMPAGNES.map(c=>`<option value="${c.id}">${esc(c.nom)}${c.archivee?" (archivée)":""}</option>`).join("");
   }
   loadDispensation().then(renderDispensationAdmin);
   loadPharmaAdminGlobalStock();
@@ -5517,37 +5540,37 @@ async function loadPharmaAdminOverview(){
 
 async function loadPharmaAdminGlobalStock(){
   $("pharmaAdminGlobalStockBody").innerHTML=LOADING_HTML;
-  const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,site_id");
+  const {data,error}=await sb.from("stock_medicaments").select("nom,quantite,unite,categorie,campagne_id");
   if(error){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
-  if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucun site.</div>`; return; }
-  // Regroupement par nom (insensible à la casse) - additionne les quantités, quelle que soit l'unité
-  // déclarée site par site (à interpréter avec prudence si les unités diffèrent d'un site à l'autre).
+  if(!(data||[]).length){ $("pharmaAdminGlobalStockBody").innerHTML=`<div class="empty">Aucun stock enregistré sur aucune campagne.</div>`; return; }
+  // Regroupement par nom (insensible à la casse) toutes campagnes confondues - additionne les
+  // quantités, quelle que soit l'unité déclarée (à interpréter avec prudence si elles diffèrent).
   const map={};
   data.forEach(it=>{
     const key=it.nom.trim().toLowerCase();
-    if(!map[key]) map[key]={nom:it.nom, quantite:0, unite:it.unite, categorie:it.categorie, sites:new Set()};
+    if(!map[key]) map[key]={nom:it.nom, quantite:0, unite:it.unite, categorie:it.categorie, campagnes:new Set()};
     map[key].quantite+=it.quantite;
-    map[key].sites.add(it.site_id);
+    map[key].campagnes.add(it.campagne_id);
   });
   const rows=Object.values(map).sort((a,b)=>a.nom.localeCompare(b.nom));
   $("pharmaAdminGlobalStockBody").innerHTML=rows.map(r=>`
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
       <div>
         <b>${esc(r.nom)}</b>
-        <div class="rec-meta">${esc(r.categorie||"Sans catégorie")} · ${r.sites.size} site${r.sites.size>1?"s":""}</div>
+        <div class="rec-meta">${esc(r.categorie||"Sans catégorie")} · ${r.campagnes.size} campagne${r.campagnes.size>1?"s":""}</div>
       </div>
       <div style="text-align:right;flex-shrink:0"><b>${r.quantite}</b> <span class="rec-meta">${esc(r.unite||"")}</span></div>
     </div>`).join("");
 }
 
 async function loadPharmaAdminStock(){
-  const siteId=$("pharmaAdminStockSite").value;
-  if(!siteId){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucun site.</div>`; return; }
+  const campagneId=$("pharmaAdminStockCampagne").value;
+  if(!campagneId){ $("pharmaAdminStockBody").innerHTML=`<div class="empty">Aucune campagne.</div>`; return; }
   $("pharmaAdminStockBody").innerHTML=LOADING_HTML;
-  const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
+  const {data,error}=await sb.from("stock_medicaments").select("*").eq("campagne_id",campagneId).order("nom");
   if(error){ $("pharmaAdminStockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
-  // Même tableau modifiable que celui du pharmacien en chef, sur le site sélectionné.
-  renderStock(data||[],"pharmaAdminStockBody",canEditStock(siteId));
+  // Même tableau modifiable que celui du pharmacien en chef, sur la campagne sélectionnée.
+  renderStock(data||[],"pharmaAdminStockBody",canEditStock(campagneId));
 }
 
 function switchPharmaSubTab(sub){
@@ -5567,27 +5590,39 @@ function goToPharmaSubTab(sub,showDelivered){
   switchPharmaSubTab(sub);
 }
 
-// Site dont le stock est à l'écran : celui choisi dans le sélecteur pour un
-// administrateur (il voit tous les sites), son propre site pour un pharmacien.
-function currentStockSiteId(){
-  if(ME.role==="admin") return $("pharmaAdminStockSite")?.value||null;
-  return ME.site_id||null;
+// Campagne à laquelle appartient un site.
+function campagneDuSite(siteId){
+  const s=SITES.find(x=>x.id===siteId);
+  return s?(s.campagne_id||null):null;
+}
+
+// Campagne dont le stock est à l'écran : celle choisie dans le sélecteur pour un
+// administrateur (il les voit toutes), sinon celle du site où exerce le pharmacien.
+// Le stock est désormais tenu par CAMPAGNE : une campagne dispose d'un seul lot de
+// médicaments, que les équipes se répartissent entre les sites.
+function currentStockCampagneId(){
+  if(ME.role==="admin") return $("pharmaAdminStockCampagne")?.value||null;
+  return ME.campagne_id||campagneDuSite(ME.site_id)||null;
 }
 
 function isChiefPharmacien(){
-  const site=SITES.find(s=>s.id===ME.site_id);
-  return !!(site && site.pharmacien_chef_id===ME.id);
+  return estChefDeCampagne(currentStockCampagneId());
 }
 
-// Qui peut faire évoluer le stock d'un site : l'administrateur (sur tous les sites,
-// notamment pour constituer le stock initial avant qu'un pharmacien en chef ne soit
-// désigné) ou le pharmacien en chef de ce site précis. Les mêmes droits sont appliqués
-// côté base par les politiques RLS (voir rls_stock_admin.sql) : contourner cette
-// fonction depuis la console du navigateur ne permettrait rien de plus.
-function canEditStock(siteId){
+function estChefDeCampagne(campagneId){
+  if(!campagneId) return false;
+  const c=CAMPAGNES.find(x=>x.id===campagneId);
+  return !!(c && c.pharmacien_chef_id===ME.id);
+}
+
+// Qui peut faire évoluer le stock d'une campagne : l'administrateur (notamment pour
+// constituer le stock initial avant qu'un pharmacien en chef ne soit désigné) ou le
+// pharmacien en chef de cette campagne. Les mêmes droits sont appliqués côté base par
+// les politiques RLS (voir rls_stock_campagne.sql) : contourner cette fonction depuis
+// la console du navigateur ne permettrait rien de plus.
+function canEditStock(campagneId){
   if(ME.role==="admin") return true;
-  const site=SITES.find(s=>s.id===siteId);
-  return !!(site && site.pharmacien_chef_id===ME.id);
+  return estChefDeCampagne(campagneId);
 }
 
 // Recharge la vue stock affichée, qui n'est pas la même selon le rôle - évite que les
@@ -5598,15 +5633,15 @@ function reloadStockView(){
 }
 
 async function loadStock(){
-  const siteId=currentStockSiteId();
-  // Seul le pharmacien en chef du site peut faire évoluer le stock (import Excel, ajout manuel,
-  // modification d'un article existant) - les autres pharmaciens du site ont une vue lecture seule.
+  const campagneId=currentStockCampagneId();
+  // Seul le pharmacien en chef de la campagne peut faire évoluer le stock (import Excel,
+  // ajout manuel, modification d'un article) - les autres pharmaciens ont une vue en lecture.
   const isChief=isChiefPharmacien();
   $("importStockFieldset")?.classList.toggle("hidden", !isChief);
   $("addStockFieldset")?.classList.toggle("hidden", !isChief);
-  if(!siteId){ $("stockBody").innerHTML=`<div class="empty">Aucun site attribué.</div>`; return; }
+  if(!campagneId){ $("stockBody").innerHTML=`<div class="empty">Votre site n'est rattaché à aucune campagne : le stock est tenu par campagne.</div>`; return; }
   $("stockBody").innerHTML=LOADING_HTML;
-  const {data,error}=await sb.from("stock_medicaments").select("*").eq("site_id",siteId).order("nom");
+  const {data,error}=await sb.from("stock_medicaments").select("*").eq("campagne_id",campagneId).order("nom");
   if(error){ $("stockBody").innerHTML=`<div class="empty empty-err">Chargement impossible : ${esc(errMsg(error))}</div>`; return; }
   renderStock(data||[],"stockBody",isChief);
 }
@@ -5669,8 +5704,8 @@ let STOCK_IMPORT_ROWS=[]; // lignes en attente de décision (nouvelles + conflit
 
 async function handleStockImportFile(evt){
   const file=evt.target.files[0]; if(!file) return;
-  const siteId=currentStockSiteId();
-  if(!siteId){ toast(ME.role==="admin"?"Sélectionnez d'abord un site":"Aucun site attribué",true); return; }
+  const campagneId=currentStockCampagneId();
+  if(!campagneId){ toast(ME.role==="admin"?"Sélectionnez d'abord une campagne":"Votre site n'est rattaché à aucune campagne",true); return; }
 
   const buf=await file.arrayBuffer();
   const wb=XLSX.read(buf,{type:"array"});
@@ -5684,7 +5719,7 @@ async function handleStockImportFile(evt){
     return "";
   };
 
-  const {data:existing}=await sb.from("stock_medicaments").select("id,nom,quantite").eq("site_id",siteId);
+  const {data:existing}=await sb.from("stock_medicaments").select("id,nom,quantite").eq("campagne_id",campagneId);
   const existingByName={}; (existing||[]).forEach(it=>{ existingByName[norm(it.nom)]=it; });
 
   STOCK_IMPORT_ROWS = rows.map(row=>{
@@ -5741,7 +5776,7 @@ function renderStockImportPreview(){
 }
 
 async function confirmStockImport(){
-  const siteId=currentStockSiteId(); if(!siteId) return;
+  const campagneId=currentStockCampagneId(); if(!campagneId) return;
   const updatedPar=`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email;
   let inserted=0, updated=0, ignored=0;
 
@@ -5757,7 +5792,7 @@ async function confirmStockImport(){
       updated++;
     } else {
       await sb.from("stock_medicaments").insert({
-        site_id:siteId, nom:r.nom, quantite:Math.max(0,Math.round(r.quantite)), unite:r.unite,
+        campagne_id:campagneId, nom:r.nom, quantite:Math.max(0,Math.round(r.quantite)), unite:r.unite,
         categorie:r.categorie||null, type_article:r.type_article, seuil_alerte:r.seuil_alerte,
         updated_par:updatedPar,
       });
@@ -5775,11 +5810,11 @@ async function confirmStockImport(){
 // confirmation. Or cet import a été préparé pour l'ANCIEN site : la détection des
 // doublons a été faite sur son stock à lui. Le conserver écrirait les lignes sur le
 // mauvais site, en croyant à tort que rien n'y existe déjà. On l'abandonne donc.
-function onAdminStockSiteChange(){
+function onAdminStockCampagneChange(){
   if(STOCK_IMPORT_ROWS.length){
     STOCK_IMPORT_ROWS=[];
     renderStockImportPreview();
-    toast("Import abandonné : vous avez changé de site. Resélectionnez le fichier.",true);
+    toast("Import abandonné : vous avez changé de campagne. Resélectionnez le fichier.",true);
   }
   loadPharmaAdminStock();
 }
@@ -5789,8 +5824,8 @@ function onAdminStockSiteChange(){
 // de champs diffèrent (ils coexistent dans la page).
 async function addStockItem(btn,prefix){
   prefix=prefix||"stock";
-  const siteId=currentStockSiteId();
-  if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
+  const campagneId=currentStockCampagneId();
+  if(!campagneId){ toast("Sélectionnez d'abord une campagne",true); return; }
   const nom=$(prefix+"_nom").value.trim();
   const qte=parseInt($(prefix+"_qte").value)||0;
   const unite=$(prefix+"_unite").value;
@@ -5802,7 +5837,7 @@ async function addStockItem(btn,prefix){
   if(!unite){ toast("Choisissez une unité",true); return; }
   if(btn) btn.disabled=true;
   const {error}=await sb.from("stock_medicaments").insert({
-    site_id:siteId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
+    campagne_id:campagneId, nom, quantite:qte, unite, categorie, type_article, seuil_alerte,
     updated_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email,
   });
   if(btn) btn.disabled=false;
@@ -5833,35 +5868,35 @@ async function updateStockQty(id,btn){
 
 // Suppression en masse du stock d'un site (remise à zéro avant une nouvelle campagne,
 // correction d'un import raté). Volontairement limitée AU SITE SÉLECTIONNÉ : effacer
-// l'inventaire de tous les sites d'un seul geste serait bien plus dangereux qu'utile.
+// l'inventaire de toutes les campagnes d'un seul geste serait bien plus dangereux qu'utile.
 // La confirmation exige de recopier un mot : un simple clic "OK" se donne par réflexe,
 // ce qui est trop peu pour une action irréversible sur un inventaire réel.
 async function wipeSiteStock(btn){
-  const siteId=currentStockSiteId();
-  if(!siteId){ toast("Sélectionnez d'abord un site",true); return; }
-  const s=SITES.find(x=>x.id===siteId);
-  const nomSite=s?s.nom:"ce site";
-  // On compte d'abord : annoncer le nombre exact d'articles évite de vider un site par
-  // erreur en croyant en viser un autre.
-  const {data,error}=await sb.from("stock_medicaments").select("id").eq("site_id",siteId);
+  const campagneId=currentStockCampagneId();
+  if(!campagneId){ toast("Sélectionnez d'abord une campagne",true); return; }
+  const c=CAMPAGNES.find(x=>x.id===campagneId);
+  const nomCampagne=c?c.nom:"cette campagne";
+  // On compte d'abord : annoncer le nombre exact d'articles évite de vider une campagne
+  // par erreur en croyant en viser une autre.
+  const {data,error}=await sb.from("stock_medicaments").select("id").eq("campagne_id",campagneId);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
   const n=(data||[]).length;
-  if(!n){ toast("Le stock de ce site est déjà vide"); return; }
+  if(!n){ toast("Le stock de cette campagne est déjà vide"); return; }
   const ok=await confirmModal(
-    `<p>Vous allez supprimer <b>l'intégralité du stock</b> du site <b>${esc(nomSite)}</b>, soit <b>${n} article${n>1?"s":""}</b>.</p>
+    `<p>Vous allez supprimer <b>l'intégralité du stock</b> de la campagne <b>${esc(nomCampagne)}</b>, soit <b>${n} article${n>1?"s":""}</b>.</p>
      <p>Cette action est <b>irréversible</b>. Les consultations et les délivrances déjà enregistrées ne sont pas touchées.</p>
      <p style="margin-top:10px">Pour confirmer, recopiez <b>SUPPRIMER</b> ci-dessous :</p>
      <input type="text" id="wipeStockConfirm" autocomplete="off" placeholder="SUPPRIMER" style="margin-top:6px">`,
-    {title:"Vider le stock du site", okLabel:"Tout supprimer"});
+    {title:"Vider le stock de la campagne", okLabel:"Tout supprimer"});
   if(!ok) return;
   if(($("wipeStockConfirm")?.value||"").trim().toUpperCase()!=="SUPPRIMER"){
     toast("Suppression annulée : le mot de confirmation ne correspond pas",true); return;
   }
   if(btn) btn.disabled=true;
-  const {error:delErr}=await sb.from("stock_medicaments").delete().eq("site_id",siteId);
+  const {error:delErr}=await sb.from("stock_medicaments").delete().eq("campagne_id",campagneId);
   if(btn) btn.disabled=false;
   if(delErr){ toast("Échec : "+errMsg(delErr),true); return; }
-  toast(`${n} article${n>1?"s":""} supprimé${n>1?"s":""} du stock de ${nomSite}`);
+  toast(`${n} article${n>1?"s":""} supprimé${n>1?"s":""} du stock de ${nomCampagne}`);
   reloadStockView();
 }
 
@@ -5876,7 +5911,7 @@ async function deleteStockItem(id){
 /* =====================================================================
    ADMIN - CAMPAGNES ET LEURS SITES (onglet fusionné, vue en fiches)
    Chaque campagne est affichée avec ses sites directement en dessous,
-   éditables sur place. Un bloc "Sites autonomes" regroupe les sites
+   éditables sur place. Les sites sans campagne ne sont plus proposés (le
    sans campagne (conservés pour compatibilité avec les données existantes).
    ===================================================================== */
 function campagneName(id){ const c=CAMPAGNES.find(x=>x.id===id); return c?c.nom:null; }
@@ -5921,29 +5956,27 @@ function renderCampagnes(){
     return;
   }
 
-  const autonomes=SITES.filter(s=>!s.campagne_id);
-  const autonomesHtml=`
-    <div class="rec" id="campcard_autonomes" style="margin-bottom:16px">
-      <div class="rec-name" style="margin-bottom:2px">Sites autonomes</div>
-      <div class="rec-meta" style="margin-bottom:10px">Sites qui ne sont rattachés à aucune campagne.</div>
-      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('autonomes')" id="campSitesToggleBtn_autonomes">
-        <span>Sites (${autonomes.length})</span><span id="campSitesChevron_autonomes">${OPEN_CAMP_SITES.has('autonomes')?"▴":"▾"}</span>
-      </button>
-      <div id="campSitesBody_autonomes" class="${OPEN_CAMP_SITES.has('autonomes')?"":"hidden"}">
-        ${siteListHtml(autonomes)}
-        ${addSiteFormHtml(null)}
-      </div>
-    </div>`;
-  $("campagnesBody").innerHTML = (groups || `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`) + autonomesHtml;
+  // Les "sites autonomes" (sans campagne) ne sont plus proposés : le stock étant tenu par
+  // campagne, un site hors campagne n'aurait aucun stock. Ceux qui existent déjà restent en
+  // base avec leurs consultations - ils sont simplement signalés, à rattacher à une campagne.
+  const orphelins=SITES.filter(s=>!s.campagne_id);
+  const avertissement=orphelins.length?`
+    <div class="alert alert-warn" style="margin-top:16px">
+      <b>${orphelins.length} site${orphelins.length>1?"s ne sont rattachés":" n'est rattaché"} à aucune campagne</b> :
+      ${orphelins.map(s=>esc(s.nom)).join(", ")}.
+      Le stock étant désormais tenu par campagne, ${orphelins.length>1?"ces sites n'ont":"ce site n'a"} pas de stock disponible.
+      Rattachez-${orphelins.length>1?"les":"le"} à une campagne depuis l'onglet Utilisateurs, ou laissez-${orphelins.length>1?"les":"le"} de côté : leurs consultations déjà enregistrées restent intactes.
+    </div>`:"";
+  $("campagnesBody").innerHTML = (groups || `<div class="empty">Aucune campagne active. Créez-en une ci-dessus.</div>`) + avertissement;
 }
 
+// Le pharmacien en chef ne figure plus ici : il est désormais désigné au niveau de la
+// CAMPAGNE (voir campagneCardHtml), puisque c'est elle qui porte le stock.
 function siteListHtml(sites){
   if(!sites.length) return `<div class="rec-meta" style="margin-bottom:8px">Aucun site pour l'instant.</div>`;
-  return sites.map(s=>{
-    const candidats=PHARMACIENS_CACHE.filter(p=>p.site_id===s.id);
-    return `
+  return sites.map(s=>`
     <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="flex:1;min-width:120px;padding:7px 9px;font-size:13.5px">
         <select id="site_actif_${s.id}" style="padding:7px 8px;font-size:12.5px">
           <option value="true"${s.actif?" selected":""}>Actif</option>
@@ -5952,16 +5985,7 @@ function siteListHtml(sites){
         <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}',this)">Enregistrer</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (gère le stock de ce site, avec l'administrateur)</label>
-        <select onchange="setPharmacienChef('${s.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
-          <option value="">- Aucun -</option>
-          ${candidats.map(p=>`<option value="${p.id}"${s.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
-        </select>
-        ${!candidats.length?'<span class="rec-meta">Aucun pharmacien affecté à ce site pour l\'instant.</span>':""}
-      </div>
-    </div>`;
-  }).join("");
+    </div>`).join("");
 }
 
 function addSiteFormHtml(campagneId){
@@ -6012,6 +6036,16 @@ function campagneCardHtml(c){
           <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:7px 9px;font-size:13px"></div>
         <div><label style="font-size:11px;color:var(--muted)">Fin</label>
           <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+      </div>
+      <!-- Le pharmacien en chef est désormais désigné pour la CAMPAGNE : c'est elle qui
+           porte le stock. Les candidats sont les pharmaciens affectés à l'un de ses sites. -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (gère le stock de la campagne, avec l'administrateur)</label>
+        <select onchange="setPharmacienChefCampagne('${c.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
+          <option value="">- Aucun -</option>
+          ${pharmaciensDeCampagne(c.id).map(p=>`<option value="${p.id}"${c.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
+        </select>
+        ${!pharmaciensDeCampagne(c.id).length?'<span class="rec-meta">Aucun pharmacien affecté aux sites de cette campagne.</span>':""}
       </div>
       <div class="actions" style="margin:8px 0 14px">
         <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
@@ -6415,8 +6449,8 @@ function renderAide(){
       <div class="aide-note">Pouvoir agir sur tous les sites est surtout utile <b>avant une campagne</b>, tant qu'aucun pharmacien en chef n'est désigné - sans cela, personne ne pourrait constituer le stock initial. Une fois la campagne lancée, laissez de préférence la main au pharmacien en chef du site, qui suit les délivrances au plus près. Chaque modification enregistre votre nom.</div>`},
 
     { show:isPharma, titre:"Pharmacie : gestion du stock", corps:`
-      <p>L'onglet <b>Pharmacie › Stock</b> affiche les articles de votre site, groupés par catégorie, avec une alerte <b>« Stock bas »</b> quand la quantité passe sous le seuil défini.</p>
-      <p>Tous les pharmaciens du site peuvent <b>consulter</b> le stock ; seule sa <b>modification</b> est réservée au <b>pharmacien en chef</b> du site (désigné par l'administrateur) :</p>
+      <p>L'onglet <b>Pharmacie › Stock</b> affiche les articles de votre <b>campagne</b>, groupés par catégorie, avec une alerte <b>« Stock bas »</b> quand la quantité passe sous le seuil défini.</p>
+      <p>Le stock est commun à toute la campagne : tous les pharmaciens peuvent le <b>consulter</b>, seule sa <b>modification</b> est réservée au <b>pharmacien en chef de la campagne</b> (désigné par l'administrateur) :</p>
       <ul>
         <li><b>Ajouter un article :</b> nom, type (médicament, consommable, matériel), catégorie, quantité, unité et seuil d'alerte.</li>
         <li><b>Modifier / Supprimer :</b> bouton « Modifier » sur chaque ligne pour ajuster quantité, unité et seuil à tout moment (réassorts, corrections...).</li>
@@ -6449,7 +6483,8 @@ function renderAide(){
       <ul>
         <li><b>Créer une campagne :</b> volet dépliable en haut (nom, lieu, dates de début et fin).</li>
         <li><b>Détails :</b> modifier nom, lieu, dates, statut (Active / Terminée) ; <b>Archiver</b> déplace la campagne dans l'onglet Archives (désarchivable, ou supprimable définitivement depuis là).</li>
-        <li><b>Sites :</b> ajout, renommage, activation et suppression directement sous chaque campagne ; les <b>sites autonomes</b> (sans campagne) ont leur propre bloc.</li>
+        <li><b>Sites :</b> ajout, renommage, activation et suppression directement sous chaque campagne. Tout site appartient désormais à une campagne : les sites sans campagne ne sont plus proposés, le stock étant tenu par campagne.</li>
+        <li><b>Pharmacien en chef :</b> désigné <b>par campagne</b> (et non plus par site) - seul habilité, avec l'administrateur, à modifier le stock de cette campagne.</li>
         <li><b>Site indisponible pour un nouveau choix :</b> un site marqué "Inactif", ou rattaché à une campagne archivée, n'apparaît plus dans les listes de choix (nouvelle consultation, affectation d'un utilisateur, écran de connexion). Il reste visible et gérable ici dans l'onglet Campagnes, et un agent déjà affecté à ce site le garde sans interruption. Désarchiver la campagne (ou réactiver le site) le rend de nouveau choisissable immédiatement. Cela ne touche jamais aux consultations déjà enregistrées : elles restent consultables et ne disparaissent que si on les supprime manuellement.</li>
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>

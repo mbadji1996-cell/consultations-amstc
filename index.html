@@ -1404,6 +1404,19 @@
     <!-- ADMIN: sites -->
     <!-- ADMIN: campagnes + leurs sites, dans un même onglet -->
     <div class="panel" id="panel-campagnes">
+      <!-- Suggestions pour la saisie des actes hors consultation. Une liste ouverte
+           (datalist) et non un menu fermé : ces propositions couvrent le courant, mais
+           le terrain apporte toujours des actes qu'on n'avait pas prévus. -->
+      <datalist id="actesCourants">
+        <option value="Pansement"></option>
+        <option value="Mise en observation"></option>
+        <option value="Suture"></option>
+        <option value="Dépistage : Diabète"></option>
+        <option value="Dépistage : HTA"></option>
+        <option value="Dépistage : Hépatite B"></option>
+        <option value="Dépistage : Cancer du sein"></option>
+        <option value="Dépistage : Cancer du col de l'utérus"></option>
+      </datalist>
       <div id="campagnesAlert"></div>
       <div class="rec" style="margin-bottom:16px">
         <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between" id="createCampagneToggleBtn" onclick="toggleCreateCampagneForm()">
@@ -4932,7 +4945,7 @@ function actesHorsHtml(c){
         <button class="btn btn-danger btn-sm" onclick="supprimerActeHors('${a.id}')">Supprimer</button>
       </div>`).join("")}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
-      <input type="text" id="acthors_nom_${c.id}" placeholder="Acte (ex : Pansement)" style="flex:1;min-width:130px;padding:6px 8px;font-size:13px">
+      <input type="text" id="acthors_nom_${c.id}" list="actesCourants" placeholder="Acte ou dépistage" style="flex:1;min-width:130px;padding:6px 8px;font-size:13px">
       <select id="acthors_site_${c.id}" style="padding:6px 8px;font-size:12.5px">
         <option value="">- Toute la campagne -</option>
         ${sites.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("")}

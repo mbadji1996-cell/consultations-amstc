@@ -4040,10 +4040,87 @@ function computeDashboardStats(){
   const actesBreakdown=Object.entries(cumul).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const actesTotal=actesSurConsultation+actesHorsTotal;
 
+  // --- Activité par praticien : c'est medecin_nom qui fait foi, et non le compte auteur.
+  // Sur un registre repris après coup, toutes les fiches portent le même compte de saisie
+  // alors que les soins ont été donnés par des praticiens différents.
+  const parPraticienMap={};
+  rows.forEach(r=>{ const n=(r.medecin_nom||"").trim()||"Non renseigné";
+                    parPraticienMap[n]=(parPraticienMap[n]||0)+1; });
+  const parPraticien=Object.entries(parPraticienMap).sort((a,b)=>b[1]-a[1]);
+
+  // --- Médicaments par classe thérapeutique. La classe n'est pas portée par la
+  // prescription mais par l'article de stock auquel elle est reliée : on remonte donc
+  // le lien. Les prescriptions hors stock n'ont pas de classe connue.
+  const classeMap={};
+  rows.forEach(r=>(r.medicaments||[]).forEach(m=>{
+    if(!m.delivre) return;
+    const cat=(m.stock_id && STOCK_CATEGORIE_PAR_ID[m.stock_id]) || "Classe non renseignée";
+    classeMap[cat]=(classeMap[cat]||0)+(parseFloat(m.quantite)||1);
+  }));
+  const medParClasse=Object.entries(classeMap).sort((a,b)=>b[1]-a[1]);
+
+  // --- Actes par site, actes sur consultation et actes hors consultation réunis.
+  const actesSiteMap={};
+  rows.forEach(r=>{
+    const s=siteName(r.site_id)||"Site non renseigné";
+    (r.actes_medicaux||"").split("; ").map(x=>x.trim()).filter(Boolean)
+      .forEach(()=>{ actesSiteMap[s]=(actesSiteMap[s]||0)+1; });
+  });
+  horsPortee.forEach(a=>{ const s=siteName(a.site_id)||"Site non renseigné";
+                          actesSiteMap[s]=(actesSiteMap[s]||0)+(a.nombre||0); });
+  const actesParSite=Object.entries(actesSiteMap).sort((a,b)=>b[1]-a[1]);
+
+  // --- Taux de complétude. Une grande partie des fiches vient de registres papier où
+  // l'information n'avait pas été notée : l'annoncer sous chaque tableau évite de laisser
+  // croire à une précision que les données ne portent pas.
+  const champsCle={sexe:"Sexe", age:"Âge", adresse:"Adresse", telephone_patient:"Téléphone",
+                   motifs:"Motifs", signes:"Signes cliniques", diagnostic:"Diagnostic",
+                   conduite:"Conduite à tenir"};
+  const rempli=v=>{ const s=(v==null?"":String(v)).trim(); return s!=="" && s!=="-"; };
+  const completude=Object.keys(champsCle).map(c=>({
+    champ:champsCle[c],
+    n:rows.filter(r=>rempli(r[c])).length,
+    pct: total?Math.round(rows.filter(r=>rempli(r[c])).length/total*100):0,
+  }));
+  const completudeGlobale = total
+    ? Math.round(completude.reduce((s,c)=>s+c.pct,0)/completude.length) : 0;
+
+  // --- Matrice patient : une ligne par consultation, du motif jusqu'au devenir. C'est le
+  // fil qui manquait au rapport - il permet de suivre un patient de bout en bout.
+  const matrice=rows.map(r=>({
+    numero: r.numero_consultation||"-",
+    date: r.created_at?new Date(r.created_at).toLocaleDateString("fr-FR"):"-",
+    site: siteName(r.site_id)||"-",
+    patient: `${r.prenom||"-"} ${r.nom||"-"}`.trim(),
+    age: r.age!=null?String(r.age):"-",
+    sexe: r.sexe||"-",
+    motif: r.motifs||"-",
+    diagnostic: r.diagnostic||"-",
+    examen: r.explorations||"-",
+    acte: r.actes_medicaux||(r.acte_dentaire||"-"),
+    traitement: r.conduite||"-",
+    medicaments: medsToText(Array.isArray(r.medicaments)?r.medicaments:[])||"-",
+    devenir: r.refere_hopital ? "Référé : "+r.refere_hopital
+           : r.refere_vers_id ? "Référé sur site"
+           : /observation/i.test(r.actes_medicaux||"") ? "Mise en observation" : "-",
+  }));
+
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
-    actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee };
+    actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
+    parPraticien, medParClasse, actesParSite, completude, completudeGlobale, matrice };
+}
+
+// Classe thérapeutique par article de stock, chargée à la demande pour le rapport.
+// Vide tant qu'elle n'a pas été chargée : la ventilation par classe se replie alors
+// proprement sur « Classe non renseignée » plutôt que d'échouer.
+let STOCK_CATEGORIE_PAR_ID={};
+async function chargerCategoriesStock(){
+  const {data,error}=await sb.from("stock_medicaments").select("id,categorie");
+  if(error) return;
+  STOCK_CATEGORIE_PAR_ID={};
+  (data||[]).forEach(s=>{ if(s.categorie) STOCK_CATEGORIE_PAR_ID[s.id]=s.categorie; });
 }
 
 async function loadCollegues(siteId){
@@ -4461,6 +4538,20 @@ function pdfKpiTile(doc,x,y,w,h,color,value,label){
 }
 
 // En-tête de section avec liseré coloré vertical, cohérent avec l'habillage des cartes à l'écran.
+// Note grise sous un tableau : sert à dire d'où vient un chiffre ou sur quelle base il
+// repose. Un bilan qui n'explicite pas ses réserves les laisse découvrir à son lecteur.
+function pdfNote(doc,x,y,pageW,texte){
+  doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(130,140,134);
+  doc.text(texte, x, y, {maxWidth:pageW-x*2});
+  doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
+}
+
+// Coupe proprement une cellule trop longue pour rester lisible dans la matrice.
+function tronque(t,n){
+  const s=(t==null?"":String(t)).trim();
+  return s.length>n ? s.slice(0,n-1)+"…" : s;
+}
+
 function pdfSectionHeader(doc,x,y,text,color){
   doc.setFillColor(...color);
   doc.rect(x,y-4.3,1.4,5.6,"F");
@@ -4474,6 +4565,7 @@ async function downloadReportPDF(){
     return;
   }
   $("pdfReportBtn").disabled=true; $("pdfReportBtn").textContent="Génération…";
+  await chargerCategoriesStock();   // nécessaire à la ventilation par classe thérapeutique
   const S=computeDashboardStats();
   const charts=await generateReportCharts(S);
   const { jsPDF }=window.jspdf;
@@ -4528,16 +4620,26 @@ async function downloadReportPDF(){
     tiles.forEach((t,i)=>pdfKpiTile(doc,margin+i*(w+gap),rowY,w,rowH,t.color,t.value,t.label));
     return rowY+rowH+gap;
   };
+  // PAGE 1 — Synthèse exécutive : les cinq chiffres qui résument la campagne.
   y=tileRow([
-    { color:green, value:S.total, label:ME.role==="admin"?"Consultations au total":"Mes consultations" },
-    { color:blue, value:S.ageMoyen??"-", label:"Âge moyen (ans)" },
-    { color:purple, value:S.explorations, label:"Explorations demandées" },
+    { color:green, value:S.total, label:ME.role==="admin"?"Consultations":"Mes consultations" },
+    { color:gold, value:S.actesTotal, label:"Actes réalisés" },
+    { color:purple, value:S.explorations, label:"Explorations" },
   ], y, 26);
   y=tileRow([
     { color:teal, value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes" },
-    { color:red, value:String(S.referencesHorsSite), label:"Nombre référence" },
+    { color:blue, value:S.ageMoyen??"-", label:"Âge moyen (ans)" },
+    { color:red, value:String(S.referencesHorsSite), label:"Références hors site" },
   ], y, 26);
 
+  // Un bilan doit dire sur quoi il repose : sans cette ligne, un lecteur pourrait croire
+  // que chaque ventilation porte sur des dossiers complets.
+  y+=2;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(120,130,124);
+  doc.text(`Complétude moyenne des dossiers : ${S.completudeGlobale}% — le détail figure en annexe.`,
+           margin, y, {maxWidth:pageW-margin*2});
+
+  // ---------- PAGE 2 — Organisation de la couverture ----------
   doc.addPage(); y=20;
 
   // Durée de la campagne, sites rattachés et effectifs mobilisés (avec leur proportion) -
@@ -4569,9 +4671,24 @@ async function downloadReportPDF(){
     y=doc.lastAutoTable.finalY+10;
   }
 
+  // Répartition des sites de la campagne, pour situer le dispositif.
+  if(S.siteStats.length){
+    if(y>240){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Sites de la couverture",green); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Site","Consultations","Part de l'activité"]],
+      body:S.siteStats.map(s=>[s.nom,String(s.n),S.total?Math.round(s.n/S.total*100)+"%":"-"]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
+  // ---------- PAGE 3 — Activité médicale ----------
+  doc.addPage(); y=20;
+
   // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
-    if(y>250){ doc.addPage(); y=20; }
     pdfSectionHeader(doc,margin,y,"Consultations par jour",green); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
@@ -4582,12 +4699,27 @@ async function downloadReportPDF(){
     y=doc.lastAutoTable.finalY+10;
   }
 
+  // Activité par praticien. Sur un registre repris après coup, ce champ porte le nom du
+  // médecin qui a réellement vu le patient, et non celui du compte de saisie.
+  if(S.parPraticien.length){
+    if(y>240){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Consultations par praticien",green); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Praticien","Consultations","Part"]],
+      body:S.parPraticien.map(([n,c])=>[n,String(c),S.total?Math.round(c/S.total*100)+"%":"-"]),
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
   // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
   // présents dès qu'il y a des données, peu importe ce qui est affiché à l'écran.
-  const addChartImage=(key,label)=>{
+  const addChartImage=(key,label,nouvellePage)=>{
     const chart=charts[key];
     if(!chart) return;
-    if(y>230){ doc.addPage(); y=20; }
+    if(nouvellePage){ doc.addPage(); y=20; }
+    else if(y>230){ doc.addPage(); y=20; }
     pdfSectionHeader(doc,margin,y,label,green); y+=6;
     // Respecte toujours la vraie proportion du graphique : on part de la pleine largeur,
     // puis si la hauteur qui en découle dépasse le plafond, on réduit largeur ET hauteur
@@ -4603,58 +4735,140 @@ async function downloadReportPDF(){
   addChartImage("specialite","Détail par spécialité médicale");
   addChartImage("sex","Répartition par sexe");
   addChartImage("age","Pyramide des âges");
-  addChartImage("diag","Pathologies les plus fréquentes");
-  addChartImage("actes","Actes réalisés");
-  addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
-  // Tableau des pathologies (toujours inclus, même si le graphique n'a pas pu être capturé)
+  // ---------- PAGE 4 — Morbidité ----------
   if(S.topDiag.length){
-    if(y>250){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,"Détail - Pathologies les plus fréquentes",gold); y+=6;
+    addChartImage("diag","Pathologies les plus fréquentes", true);
+    if(y>240){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Détail des pathologies",gold); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
-      head:[["Pathologie","Nombre de cas"]],
-      body:S.topDiag.map(([l,c])=>[l,String(c)]),
+      head:[["Pathologie","Nombre de cas","Part des consultations"]],
+      body:S.topDiag.map(([l,c])=>[l,String(c),S.total?Math.round(c/S.total*100)+"%":"-"]),
+    });
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,`Diagnostic renseigné sur ${S.completude.find(c=>c.champ==="Diagnostic").pct}% des consultations.`);
+    y+=10;
+  }
+
+  // Pathologie dominante site par site
+  if(S.siteStats.length){
+    if(y>240){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Pathologie dominante par site",gold); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Site","Consultations","Pathologie la plus fréquente"]],
+      body:S.siteStats.map(s=>[s.nom,String(s.n),s.topPath||"-"]),
     });
     y=doc.lastAutoTable.finalY+10;
   }
 
-  // Tableau des actes réalisés (en plus du graphique ci-dessus)
+  // ---------- PAGE 5 — Actes médicaux ----------
   if(S.actesBreakdown.length){
-    if(y>250){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,"Détail - Actes réalisés",gold); y+=6;
+    addChartImage("actes","Actes réalisés", true);
+    if(y>230){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Détail des actes",gold); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
       head:[["Acte","Nombre"]],
       body:S.actesBreakdown.map(([l,c])=>[l,String(c)]),
     });
-    y=doc.lastAutoTable.finalY+10;
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,
+      `${S.actesSurConsultation} acte(s) rattaché(s) à une consultation, ${S.actesHorsTotal} réalisé(s) sans patient enregistré.`);
+    y+=10;
+
+    if(S.actesParSite.length){
+      if(y>240){ doc.addPage(); y=20; }
+      pdfSectionHeader(doc,margin,y,"Actes par site",gold); y+=6;
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:goldDeep, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Site","Actes réalisés"]],
+        body:S.actesParSite.map(([s,n])=>[s,String(n)]),
+      });
+      y=doc.lastAutoTable.finalY+10;
+    }
   }
 
-  // Tableau des médicaments les plus dispensés (en plus du graphique ci-dessus)
-  if(ME.role==="admin" && S.medDeliveredBreakdown.length){
-    if(y>250){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,"Détail - Médicaments les plus dispensés",teal); y+=6;
+  // ---------- PAGE 6 — Prise en charge thérapeutique ----------
+  if(ME.role==="admin" && (S.medDeliveredBreakdown.length || S.medParClasse.length)){
+    doc.addPage(); y=20;
+    if(S.medParClasse.length){
+      pdfSectionHeader(doc,margin,y,"Médicaments par classe thérapeutique",teal); y+=6;
+      const totalCl=S.medParClasse.reduce((s,[,n])=>s+n,0);
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:teal, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Classe thérapeutique","Quantité dispensée","Part"]],
+        body:S.medParClasse.map(([l,c])=>[l,String(Math.round(c*10)/10),totalCl?Math.round(c/totalCl*100)+"%":"-"]),
+      });
+      y=doc.lastAutoTable.finalY+6;
+      pdfNote(doc,margin,y,pageW,"La classe provient de l'article de stock ; une prescription hors stock n'en a pas.");
+      y+=10;
+    }
+    if(S.medDeliveredBreakdown.length){
+      if(y>230){ doc.addPage(); y=20; }
+      pdfSectionHeader(doc,margin,y,"Médicaments les plus dispensés",teal); y+=6;
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:teal, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Médicament","Quantité dispensée"]],
+        body:S.medDeliveredBreakdown.map(([l,c])=>[l,String(Math.round(c*10)/10)]),
+      });
+      y=doc.lastAutoTable.finalY+10;
+    }
+    addChartImage("medDelivered","Répartition des médicaments dispensés");
+  }
+
+  // ---------- PAGE 7 — Analyse comparative par site ----------
+  if(S.siteStats.length){
+    doc.addPage(); y=20;
+    pdfSectionHeader(doc,margin,y,"Analyse comparative des sites",blue); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
-      headStyles:{ fillColor:teal, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
-      head:[["Médicament","Quantité dispensée"]],
-      body:S.medDeliveredBreakdown.map(([l,c])=>[l,String(Math.round(c*10)/10)]),
+      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
+      head:[["Site","Consult.","Part","% F","% M","Âge moyen","Pathologie la + fréquente"]],
+      body:S.siteStats.map(s=>[s.nom,String(s.n),S.total?Math.round(s.n/S.total*100)+"%":"-",
+                               s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",
+                               s.moy??"-",s.topPath||"-"]),
     });
     y=doc.lastAutoTable.finalY+10;
   }
 
-  // Tableau par site (admin uniquement)
-  if(S.siteStats.length){
-    if(y>230){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,"Statistiques par site",blue); y+=6;
+  // ---------- PAGE 8 — Annexes ----------
+  doc.addPage(); y=20;
+  pdfSectionHeader(doc,margin,y,"Annexe 1 — Complétude des dossiers",green900); y+=6;
+  doc.autoTable({
+    startY:y, margin:{left:margin,right:margin}, theme:"grid",
+    headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+    head:[["Champ","Renseigné","Taux"]],
+    body:S.completude.map(c=>[c.champ,`${c.n} / ${S.total}`,c.pct+"%"]),
+  });
+  y=doc.lastAutoTable.finalY+6;
+  pdfNote(doc,margin,y,pageW,
+    "Une part des consultations provient de registres papier où l'information n'avait pas été notée. Un tiret signale une donnée absente, non un oubli de saisie.");
+  y+=12;
+
+  // La matrice : le parcours de chaque patient sur une ligne, du motif au devenir.
+  if(S.matrice.length){
+    doc.addPage(); y=20;
+    pdfSectionHeader(doc,margin,y,"Annexe 2 — Parcours patient détaillé",green900); y+=6;
     doc.autoTable({
-      startY:y, margin:{left:margin,right:margin}, theme:"grid",
-      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
-      head:[["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"]],
-      body:S.siteStats.map(s=>[s.nom,String(s.n),s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"]),
+      startY:y, margin:{left:8,right:8}, theme:"grid",
+      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold", fontSize:7 },
+      styles:{ fontSize:6.2, cellPadding:1.2, overflow:"linebreak" },
+      columnStyles:{0:{cellWidth:20},1:{cellWidth:14},2:{cellWidth:20},3:{cellWidth:24},
+                    4:{cellWidth:8},5:{cellWidth:26},6:{cellWidth:26},7:{cellWidth:20},
+                    8:{cellWidth:20},9:{cellWidth:26}},
+      head:[["N°","Date","Site","Patient","Âge","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"]],
+      body:S.matrice.map(m=>[m.numero,m.date,m.site,m.patient,m.age,
+                             tronque(m.motif,60),tronque(m.diagnostic,60),tronque(m.examen,40),
+                             tronque(m.acte,40),
+                             tronque(m.devenir!=="-"?m.devenir:m.traitement,60)]),
     });
   }
 
@@ -4680,6 +4894,7 @@ async function downloadReportWord(){
     return;
   }
   $("wordReportBtn").disabled=true; $("wordReportBtn").textContent="Génération…";
+  await chargerCategoriesStock();   // nécessaire à la ventilation par classe thérapeutique
   const S=computeDashboardStats();
   const charts=await generateReportCharts(S); // mêmes images que le PDF - voir generateReportCharts
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType, ImageRun,
@@ -4709,6 +4924,12 @@ async function downloadReportWord(){
     heading:HeadingLevel.HEADING_2, spacing:{before:280,after:120},
     border:{ left:{ style:BorderStyle.SINGLE, size:24, color:GREEN, space:6 } },
     children:[ new TextRun({text}) ],
+  });
+
+  // Note sous un tableau : d'où vient le chiffre, sur quelle base il repose.
+  const note=texte=>new Paragraph({
+    spacing:{before:60,after:160},
+    children:[ new TextRun({ text:texte, italics:true, color:"82887F", size:16 }) ],
   });
 
   // Petite carte chiffrée colorée - équivalent Word de pdfKpiTile().
@@ -4751,15 +4972,17 @@ async function downloadReportWord(){
 
   children.push(
     kpiRow([
-      { value:S.total, label:ME.role==="admin"?"Consultations au total":"Mes consultations", color:GREEN },
-      { value:S.ageMoyen??"-", label:"Âge moyen (ans)", color:BLUE },
-      { value:S.explorations, label:"Explorations demandées", color:PURPLE },
+      { value:S.total, label:ME.role==="admin"?"Consultations":"Mes consultations", color:GREEN },
+      { value:S.actesTotal, label:"Actes réalisés", color:GOLD_DEEP },
+      { value:S.explorations, label:"Explorations", color:PURPLE },
     ]),
     new Paragraph({text:"",spacing:{after:100}}),
     kpiRow([
       { value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes", color:TEAL },
-      { value:String(S.referencesHorsSite), label:"Nombre référence", color:RED },
+      { value:S.ageMoyen??"-", label:"Âge moyen (ans)", color:BLUE },
+      { value:String(S.referencesHorsSite), label:"Références hors site", color:RED },
     ]),
+    note(`Complétude moyenne des dossiers : ${S.completudeGlobale}% — le détail figure en annexe.`),
   );
 
   // Durée de la campagne, sites rattachés et effectifs mobilisés (avec leur proportion) -
@@ -4785,10 +5008,23 @@ async function downloadReportWord(){
     children.push(mkTable(["Élément","Nombre","% des effectifs"], rows));
   }
 
+  if(S.siteStats.length){
+    children.push(sectionHeading("Sites de la couverture"));
+    children.push(mkTable(["Site","Consultations","Part de l'activité"],
+      S.siteStats.map(s=>[s.nom,s.n,S.total?Math.round(s.n/S.total*100)+"%":"-"])));
+  }
+
   // Détail jour par jour - patients consultés par date
   if(S.dailyCounts.length){
     children.push(sectionHeading("Consultations par jour"));
     children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
+  }
+
+  // Activité par praticien : medecin_nom fait foi, et non le compte de saisie.
+  if(S.parPraticien.length){
+    children.push(sectionHeading("Consultations par praticien"));
+    children.push(mkTable(["Praticien","Consultations","Part"],
+      S.parPraticien.map(([n,c])=>[n,c,S.total?Math.round(c/S.total*100)+"%":"-"])));
   }
 
   // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
@@ -4812,26 +5048,63 @@ async function downloadReportWord(){
   addChartImage("actes","Actes réalisés");
   addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
+  // ---------- Morbidité ----------
   if(S.topDiag.length){
-    children.push(sectionHeading("Détail - Pathologies les plus fréquentes"));
-    children.push(mkTable(["Pathologie","Nombre de cas"], S.topDiag.map(([l,c])=>[l,c])));
+    children.push(sectionHeading("Détail des pathologies"));
+    children.push(mkTable(["Pathologie","Nombre de cas","Part des consultations"],
+      S.topDiag.map(([l,c])=>[l,c,S.total?Math.round(c/S.total*100)+"%":"-"])));
+    children.push(note(`Diagnostic renseigné sur ${S.completude.find(c=>c.champ==="Diagnostic").pct}% des consultations.`));
+  }
+  if(S.siteStats.length){
+    children.push(sectionHeading("Pathologie dominante par site"));
+    children.push(mkTable(["Site","Consultations","Pathologie la plus fréquente"],
+      S.siteStats.map(s=>[s.nom,s.n,s.topPath||"-"])));
   }
 
+  // ---------- Actes ----------
   if(S.actesBreakdown.length){
-    children.push(sectionHeading("Détail - Actes réalisés"));
+    children.push(sectionHeading("Détail des actes"));
     children.push(mkTable(["Acte","Nombre"], S.actesBreakdown.map(([l,c])=>[l,c])));
+    children.push(note(`${S.actesSurConsultation} acte(s) rattaché(s) à une consultation, ${S.actesHorsTotal} réalisé(s) sans patient enregistré.`));
+    if(S.actesParSite.length){
+      children.push(sectionHeading("Actes par site"));
+      children.push(mkTable(["Site","Actes réalisés"], S.actesParSite.map(([x,n])=>[x,n])));
+    }
   }
 
-  // Tableau des médicaments les plus dispensés (en plus du graphique ci-dessus)
+  // ---------- Prise en charge thérapeutique ----------
+  if(ME.role==="admin" && S.medParClasse.length){
+    const totalCl=S.medParClasse.reduce((a,[,n])=>a+n,0);
+    children.push(sectionHeading("Médicaments par classe thérapeutique"));
+    children.push(mkTable(["Classe thérapeutique","Quantité dispensée","Part"],
+      S.medParClasse.map(([l,c])=>[l,Math.round(c*10)/10,totalCl?Math.round(c/totalCl*100)+"%":"-"])));
+    children.push(note("La classe provient de l'article de stock ; une prescription hors stock n'en a pas."));
+  }
   if(ME.role==="admin" && S.medDeliveredBreakdown.length){
-    children.push(sectionHeading("Détail - Médicaments les plus dispensés"));
+    children.push(sectionHeading("Médicaments les plus dispensés"));
     children.push(mkTable(["Médicament","Quantité dispensée"], S.medDeliveredBreakdown.map(([l,c])=>[l,Math.round(c*10)/10])));
   }
 
+  // ---------- Analyse comparative par site ----------
   if(S.siteStats.length){
-    children.push(sectionHeading("Statistiques par site"));
-    children.push(mkTable(["Site","Consult.","% F","% M","Âge moyen","Pathologie la + fréquente"],
-      S.siteStats.map(s=>[s.nom,s.n,s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
+    children.push(sectionHeading("Analyse comparative des sites"));
+    children.push(mkTable(["Site","Consult.","Part","% F","% M","Âge moyen","Pathologie la + fréquente"],
+      S.siteStats.map(s=>[s.nom,s.n,S.total?Math.round(s.n/S.total*100)+"%":"-",
+                          s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
+  }
+
+  // ---------- Annexes ----------
+  children.push(sectionHeading("Annexe 1 — Complétude des dossiers"));
+  children.push(mkTable(["Champ","Renseigné","Taux"],
+    S.completude.map(c=>[c.champ,`${c.n} / ${S.total}`,c.pct+"%"])));
+  children.push(note("Une part des consultations provient de registres papier où l'information n'avait pas été notée. Un tiret signale une donnée absente, non un oubli de saisie."));
+
+  if(S.matrice.length){
+    children.push(sectionHeading("Annexe 2 — Parcours patient détaillé"));
+    children.push(mkTable(["N°","Date","Site","Patient","Âge","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"],
+      S.matrice.map(m=>[m.numero,m.date,m.site,m.patient,m.age,
+                        tronque(m.motif,50),tronque(m.diagnostic,50),tronque(m.examen,35),
+                        tronque(m.acte,35),tronque(m.devenir!=="-"?m.devenir:m.traitement,50)])));
   }
 
   const footer=new Footer({ children:[ new Paragraph({ alignment:AlignmentType.CENTER, children:[

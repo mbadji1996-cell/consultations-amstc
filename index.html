@@ -370,6 +370,10 @@
   /* Refus définitif du serveur : à distinguer nettement d'une simple attente d'envoi,
      qui, elle, se résout toute seule. */
   .tag-err{background:var(--danger-bg);color:var(--danger)}
+  /* Fiche incomplète : information à compléter, pas une erreur - d'où l'ambre plutôt que
+     le rouge, et un point d'exclamation qui reste lisible sans la couleur. */
+  .tag-incomplet{background:var(--amber-bg);color:var(--amber-text)}
+  .tag-incomplet::before{content:"! ";font-weight:800}
   .rec-foot{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--white);border-radius:var(--radius);overflow:hidden}
@@ -3539,6 +3543,17 @@ function currentRows(){
   return rows;
 }
 
+// Champs cliniques qu'une fiche complète doit porter. Le tiret "-" est traité comme une
+// absence : c'est la convention retenue à la reprise des registres papier, où l'information
+// n'avait pas été notée sur le moment - un tiret dit "non renseigné", pas "vide oublié".
+const CHAMPS_ATTENDUS={sexe:"sexe", age:"âge", adresse:"adresse", telephone_patient:"téléphone",
+  motifs:"motifs", signes:"signes cliniques", diagnostic:"diagnostic", conduite:"conduite à tenir"};
+
+function champsManquants(r){
+  const vide=v=>{ const s=(v==null?"":String(v)).trim(); return s===""||s==="-"; };
+  return Object.keys(CHAMPS_ATTENDUS).filter(c=>vide(r[c])).map(c=>CHAMPS_ATTENDUS[c]);
+}
+
 function renderList(){
   const rows=currentRows();
   const total=LIST.length, pending=getQueue().length;
@@ -3557,6 +3572,16 @@ function renderList(){
       ? `<div class="rec-meta" style="margin-top:6px;color:${r._definitif?"var(--danger)":"var(--orange-dark)"}">
            ${r._definitif?"Refusée par le serveur":"Envoi différé"} : ${esc(r._erreur)}${r._definitif?" - prévenez l'administrateur, elle ne partira pas seule.":""}
          </div>`
+      : "";
+    // Fiche incomplète : signalée dès qu'un champ clinique reste à renseigner. Le cas se
+    // produit surtout pour les consultations reprises d'un registre papier, où l'information
+    // n'avait pas été notée sur le moment.
+    const manquants=champsManquants(r);
+    const tagIncomplet = manquants.length
+      ? `<span class="tag tag-incomplet" title="À compléter : ${esc(manquants.join(", "))}">Fiche incomplète</span>`
+      : "";
+    const ligneIncomplet = manquants.length
+      ? `<div class="rec-meta" style="margin-top:6px;color:var(--amber-text)">À compléter : ${esc(manquants.join(", "))}${(r._queued||peutModifier(r))?" - cliquez sur Modifier.":""}</div>`
       : "";
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
     const medecin=ME.role==="admin"&&r.medecin_nom?` · Praticien : ${esc(r.medecin_nom)}`:"";
@@ -3593,9 +3618,13 @@ function renderList(){
           <div class="rec-meta">${r.age??"?"} ans · ${esc(sexeLabel)}${site}${medecin}</div>
           <div class="rec-meta" style="margin-top:2px">${typeLine}</div>
         </div>
-        ${tag}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+          ${tag}
+          ${tagIncomplet}
+        </div>
       </div>
       ${raisonAttente}
+      ${ligneIncomplet}
       ${motifsLine}
       ${signesLine}
       ${diagLine}

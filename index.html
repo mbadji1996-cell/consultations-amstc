@@ -1306,10 +1306,19 @@
       </div>
 
       <fieldset id="referFieldset" class="hidden"><legend>Référer ce patient à un confrère (facultatif)</legend>
-        <div class="field"><label for="c_refere_vers">Référer vers</label>
-          <select id="c_refere_vers" onchange="onRefereVersChange()"><option value="">- Ne pas référer -</option></select></div>
+        <div class="field"><label for="c_refere_type">Référer ce patient</label>
+          <select id="c_refere_type" onchange="onRefereTypeChange()">
+            <option value="">- Ne pas référer -</option>
+            <option value="site">Vers un praticien sur place</option>
+            <option value="hopital">Vers un hôpital ou une structure externe</option>
+          </select></div>
+        <div class="field hidden" id="refereVersWrap"><label for="c_refere_vers">Praticien sur place</label>
+          <select id="c_refere_vers"><option value="">- Choisir un praticien -</option></select>
+          <div class="rec-meta" id="refereAucunCollegue" style="margin-top:6px"></div></div>
+        <div class="field hidden" id="refereHopitalWrap"><label for="c_refere_hopital">Hôpital ou structure</label>
+          <input type="text" id="c_refere_hopital" placeholder="Ex : Hôpital Seydil Hadji Malick"></div>
         <div class="field hidden" id="referMotifWrap"><label for="c_refere_motif">Motif de la référence</label>
-          <textarea id="c_refere_motif" placeholder="Pourquoi orienter ce patient vers ce confrère ?"></textarea></div>
+          <textarea id="c_refere_motif" placeholder="Pourquoi orienter ce patient ?"></textarea></div>
       </fieldset>
 
       <div class="actions">
@@ -2501,18 +2510,29 @@ async function setupReferField(siteId){
   // carte des patients référés - une référence vers eux créerait un badge impossible à traiter.
   const collegues=(await loadCollegues(siteId)).filter(p=>p.specialite!=="pharmacien");
   const fs=$("referFieldset"); if(!fs) return;
-  if(!collegues.length){ fs.classList.add("hidden"); return; }
+  // Le bloc reste TOUJOURS visible, même sans confrère sur place : référer vers un hôpital
+  // ne dépend d'aucun collègue, et c'est justement quand on est seul sur un site qu'on en
+  // a le plus besoin. Auparavant, l'absence de collègue masquait tout le bloc.
   fs.classList.remove("hidden");
-  $("c_refere_vers").innerHTML=`<option value="">- Ne pas référer -</option>`+
+  $("c_refere_vers").innerHTML=`<option value="">- Choisir un praticien -</option>`+
     collegues.map(p=>{
       const nom=(p.prenom||"")+" "+(p.nom||"");
       const spec=SPEC_LABELS[p.specialite||"generaliste"]||"Praticien";
       return `<option value="${p.id}">${esc(nom.trim()||"(sans nom)")} - ${esc(spec)}${p.specialite==="specialiste"&&p.specialite_detail?" ("+esc(p.specialite_detail)+")":""}</option>`;
     }).join("");
+  // L'option "sur place" est désactivée s'il n'y a personne à qui référer, avec la raison
+  // affichée - plutôt qu'une liste vide inexplicable.
+  const optSite=$("c_refere_type").querySelector('option[value="site"]');
+  if(optSite) optSite.disabled=!collegues.length;
+  $("refereAucunCollegue").textContent=collegues.length?"":"Aucun autre praticien n'est affecté à ce site.";
 }
 
-function onRefereVersChange(){
-  $("referMotifWrap").classList.toggle("hidden", !$("c_refere_vers").value);
+function onRefereTypeChange(){
+  const t=$("c_refere_type").value;
+  $("refereVersWrap").classList.toggle("hidden", t!=="site");
+  $("refereHopitalWrap").classList.toggle("hidden", t!=="hopital");
+  $("referMotifWrap").classList.toggle("hidden", !t);
+  if(t==="hopital") $("c_refere_hopital").focus();
 }
 
 function commencerConsultationReferee(consultId,prenom,nom,sexe,age,ta,temperature,fc,taille,poids,patientId){
@@ -2932,6 +2952,10 @@ async function refreshData(){
     LIST=getCache();
   }
   if(CURRENT_TAB==="list") renderList();
+  // Le tableau de bord se calcule entièrement à partir de LIST. Or buildTabs() l'affiche
+  // AVANT que les consultations ne soient chargées : sans ce second rendu, il restait figé
+  // à zéro partout jusqu'à ce qu'on change d'onglet ou qu'on recharge la page.
+  if(CURRENT_TAB==="dashboard") renderDashboard();
 }
 
 async function saveConsultation(){
@@ -2959,15 +2983,27 @@ async function saveConsultation(){
     ta:null, temperature:null, fc:null, taille:null, poids:null, antecedents:"",
     signes:"", diagnostic:"", explorations:null, conduite:"", medicaments:[],
     dent_concernee:null, acte_dentaire:null, specialite_medicale:null,
-    refere_vers_id: $("c_refere_vers")?.value||null,
-    refere_motif: $("c_refere_vers")?.value ? ($("c_refere_motif").value.trim()||null) : null,
+    refere_vers_id:null, refere_motif:null,
   };
+
+  // Référence : soit vers un praticien du site (lien vers son compte), soit vers un
+  // hôpital extérieur (texte libre) - jamais les deux.
+  const typeRef=$("c_refere_type")?.value||"";
+  const hopital=typeRef==="hopital" ? ($("c_refere_hopital").value.trim()||"") : "";
+  if(typeRef==="site") rec.refere_vers_id=$("c_refere_vers").value||null;
+  // Le champ n'est ajouté QUE s'il est rempli : tant que le script SQL n'a pas été exécuté,
+  // la colonne refere_hopital n'existe pas et l'envoyer ferait échouer TOUT enregistrement.
+  // Ainsi, seule une référence vers un hôpital réclame la mise à jour de la base.
+  if(hopital) rec.refere_hopital=hopital;
+  if(typeRef) rec.refere_motif=$("c_refere_motif").value.trim()||null;
 
   const missing=[];
   if(ME.role==="admin" && !siteId) missing.push("site de consultation");
   if(!rec.prenom||!rec.nom) missing.push("nom et prénom");
   if(!rec.sexe) missing.push("sexe"); if(rec.age===null) missing.push("âge");
   if(!rec.motifs) missing.push("motifs");
+  if(typeRef==="site" && !rec.refere_vers_id) missing.push("praticien vers qui référer");
+  if(typeRef==="hopital" && !hopital) missing.push("nom de l'hôpital ou de la structure");
 
   if(type==="specialiste"){
     rec.specialite_medicale = ME.role==="admin"
@@ -3140,8 +3176,13 @@ function resetForm(){
   if($("addMedBtn_specialiste")) $("addMedBtn_specialiste").disabled=false;
   if($("c_conduite_notes")){ $("c_conduite_notes").disabled=false; $("c_conduite_notes").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
   if($("c_conduite_notes_spec")){ $("c_conduite_notes_spec").disabled=false; $("c_conduite_notes_spec").placeholder="Autres recommandations, suivi… (facultatif si des médicaments sont listés)"; }
-  if($("c_refere_vers")){ $("c_refere_vers").value=""; $("referMotifWrap")?.classList.add("hidden"); }
+  if($("c_refere_type")) $("c_refere_type").value="";
+  if($("c_refere_vers")) $("c_refere_vers").value="";
+  if($("c_refere_hopital")) $("c_refere_hopital").value="";
   if($("c_refere_motif")) $("c_refere_motif").value="";
+  $("refereVersWrap")?.classList.add("hidden");
+  $("refereHopitalWrap")?.classList.add("hidden");
+  $("referMotifWrap")?.classList.add("hidden");
   resetActePicker();
 }
 
@@ -3193,6 +3234,11 @@ function renderList(){
     const traitement=r.conduite?`<div class="rec-meta"><b>Traitement :</b> ${esc(r.conduite.slice(0,150))}${r.conduite.length>150?"…":""}</div>`:"";
     const explo=r.explorations?`<div class="rec-meta"><b>Explorations :</b> ${esc(r.explorations.slice(0,100))}${r.explorations.length>100?"…":""}</div>`:"";
     const telLine=r.telephone_patient?`<div class="rec-meta"><b>Tel :</b> ${esc(r.telephone_patient)}</div>`:"";
+    // Une référence vers l'extérieur est une décision clinique importante : elle doit se
+    // voir sur la fiche, au même titre que le traitement.
+    const refHopitalLine=r.refere_hopital
+      ? `<div class="rec-meta"><b>Référé vers :</b> ${esc(r.refere_hopital)}${r.refere_motif?` - ${esc(r.refere_motif)}`:""}</div>`
+      : "";
     const numeroDate=r.numero_consultation
       ? `<div class="rec-meta" style="font-family:monospace;font-size:11.5px">${esc(r.numero_consultation)} - ${d}</div>`
       : `<div class="rec-meta">${d}</div>`;
@@ -3212,6 +3258,7 @@ function renderList(){
       ${diagLine}
       ${traitement}
       ${explo}
+      ${refHopitalLine}
       ${telLine}
       <div class="rec-foot">
         <button class="btn btn-ghost btn-sm" onclick="imprimerFiche('${r.id}')">Imprimer la fiche</button>
@@ -3334,6 +3381,9 @@ async function renderFicheAndPrint(r){
   if(r.conduite) rows.push(["Traitement", r.conduite]);
   if(r.acte_infirmier) rows.push(["Acte réalisé", r.acte_infirmier+(r.acte_infirmier_note?" - "+r.acte_infirmier_note:"")]);
   if(r.refere_motif && !r.diagnostic) rows.push(["Motif de référence", r.refere_motif]);
+  // La référence vers un hôpital figure sur la fiche remise au patient : c'est elle qu'il
+  // présentera à la structure d'accueil.
+  if(r.refere_hopital) rows.push(["Référé vers", r.refere_hopital]);
 
   // Le QR encode un lien vers le site : n'importe quel appareil photo de téléphone le
   // reconnaît nativement, pas besoin d'un lecteur dédié. Le téléphone (plus fiable qu'un nom
@@ -3561,9 +3611,10 @@ function computeDashboardStats(){
     });
   }
 
-  // Taux de référencement : part des consultations orientées vers un confrère - un indicateur
-  // parlant pour un partenaire/bailleur (mesure la coordination entre praticiens sur le terrain).
-  const referes=rows.filter(r=>r.refere_vers_id).length;
+  // Taux de référencement : part des consultations orientées ailleurs - un indicateur parlant
+  // pour un partenaire/bailleur. Les deux formes comptent : vers un confrère sur place
+  // (coordination de l'équipe) comme vers un hôpital (prise en charge dépassant la campagne).
+  const referes=rows.filter(r=>r.refere_vers_id||r.refere_hopital).length;
   const tauxReferencement=total?Math.round(referes/total*100):null;
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
@@ -5875,13 +5926,13 @@ function renderAide(){
       </ul>
       <p>Chaque consultation reçoit immédiatement un numéro unique <b>AMSTC-XXXXXXXX</b>, même hors connexion.</p>`},
 
-    { show:isPraticien||isAdmin, titre:"Référer un patient à un confrère", corps:`
-      <p>Si d'autres praticiens sont rattachés à votre site, un encart <b>« Référer ce patient à un confrère »</b> apparaît en bas du formulaire de consultation.</p>
+    { show:isPraticien||isAdmin, titre:"Référer un patient", corps:`
+      <p>En bas du formulaire de consultation, un encart permet d'orienter le patient. <b>Deux formes de référence</b> sont possibles :</p>
       <ul>
-        <li>Choisissez le confrère (sa spécialité est affichée) et indiquez le <b>motif</b> de la référence.</li>
-        <li>Le confrère voit alors un <b>badge rouge</b> sur l'icône de son tableau de bord, et une carte <b>« Patients qui vous sont référés »</b> y liste les patients en attente.</li>
-        <li>Depuis cette carte, <b>« Commencer la consultation »</b> pré-remplit l'identité du patient dans son formulaire ; <b>« Marquer comme traité »</b> retire simplement la référence.</li>
-      </ul>`},
+        <li><b>Vers un praticien sur place :</b> choisissez le confrère (sa spécialité est affichée) et indiquez le <b>motif</b>. Il voit alors un <b>badge rouge</b> sur l'icône de son tableau de bord, et une carte <b>« Patients qui vous sont référés »</b> y liste les patients en attente. Depuis cette carte, <b>« Commencer la consultation »</b> pré-remplit l'identité du patient ; <b>« Marquer comme traité »</b> retire la référence.</li>
+        <li><b>Vers un hôpital ou une structure externe :</b> saisissez son nom et le motif. Cette référence sort du cadre de la campagne : elle n'apparaît donc dans la liste de personne, mais elle est <b>imprimée sur la fiche remise au patient</b>, qui la présentera à la structure d'accueil.</li>
+      </ul>
+      <div class="aide-note">L'encart reste disponible même si vous êtes le seul praticien du site : seule l'option « sur place » est alors désactivée, la référence vers un hôpital reste possible. Les deux formes comptent dans le <b>taux de référencement</b> du tableau de bord.</div>`},
 
     { show:isPraticien||isAdmin||isInfirmierRole, titre:"Infirmier", corps:`
       ${isInfirmierRole?`<p>Votre compte couvre deux situations : vous êtes parfois le <b>premier point de contact</b> avec un patient (onglet <b>Nouveau patient</b>), et vous recevez aussi des patients qu'un confrère vous <b>réfère</b> en retour (onglet <b>Patients référés</b>). Vous ne posez jamais de diagnostic - ce n'est pas votre rôle.</p>`

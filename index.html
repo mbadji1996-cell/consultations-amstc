@@ -1648,6 +1648,9 @@ let PHARMACIENS_CACHE = []; // pharmaciens actifs, pour le choix du "pharmacien 
 let DISPENSATION_LIST = []; // prescriptions chargées pour l'onglet Dispensation (pharmacien/admin)
 let DISPENSATION_STOCK_UNITS = {}; // stock_id -> unité actuelle en stock (pré-sélectionne l'unité à la délivrance)
 let CAMPAGNES = [];        // liste des campagnes (admin uniquement)
+// Actes réalisés sans qu'un patient soit enregistré (voir rls_actes_hors_consultation.sql) :
+// un simple comptage par campagne et par site, sans aucune donnée patient.
+let ACTES_HORS = [];
 let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = toutes campagnes)
 // Panneaux dépliés (fiches utilisateur / campagne / sites d'une campagne) : mémorisés ici pour
 // survivre au re-rendu complet (innerHTML=) déclenché après chaque action, plutôt que de se
@@ -2044,6 +2047,16 @@ async function loadCampagnesWithFallback(){
   return getCachedCampagnes()||[];
 }
 
+// Chargé une fois à la connexion, comme les sites et les campagnes. Un échec est sans
+// gravité : la table n'existe que si rls_actes_hors_consultation.sql a été exécuté, et
+// sans elle le bilan se contente des actes relevés sur les consultations.
+async function loadActesHors(){
+  if(!navigator.onLine) return [];
+  const {data,error}=await sb.from("actes_hors_consultation")
+    .select("id,campagne_id,site_id,acte,nombre,note").order("acte");
+  return error?[]:(data||[]);
+}
+
 async function enterApp(){
   ME=await loadProfile();
   if(!ME){ showPending(); return; }
@@ -2056,6 +2069,7 @@ async function enterApp(){
   // charge les campagnes - nécessaire pour tous les rôles désormais :
   // l'admin les gère, l'agent en a besoin pour choisir campagne puis site en cascade
   CAMPAGNES=await loadCampagnesWithFallback();
+  ACTES_HORS=await loadActesHors();
 
   $("authScreen").classList.add("hidden");
   $("appScreen").classList.remove("hidden");
@@ -3997,13 +4011,26 @@ function computeDashboardStats(){
   // Actes réalisés : nombre de consultations en comportant au moins un, et détail acte par
   // acte. splitMulti re-scinde la chaîne "; " pour qu'une consultation "Pansement + Mise en
   // observation" alimente les deux lignes plutôt que de créer une catégorie composite.
-  const actesTotal=rows.filter(r=>r.actes_medicaux&&r.actes_medicaux.trim()).length;
-  const actesBreakdown=countTop(rows,"actes_medicaux",10,true);
+  const actesSurConsultation=rows.filter(r=>r.actes_medicaux&&r.actes_medicaux.trim()).length;
+
+  // Actes réalisés SANS patient enregistré : ils ont eu lieu, ils comptent, mais ils ne
+  // correspondent à aucune fiche. On les additionne au détail par acte, tout en gardant
+  // leur total à part - un bilan doit pouvoir dire d'où vient chaque chiffre.
+  const horsPortee = ME.role==="admin" && SELECTED_CAMPAGNE
+    ? ACTES_HORS.filter(a=>a.campagne_id===SELECTED_CAMPAGNE)
+    : ACTES_HORS.filter(a=>scopeSites.some(s=>s.id===a.site_id) || !a.site_id);
+  const actesHorsTotal = horsPortee.reduce((n,a)=>n+(a.nombre||0),0);
+
+  const cumul={};
+  countTop(rows,"actes_medicaux",50,true).forEach(([nom,n])=>{ cumul[nom]=(cumul[nom]||0)+n; });
+  horsPortee.forEach(a=>{ const nom=(a.acte||"").trim(); if(nom) cumul[nom]=(cumul[nom]||0)+(a.nombre||0); });
+  const actesBreakdown=Object.entries(cumul).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const actesTotal=actesSurConsultation+actesHorsTotal;
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
-    actesTotal, actesBreakdown };
+    actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee };
 }
 
 async function loadCollegues(siteId){
@@ -4159,7 +4186,9 @@ async function renderDashboard(){
 
     ${topDiag.length?`${cardOpen(ICON_FLASK,"Pathologies les plus fréquentes")}<div style="height:${Math.max(140,topDiag.length*42)}px"><canvas id="dashDiagChart"></canvas></div></div>`:""}
 
-    ${S.actesBreakdown.length?`${cardOpen(ICON_CHECK,"Actes réalisés")}<div style="height:${Math.max(140,S.actesBreakdown.length*42)}px"><canvas id="dashActesChart"></canvas></div></div>`:""}
+    ${S.actesBreakdown.length?`${cardOpen(ICON_CHECK,"Actes réalisés")}<div style="height:${Math.max(140,S.actesBreakdown.length*42)}px"><canvas id="dashActesChart"></canvas></div>
+      ${S.actesHorsTotal?`<div class="rec-meta" style="margin-top:8px">Dont <b>${S.actesHorsTotal}</b> acte${S.actesHorsTotal>1?"s":""} réalisé${S.actesHorsTotal>1?"s":""} sans patient enregistré (${S.actesHorsDetail.map(a=>`${a.nombre} ${esc(a.acte.toLowerCase())}`).join(", ")}).</div>`:""}
+      </div>`:""}
 
     ${(ME.role==="admin"&&medDeliveredBreakdown.length)?`${cardOpen(ICON_FLASK,"Pharmacie - médicaments les plus délivrés")}<div style="height:${Math.max(140,medDeliveredBreakdown.length*40)}px"><canvas id="dashMedDeliveredChart"></canvas></div></div>`:""}
 
@@ -4884,6 +4913,82 @@ function pharmaciensDeCampagne(campagneId){
 
 // Le pharmacien en chef est désigné par CAMPAGNE : c'est elle qui porte le stock depuis
 // que celui-ci n'est plus tenu site par site.
+/* ---------- Actes réalisés hors consultation ----------
+   Pour les actes faits sans qu'un patient soit enregistré : on saisit un nombre, jamais
+   une fiche patient. Créer de fausses fiches pour les compter inventerait des personnes
+   et fausserait l'âge moyen, la répartition par sexe et les diagnostics. */
+function actesHorsHtml(c){
+  const lignes=ACTES_HORS.filter(a=>a.campagne_id===c.id);
+  const total=lignes.reduce((n,a)=>n+(a.nombre||0),0);
+  const sites=SITES.filter(s=>s.campagne_id===c.id);
+  return `<div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:10px">
+    <div class="rec-meta" style="margin-bottom:6px"><b>Actes réalisés hors consultation</b>${total?` - ${total} au total`:""}
+      <span style="display:block">Actes faits sans que le patient soit enregistré. Comptés dans le bilan, sans créer de fiche.</span></div>
+    ${lignes.map(a=>`
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <span style="flex:1;min-width:130px;font-size:13px">${esc(a.acte)}${a.site_id?` <span class="rec-meta">· ${esc(siteName(a.site_id))}</span>`:""}</span>
+        <input type="number" min="0" value="${a.nombre}" id="acthors_${a.id}" style="width:80px;padding:6px 8px;font-size:13px">
+        <button class="btn btn-primary btn-sm" onclick="majActeHors('${a.id}',this)">Enregistrer</button>
+        <button class="btn btn-danger btn-sm" onclick="supprimerActeHors('${a.id}')">Supprimer</button>
+      </div>`).join("")}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <input type="text" id="acthors_nom_${c.id}" placeholder="Acte (ex : Pansement)" style="flex:1;min-width:130px;padding:6px 8px;font-size:13px">
+      <select id="acthors_site_${c.id}" style="padding:6px 8px;font-size:12.5px">
+        <option value="">- Toute la campagne -</option>
+        ${sites.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("")}
+      </select>
+      <input type="number" min="0" id="acthors_nb_${c.id}" placeholder="Nombre" style="width:90px;padding:6px 8px;font-size:13px">
+      <button class="btn btn-accent btn-sm" onclick="ajouterActeHors('${c.id}',this)">Ajouter</button>
+    </div>
+  </div>`;
+}
+
+async function rechargerActesHors(){ ACTES_HORS=await loadActesHors(); renderCampagnes(); }
+
+async function ajouterActeHors(campagneId,btn){
+  const acte=($("acthors_nom_"+campagneId).value||"").trim();
+  const nb=parseInt($("acthors_nb_"+campagneId).value);
+  const site=$("acthors_site_"+campagneId).value||null;
+  if(!acte){ toast("Indiquez le nom de l'acte",true); return; }
+  if(isNaN(nb)||nb<0){ toast("Indiquez un nombre valide",true); return; }
+  btn.disabled=true;
+  const {error}=await sb.from("actes_hors_consultation").insert({
+    campagne_id:campagneId, site_id:site, acte, nombre:nb,
+    saisi_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email });
+  btn.disabled=false;
+  // Le doublon est empêché par un index unique côté base : un même acte ne doit exister
+  // qu'une fois par site et par campagne, on le corrige plutôt que de l'empiler.
+  if(error){ toast(/duplicate|unique/i.test(errMsg(error))
+    ? "Cet acte existe déjà pour ce site : modifiez le nombre existant."
+    : "Échec : "+errMsg(error), true); return; }
+  toast("Acte ajouté");
+  rechargerActesHors();
+}
+
+async function majActeHors(id,btn){
+  const nb=parseInt($("acthors_"+id).value);
+  if(isNaN(nb)||nb<0){ toast("Nombre invalide",true); return; }
+  btn.disabled=true;
+  const {error}=await sb.from("actes_hors_consultation").update({
+    nombre:nb, saisi_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email, saisi_le:new Date().toISOString()
+  }).eq("id",id);
+  btn.disabled=false;
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  toast("Nombre mis à jour");
+  rechargerActesHors();
+}
+
+async function supprimerActeHors(id){
+  const a=ACTES_HORS.find(x=>x.id===id);
+  const ok=await confirmModal(`Supprimer le comptage <b>${esc(a?a.acte:"")}</b> (${a?a.nombre:"?"}) ?<br>Il disparaîtra du bilan.`,
+    {title:"Supprimer ce comptage", okLabel:"Supprimer"});
+  if(!ok) return;
+  const {error}=await sb.from("actes_hors_consultation").delete().eq("id",id);
+  if(error){ toast("Échec : "+errMsg(error),true); return; }
+  toast("Comptage supprimé");
+  rechargerActesHors();
+}
+
 async function setPharmacienChefCampagne(campagneId,pharmacienId){
   const {error}=await sb.from("campagnes").update({pharmacien_chef_id:pharmacienId||null}).eq("id",campagneId);
   if(error){ toast("Échec : "+errMsg(error),true); return; }
@@ -6076,6 +6181,7 @@ function campagneCardHtml(c){
         </select>
         ${!pharmaciensDeCampagne(c.id).length?'<span class="rec-meta">Aucun pharmacien affecté aux sites de cette campagne.</span>':""}
       </div>
+      ${actesHorsHtml(c)}
       <div class="actions" style="margin:8px 0 14px">
         <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
         <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
@@ -6516,6 +6622,7 @@ function renderAide(){
         <li><b>Pharmacien en chef :</b> désigné <b>par campagne</b> (et non plus par site) - seul habilité, avec l'administrateur, à modifier le stock de cette campagne.</li>
         <li><b>Site indisponible pour un nouveau choix :</b> un site marqué "Inactif", ou rattaché à une campagne archivée, n'apparaît plus dans les listes de choix (nouvelle consultation, affectation d'un utilisateur, écran de connexion). Il reste visible et gérable ici dans l'onglet Campagnes, et un agent déjà affecté à ce site le garde sans interruption. Désarchiver la campagne (ou réactiver le site) le rend de nouveau choisissable immédiatement. Cela ne touche jamais aux consultations déjà enregistrées : elles restent consultables et ne disparaissent que si on les supprime manuellement.</li>
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
+        <li><b>Actes hors consultation :</b> pour les actes réalisés <b>sans qu'un patient soit enregistré</b> (pansements, mises en observation lors d'un afflux). On saisit un simple nombre par acte et par site. Ces actes sont comptés dans le tableau de bord et le bilan, avec la mention de leur origine - mais <b>aucune fiche patient n'est créée</b> : inventer des patients fausserait l'âge moyen, la répartition par sexe et les diagnostics.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
       </ul>`},
 

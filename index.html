@@ -4627,6 +4627,38 @@ async function loadDispensation(){
   renderDispensation();
 }
 
+// Rendu d'UN médicament, isolé dans sa propre fonction pour pouvoir être régénéré seul
+// après une délivrance, sans reconstruire toute la page (voir majLigneMedicament).
+// L'identifiant dispmed_<consultation>_<index> est l'ancre de cette mise à jour ciblée.
+function medicamentDispensationHtml(r,m,i){
+  const cle=`dispmed_${r.id}_${i}`;
+  if(m.delivre){
+    return `<div id="${cle}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <div>
+        <b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}
+        <div class="rec-meta">Délivré : ${esc(m.quantite||"-")} · par ${esc(m.delivre_par||"-")}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},false)">Annuler</button>
+    </div>`;
+  }
+  const qId=`dispqte_${r.id}_${i}`, uId=`dispunite_${r.id}_${i}`;
+  // Unité déjà utilisée pour cet article en stock, pré-sélectionnée par défaut : le
+  // pharmacien peut toujours la changer (ex. délivrer en plaquettes un article stocké en boîte).
+  const stockUnite=m.stock_id?DISPENSATION_STOCK_UNITS[m.stock_id]:null;
+  return `<div id="${cle}" style="padding:9px 0;border-bottom:1px solid var(--line)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <b>${esc(m.nom)}</b>${m.posologie?`<span class="rec-meta"> · ${esc(m.posologie)}</span>`:""}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end">
+      <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
+        <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
+      <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
+        <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}" ${u===stockUnite?"selected":""}>${esc(u)}</option>`).join("")}</select></div>
+      <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
+    </div>
+  </div>`;
+}
+
 function renderDispensation(){
   const showAll=$("dispShowDelivered")?.checked;
   const cards=DISPENSATION_LIST.map(r=>{
@@ -4637,34 +4669,8 @@ function renderDispensation(){
     if(!visible.length) return "";
     const d=new Date(r.created_at).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
     const site=ME.role==="admin"?` · ${esc(siteName(r.site_id))}`:"";
-    const medsHtml=visible.map(({m,i})=>{
-      if(m.delivre){
-        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)">
-          <div>
-            <b>${esc(m.nom)}</b>${m.posologie?` · ${esc(m.posologie)}`:""}
-            <div class="rec-meta">Délivré : ${esc(m.quantite||"-")} · par ${esc(m.delivre_par||"-")}</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" style="flex-shrink:0" onclick="toggleMedDelivered('${r.id}',${i},false)">Annuler</button>
-        </div>`;
-      }
-      const qId=`dispqte_${r.id}_${i}`, uId=`dispunite_${r.id}_${i}`;
-      // Unité déjà utilisée pour cet article en stock, pré-sélectionnée par défaut : le
-      // pharmacien peut toujours la changer (ex. délivrer en plaquettes un article stocké en boîte).
-      const stockUnite=m.stock_id?DISPENSATION_STOCK_UNITS[m.stock_id]:null;
-      return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <b>${esc(m.nom)}</b>${m.posologie?`<span class="rec-meta"> · ${esc(m.posologie)}</span>`:""}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:8px;align-items:flex-end">
-          <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
-            <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
-          <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
-            <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}" ${u===stockUnite?"selected":""}>${esc(u)}</option>`).join("")}</select></div>
-          <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
-        </div>
-      </div>`;
-    }).join("");
-    return `<div class="rec">
+    const medsHtml=visible.map(({m,i})=>medicamentDispensationHtml(r,m,i)).join("");
+    return `<div class="rec" id="dispcard_${r.id}">
       <div class="rec-top">
         <div><div class="rec-name">${esc(r.prenom)} ${esc(r.nom)}</div>
           <div class="rec-meta">${d}${site} · Prescrit par ${esc(r.medecin_nom||"-")}</div>
@@ -4674,6 +4680,35 @@ function renderDispensation(){
     </div>`;
   }).filter(Boolean);
   $("dispensationBody").innerHTML = cards.length ? cards.join("") : `<div class="empty">Aucune prescription ${showAll?"":"en attente "}pour l'instant.</div>`;
+}
+
+// Met à jour à l'écran le SEUL médicament concerné, au lieu de recharger toute la liste.
+// Recharger faisait repartir une requête de 300 consultations, reconstruisait toute la
+// page, replaçait le pharmacien en haut de la liste et effaçait les quantités déjà tapées
+// sur les autres lignes - insupportable quand on délivre plusieurs médicaments d'affilée.
+function majLigneMedicament(consultId,idx){
+  const r=DISPENSATION_LIST.find(x=>x.id===consultId); if(!r) return;
+  const m=r.medicaments[idx]; if(!m) return;
+  const ligne=document.getElementById(`dispmed_${consultId}_${idx}`);
+  const showAll=$("dispShowDelivered")?.checked;
+
+  // Si la ligne ne doit plus apparaître (délivrée, et l'affichage masque les délivrées),
+  // on la retire - puis la fiche si elle devient vide, puis on affiche le message d'attente
+  // si plus aucune fiche ne reste.
+  if(m.delivre && !showAll){
+    const carte=ligne?ligne.closest(".rec"):null;
+    if(ligne) ligne.remove();
+    if(carte && !carte.querySelector("[id^='dispmed_']")) carte.remove();
+    if(!$("dispensationBody").querySelector(".rec")){
+      $("dispensationBody").innerHTML=`<div class="empty">Aucune prescription en attente pour l'instant.</div>`;
+    }
+    return;
+  }
+  const html=medicamentDispensationHtml(r,m,idx);
+  if(ligne){ ligne.outerHTML=html; return; }
+  // La ligne n'était pas affichée (cas d'une annulation alors que les délivrées sont
+  // masquées) : un rendu complet est alors le plus sûr, elle doit réapparaître à sa place.
+  renderDispensation();
 }
 
 // Vue ADMIN des délivrances : mêmes données que la vue pharmacien (DISPENSATION_LIST,
@@ -4755,7 +4790,17 @@ async function toggleMedDelivered(consultId,idx,delivered,quantite){
   } else {
     toast(delivered?"Médicament marqué comme délivré":"Délivrance annulée");
   }
-  loadDispensation();
+
+  // On répercute en mémoire ce que le serveur vient d'enregistrer, plutôt que de tout
+  // relire : la RPC a déjà réussi (on serait sorti en cas d'erreur), les données locales
+  // sont donc à jour. C'est ce qui permet de ne rafraîchir qu'une ligne à l'écran.
+  if(med){
+    med.delivre=!!delivered;
+    med.quantite=delivered?(quantite||null):null;
+    med.delivre_par=delivered?(`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email):null;
+    med.delivre_le=delivered?new Date().toISOString():null;
+  }
+  majLigneMedicament(consultId,idx);
 }
 
 /* =====================================================================

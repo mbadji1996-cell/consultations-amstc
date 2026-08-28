@@ -4058,6 +4058,15 @@ function computeDashboardStats(){
   const semaine=rows.filter(r=>new Date(r.created_at)>=startWeek).length;
   const hommes=rows.filter(r=>r.sexe==="M").length;
   const femmes=rows.filter(r=>r.sexe==="F").length;
+  // Le sexe manque sur une bonne part des fiches reprises des registres papier. Les
+  // pourcentages se calculent donc sur les seules fiches renseignées, et la base est
+  // publiée avec eux : un pourcentage dont on ignore le dénominateur ne veut rien dire.
+  const sexeRenseigne=hommes+femmes;
+  const sexeManquant=total-sexeRenseigne;
+  // Le pourcentage d'hommes est le complément de celui des femmes : deux arrondis
+  // indépendants donnent 99 % ou 101 %, et font douter du reste du tableau.
+  const pctFemmes = sexeRenseigne ? Math.round(femmes/sexeRenseigne*100) : null;
+  const pctHommes = sexeRenseigne ? 100-pctFemmes : null;
   const ages=rows.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
   const ageMoyen=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):null;
   const explorations=rows.filter(r=>r.explorations&&r.explorations.trim()).length;
@@ -4086,7 +4095,12 @@ function computeDashboardStats(){
       const as=rs.map(r=>r.age).filter(a=>a!=null&&!isNaN(a));
       const moy=as.length?Math.round(as.reduce((a,b)=>a+b,0)/as.length):null;
       const top=countTop(rs,"diagnostic",1,true);
-      return { nom:s.nom, n, pctF:n?Math.round(f/n*100):null, pctM:n?Math.round(m/n*100):null, moy, topPath:top.length?top[0][0]:null };
+      // Comme pour l'ensemble : pourcentages sur les fiches renseignées, base conservée.
+      const sexeRens=f+m;
+      const pctF=sexeRens?Math.round(f/sexeRens*100):null;
+      return { nom:s.nom, n, sexeRens, sexeManquant:n-sexeRens,
+               pctF, pctM:sexeRens?100-pctF:null,
+               moy, topPath:top.length?top[0][0]:null };
     });
   }
 
@@ -4313,6 +4327,7 @@ function computeDashboardStats(){
     ? dailyCounts.reduce((a,b)=>b.count>a.count?b:a) : null;
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
+    sexeRenseigne, sexeManquant, pctFemmes, pctHommes,
     devenirBreakdown, devenirRenseigne, explorationsFaites, explorationsResultats,
     explorationsAnormales, explorationsGroupes, picActivite,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
@@ -4366,6 +4381,7 @@ async function renderDashboard(){
   $("dashBody").innerHTML=LOADING_HTML;
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
+    sexeRenseigne, sexeManquant,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite } = S;
   const collegues = ME.role==="admin" ? [] : await loadCollegues();
   let referencesRecues=[];
@@ -4427,9 +4443,10 @@ async function renderDashboard(){
           <b>${esc(s.nom)}</b><span class="rec-meta">${s.n} consultation${s.n>1?"s":""}</span>
         </div>
         <div class="rec-meta" style="margin-top:2px">
-          ${s.pctF!=null?s.pctF+"% F · ":""}${s.pctM!=null?s.pctM+"% M · ":""}Âge moyen : ${s.moy??"-"}
+          ${s.pctF!=null?s.pctF+" % F · "+s.pctM+" % M · ":""}Âge moyen : ${s.moy??"-"}
           ${s.topPath?" · "+esc(s.topPath):""}
         </div>
+        ${s.sexeManquant?`<div class="rec-meta" style="margin-top:2px;opacity:.8">${esc(baseSexeTexte(s.sexeRens,s.sexeManquant))}</div>`:""}
       </div>`).join("")}
     </div>`;
   }
@@ -4480,7 +4497,8 @@ async function renderDashboard(){
 
     ${specialiteBreakdown.length?`${cardOpen(ICON_USERS,"Détail par spécialité médicale")}<div style="height:${Math.max(140,specialiteBreakdown.length*40)}px"><canvas id="dashSpecialiteChart"></canvas></div></div>`:""}
 
-    ${(hommes+femmes)?`${cardOpen(ICON_USERS,"Répartition par sexe")}<div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div></div>`:""}
+    ${sexeRenseigne?`${cardOpen(ICON_USERS,"Répartition par sexe")}<div style="height:200px;max-width:280px;margin:0 auto"><canvas id="dashSexChart"></canvas></div>
+      <div class="rec-meta" style="text-align:center;margin-top:8px">${esc(baseSexeTexte(sexeRenseigne,sexeManquant))}</div></div>`:""}
 
     ${hasAgeData?`${cardOpen(ICON_USERS,"Pyramide des âges")}<div style="height:${Math.max(220,AGE_BRACKETS.length*34)}px"><canvas id="dashAgeChart"></canvas></div></div>`:""}
 
@@ -4848,6 +4866,19 @@ function noteJoursConsultation(S){
 }
 const NOTE_HORAIRES_ABSENTS="Les horaires d'ouverture n'ont pas été relevés pour cette campagne. Ils se saisissent sur la fiche de campagne, rubrique « Journées de consultation », et permettent alors de rapporter l'activité au temps d'ouverture réel.";
 
+// D'où sortent les pourcentages de sexe, et ce qui manque. Une seule formule pour
+// l'écran, le PDF et le Word : trois formulations divergentes sur le même chiffre
+// feraient douter du reste.
+function baseSexeTexte(renseigne,manquant){
+  const pluriel=n=>n>1?"s":"";
+  if(!renseigne)
+    return manquant ? "Sexe non renseigné sur "+manquant+" fiche"+pluriel(manquant) : "";
+  if(!manquant)
+    return "Sexe renseigné sur les "+renseigne+" fiche"+pluriel(renseigne);
+  return "Pourcentages calculés sur "+renseigne+" fiche"+pluriel(renseigne)
+       +" renseignée"+pluriel(renseigne)+" · "+manquant+" non renseignée"+pluriel(manquant);
+}
+
 // Virgule décimale : "10,6" et non "10.6", dans un document en français.
 function nbFr(v){ return String(v).replace(".",","); }
 
@@ -5084,9 +5115,11 @@ async function downloadReportPDF(){
   addChartImage("type","Consultations par type de praticien");
   addChartImage("specialite","Détail par spécialité médicale");
   addChartImage("sex","Répartition par sexe");
+  if(S.sexeRenseigne && S.sexeManquant){
+    pdfNote(doc,margin,y,pageW,baseSexeTexte(S.sexeRenseigne,S.sexeManquant)+". Les fiches sans sexe proviennent de registres papier où l'information n'avait pas été notée.");
+    y+=12;
+  }
   addChartImage("age","Pyramide des âges");
-
-  // ---------- PAGE 4 — Morbidité ----------
   if(S.topDiag.length){
     addChartImage("diag","Pathologies les plus fréquentes", true);
     if(y>240){ doc.addPage(); y=20; }
@@ -5241,13 +5274,19 @@ async function downloadReportPDF(){
     pdfSectionHeader(doc,margin,y,"Analyse comparative des sites",blue); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
-      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
-      head:[["Site","Consult.","Part","% F","% M","Âge moyen","Pathologie la + fréquente"]],
+      headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold", fontSize:8.5 },
+      styles:{ fontSize:8.5, overflow:"linebreak" },
+      columnStyles:{1:{cellWidth:16},2:{cellWidth:13},3:{cellWidth:12},4:{cellWidth:12},
+                    5:{cellWidth:22},6:{cellWidth:18}},
+      head:[["Site","Consult.","Part","% F","% M","Sexe connu","Âge moyen","Pathologie la + fréquente"]],
       body:S.siteStats.map(s=>[s.nom,String(s.n),S.total?Math.round(s.n/S.total*100)+"%":"-",
                                s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",
+                               s.sexeRens+" / "+s.n,
                                s.moy??"-",s.topPath||"-"]),
     });
-    y=doc.lastAutoTable.finalY+10;
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,"Les pourcentages de sexe portent sur les seules fiches où il est renseigné - la colonne « Sexe connu » en donne la base. Ils ne se rapportent pas au nombre total de consultations du site.");
+    y+=14;
   }
 
   // ---------- Analyse et recommandations ----------
@@ -5519,6 +5558,8 @@ async function downloadReportWord(){
   addChartImage("type","Consultations par type de praticien");
   addChartImage("specialite","Détail par spécialité médicale");
   addChartImage("sex","Répartition par sexe");
+  if(S.sexeRenseigne && S.sexeManquant)
+    children.push(note(baseSexeTexte(S.sexeRenseigne,S.sexeManquant)+". Les fiches sans sexe proviennent de registres papier où l'information n'avait pas été notée."));
   addChartImage("age","Pyramide des âges");
   addChartImage("diag","Pathologies les plus fréquentes");
   addChartImage("actes","Actes réalisés");
@@ -5597,9 +5638,11 @@ async function downloadReportWord(){
   // ---------- Analyse comparative par site ----------
   if(S.siteStats.length){
     children.push(sectionHeading("Analyse comparative des sites"));
-    children.push(mkTable(["Site","Consult.","Part","% F","% M","Âge moyen","Pathologie la + fréquente"],
+    children.push(mkTable(["Site","Consult.","Part","% F","% M","Sexe connu","Âge moyen","Pathologie la + fréquente"],
       S.siteStats.map(s=>[s.nom,s.n,S.total?Math.round(s.n/S.total*100)+"%":"-",
-                          s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",s.moy??"-",s.topPath||"-"])));
+                          s.pctF!=null?s.pctF+"%":"-",s.pctM!=null?s.pctM+"%":"-",
+                          s.sexeRens+" / "+s.n, s.moy??"-", s.topPath||"-"])));
+    children.push(note("Les pourcentages de sexe portent sur les seules fiches où il est renseigné - la colonne « Sexe connu » en donne la base. Ils ne se rapportent pas au nombre total de consultations du site."));
   }
 
   // ---------- Analyse et recommandations ----------
@@ -7276,7 +7319,9 @@ async function bilanCampagnePdf(id, btn){
     const tuiles = [
       [String(patients), "Malades consultés"],
       [ageMoyen != null ? ageMoyen + " ans" : "-", "Âge moyen"],
-      [(hommes + femmes) ? Math.round(hommes / (hommes + femmes) * 100) + "% H / " + Math.round(femmes / (hommes + femmes) * 100) + "% F" : "-", "Répartition des sexes"],
+      // Sur la base des seules fiches renseignées, dont le nombre est rappelé sous la tuile.
+      [(hommes + femmes) ? (100 - Math.round(femmes / (hommes + femmes) * 100)) + "% H / " + Math.round(femmes / (hommes + femmes) * 100) + "% F" : "-",
+       (hommes + femmes) ? "Sexes (sur " + (hommes + femmes) + " fiches)" : "Répartition des sexes"],
       [String(ordonnances), "Ordonnances délivrées"],
     ];
     const tw = (W - 28 - 3 * 6) / 4;

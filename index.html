@@ -4776,8 +4776,22 @@ async function generateReportCharts(S){
   const make=(key,config,w,h)=>{
     const canvas=document.createElement("canvas");
     canvas.width=w; canvas.height=h;
-    const chart=new Chart(canvas,{ ...config, options:{ ...config.options, responsive:false, animation:false } });
-    images[key]={ data:canvas.toDataURL("image/png",1.0), ratio:h/w };
+    const chart=new Chart(canvas,{ ...config, options:{ ...config.options,
+      responsive:false, animation:false,
+      // Sans cette ligne, Chart.js multiplie la taille demandée par la densité de l'écran
+      // de celui qui génère le rapport : un écran à 1,65 produisait des images de 1485 px
+      // là où 900 suffisent largement pour une impression. Le poids du document dépendait
+      // donc du matériel utilisé - deux personnes n'obtenaient pas le même fichier.
+      devicePixelRatio:1 } });
+    // Un graphique est dessiné sur fond transparent. Reporté tel quel dans le PDF, il
+    // impose une couche de transparence supplémentaire, aussi lourde que l'image. Un fond
+    // blanc s'en dispense, et c'est de toute façon la couleur du papier.
+    const plat=document.createElement("canvas");
+    plat.width=canvas.width; plat.height=canvas.height;
+    const ctx=plat.getContext("2d");
+    ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,plat.width,plat.height);
+    ctx.drawImage(canvas,0,0);
+    images[key]={ data:plat.toDataURL("image/png",1.0), ratio:h/w };
     chart.destroy();
   };
 
@@ -5067,7 +5081,10 @@ async function downloadReportPDF(){
   const S=computeDashboardStats();
   const charts=await generateReportCharts(S);
   const { jsPDF }=window.jspdf;
-  const doc=new jsPDF({ unit:"mm", format:"a4" });
+  // compress:true déflate tous les flux du document, images comprises. Sans lui, jsPDF
+  // écrit les graphiques en bitmap BRUT : le rapport du Gamou 2026 pesait 48 Mo pour
+  // 54 pages, dont 45 Mo de pixels non compressés - impossible à envoyer par courriel.
+  const doc=new jsPDF({ unit:"mm", format:"a4", compress:true });
   const pageW=doc.internal.pageSize.getWidth();
   const margin=14;
 
@@ -5261,16 +5278,18 @@ async function downloadReportPDF(){
   const addChartImage=(key,label,nouvellePage)=>{
     const chart=charts[key];
     if(!chart) return;
-    if(nouvellePage){ doc.addPage(); y=20; }
-    else if(y>230){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,label,green); y+=6;
     // Respecte toujours la vraie proportion du graphique : on part de la pleine largeur,
     // puis si la hauteur qui en découle dépasse le plafond, on réduit largeur ET hauteur
     // ensemble (jamais l'une sans l'autre, sinon l'image s'étire).
     const maxW=pageW-margin*2, maxH=150;
     let w=maxW, h=w*chart.ratio;
     if(h>maxH){ h=maxH; w=h/chart.ratio; }
-    if(y+h>270){ doc.addPage(); y=20; }
+    // La place nécessaire se mesure AVANT d'écrire le titre. Le contrôle se faisait après :
+    // le titre restait en bas d'une page et son graphique passait sur la suivante, qui
+    // n'affichait alors qu'une image sans légende - le rapport du Gamou 2026 avait deux
+    // pages dans ce cas.
+    if(nouvellePage || y+6+h>270){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,label,green); y+=6;
     doc.addImage(chart.data,"PNG",margin,y,w,h);
     y+=h+9;
   };
@@ -7617,7 +7636,7 @@ async function bilanCampagnePdf(id, btn){
     const ordonnances = rows.filter(r => Array.isArray(r.medicaments) && r.medicaments.length > 0).length;
 
     const {jsPDF} = window.jspdf;
-    const doc = new jsPDF({unit: "mm", format: "a4"});
+    const doc = new jsPDF({unit: "mm", format: "a4", compress: true});
     const W = 210;
     doc.setFillColor(6, 68, 28); doc.rect(0, 0, W, 34, "F");
     doc.setTextColor(255, 255, 255);

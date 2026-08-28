@@ -4566,18 +4566,38 @@ async function getEffectifs(campagneId){
   const counts={generaliste:0,dentiste:0,specialiste:0,sage_femme:0,infirmier:0,pharmacien:0};
   const nbSites = campagneId ? SITES.filter(s=>s.campagne_id===campagneId).length : SITES.length;
 
-  const camp = campagneId ? CAMPAGNES.find(c=>c.id===campagneId) : null;
-  const dec = camp && camp.effectifs_declares;
-  if(dec && Object.keys(counts).some(k=>Number(dec[k])>0)){
-    Object.keys(counts).forEach(k=>{ counts[k]=Number(dec[k])||0; });
-    return { nbSites, counts, total:Object.values(counts).reduce((a,b)=>a+b,0), declare:true };
-  }
-
+  // On compte d'abord les comptes, toujours : la déclaration se substitue MÉTIER PAR
+  // MÉTIER, jamais en bloc. Corriger le seul chiffre des infirmiers ne doit pas remettre
+  // à zéro les médecins et les pharmaciens, qui eux étaient justes.
   let q=sb.from("profiles").select("specialite").eq("actif",true).eq("role","agent");
   if(campagneId) q=q.eq("campagne_id",campagneId);
   const {data}=await q;
   (data||[]).forEach(p=>{ const s=p.specialite||"generaliste"; if(counts[s]!==undefined) counts[s]++; });
-  return { nbSites, counts, total:Object.values(counts).reduce((a,b)=>a+b,0), declare:false };
+
+  const camp = campagneId ? CAMPAGNES.find(c=>c.id===campagneId) : null;
+  const dec = (camp && camp.effectifs_declares) || {};
+  const metiersDeclares=[];
+  Object.keys(counts).forEach(k=>{
+    if(dec[k]!==undefined && dec[k]!==null && dec[k]!==""){
+      counts[k]=Number(dec[k])||0;
+      metiersDeclares.push(k);
+    }
+  });
+  return { nbSites, counts, total:Object.values(counts).reduce((a,b)=>a+b,0),
+           declare:metiersDeclares.length>0, metiersDeclares };
+}
+
+// D'où viennent les effectifs affichés : déclarés par l'équipe, comptés d'après les
+// comptes, ou un mélange des deux. Un lecteur de bilan doit pouvoir faire la différence.
+function texteSourceEffectifs(eff){
+  const compte="Effectifs comptés d'après les comptes rattachés à la campagne : toute personne intervenue sans compte n'y figure pas.";
+  if(!eff.declare) return compte;
+  const noms=(eff.metiersDeclares||[]).map(k=>{
+    const p=EFFECTIF_PROFESSIONS.find(x=>x[0]===k); return p?p[1].toLowerCase():k;
+  });
+  if(noms.length>=EFFECTIF_PROFESSIONS.length)
+    return "Effectifs déclarés par l'équipe : ils incluent les renforts intervenus sans compte dans l'application.";
+  return `Effectifs déclarés par l'équipe pour : ${noms.join(", ")}. Les autres sont comptés d'après les comptes rattachés à la campagne.`;
 }
 
 // Régénère tous les graphiques du rapport dans des <canvas> détachés (jamais affichés),
@@ -4808,9 +4828,7 @@ async function downloadReportPDF(){
       body:rows,
     });
     y=doc.lastAutoTable.finalY+6;
-    pdfNote(doc,margin,y,pageW, eff.declare
-      ? "Effectifs déclarés par l'équipe : ils incluent les renforts intervenus sans compte dans l'application."
-      : "Effectifs comptés d'après les comptes rattachés à la campagne : toute personne intervenue sans compte n'y figure pas.");
+    pdfNote(doc,margin,y,pageW, texteSourceEffectifs(eff));
     y+=12;
   }
 
@@ -5244,9 +5262,7 @@ async function downloadReportWord(){
     );
     children.push(sectionHeading(S.campagneInfo?"Durée et effectifs de la campagne":"Effectifs mobilisés"));
     children.push(mkTable(["Élément","Nombre","% des effectifs"], rows));
-    children.push(note(eff.declare
-      ? "Effectifs déclarés par l'équipe : ils incluent les renforts intervenus sans compte dans l'application."
-      : "Effectifs comptés d'après les comptes rattachés à la campagne : toute personne intervenue sans compte n'y figure pas."));
+    children.push(note(texteSourceEffectifs(eff)));
   }
 
   if(S.siteStats.length){

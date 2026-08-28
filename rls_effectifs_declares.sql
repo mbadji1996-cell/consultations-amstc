@@ -9,12 +9,15 @@
 -- inférieure à l'équipe réelle.
 --
 -- Cette colonne permet de déclarer les effectifs tels qu'ils ont été
--- mobilisés. Quand elle est renseignée, le rapport l'utilise et le dit ;
--- sinon il retombe sur le comptage des comptes, comme avant.
+-- mobilisés. La déclaration se substitue au comptage MÉTIER PAR MÉTIER :
+-- corriger le seul chiffre des infirmiers ne remet pas à zéro les médecins
+-- et les pharmaciens, qui eux étaient justes. Le rapport indique ensuite
+-- quels métiers sont déclarés et lesquels sont comptés.
 --
 -- Format : un objet JSON par profession, par exemple
---   {"generaliste": 6, "dentiste": 2, "infirmier": 4, "pharmacien": 3}
--- Les professions absentes ou à zéro ne sont pas affichées.
+--   {"infirmier": 4}
+-- Les professions absentes de l'objet gardent le comptage automatique ;
+-- une profession déclarée à 0 est bien prise pour un zéro.
 --
 -- Aucune nouvelle règle de sécurité n'est nécessaire : cette colonne suit
 -- celles de la table campagnes, déjà couvertes par les policies en place.

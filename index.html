@@ -2129,7 +2129,7 @@ async function loadCampagnesWithFallback(){
 async function loadActesHors(){
   if(!navigator.onLine) return [];
   const {data,error}=await sb.from("actes_hors_consultation")
-    .select("id,campagne_id,site_id,acte,nombre,note").order("acte");
+    .select("id,campagne_id,site_id,acte,nombre,note,categorie").order("acte");
   return error?[]:(data||[]);
 }
 
@@ -4174,12 +4174,28 @@ function computeDashboardStats(){
     });
   }
 
-  // Seules les références HORS SITE sont comptées. Orienter un patient vers un confrère
-  // présent sur place est un mouvement interne à l'équipe, qui n'apprend rien sur la prise
-  // en charge : le patient reste dans la campagne et sa consultation est déjà comptée.
-  // Une orientation vers un hôpital, elle, marque un besoin qui dépasse nos moyens - c'est
-  // ce chiffre qui a du sens pour un bilan ou un partenaire.
-  const referencesHorsSite=rows.filter(r=>r.refere_hopital).length;
+  // Actes et références déclarés partagent la même table : la catégorie les sépare.
+  // Une ligne sans catégorie vient d'avant rls_references_declarees.sql : c'est un acte.
+  const comptagesPortee = ME.role==="admin" && SELECTED_CAMPAGNE
+    ? ACTES_HORS.filter(a=>a.campagne_id===SELECTED_CAMPAGNE)
+    : ACTES_HORS.filter(a=>scopeSites.some(s=>s.id===a.site_id) || !a.site_id);
+  const horsPortee = comptagesPortee.filter(a=>(a.categorie||"acte")!=="reference");
+  const refsPortee = comptagesPortee.filter(a=>(a.categorie||"acte")==="reference");
+
+  // Seules les références vers l'EXTÉRIEUR sont comptées. Orienter un patient vers un
+  // confrère présent sur place est un mouvement interne à l'équipe, qui n'apprend rien sur
+  // la prise en charge : le patient reste dans la campagne et sa consultation est déjà
+  // comptée. Une orientation vers un hôpital, elle, marque un besoin qui dépasse nos
+  // moyens - c'est ce chiffre qui a du sens pour un bilan ou un partenaire.
+  //
+  // Deux origines, un seul total. Celles portées par une fiche de consultation, et celles
+  // déclarées à la main pour les patients orientés sans qu'une fiche ait été ouverte -
+  // orientation depuis l'accueil, évacuation décidée dans l'urgence. Les sous-totaux
+  // restent séparés : un bilan doit pouvoir dire d'où vient chaque chiffre.
+  const referencesSurConsultation=rows.filter(r=>r.refere_hopital).length;
+  const referencesDeclarees=refsPortee.reduce((n,a)=>n+(a.nombre||0),0);
+  const referencesTotal=referencesSurConsultation+referencesDeclarees;
+  const referencesDetail=refsPortee.slice().sort((a,b)=>(b.nombre||0)-(a.nombre||0));
 
   // Actes réalisés : nombre de consultations en comportant au moins un, et détail acte par
   // acte. splitMulti re-scinde la chaîne "; " pour qu'une consultation "Pansement + Mise en
@@ -4189,9 +4205,6 @@ function computeDashboardStats(){
   // Actes réalisés SANS patient enregistré : ils ont eu lieu, ils comptent, mais ils ne
   // correspondent à aucune fiche. On les additionne au détail par acte, tout en gardant
   // leur total à part - un bilan doit pouvoir dire d'où vient chaque chiffre.
-  const horsPortee = ME.role==="admin" && SELECTED_CAMPAGNE
-    ? ACTES_HORS.filter(a=>a.campagne_id===SELECTED_CAMPAGNE)
-    : ACTES_HORS.filter(a=>scopeSites.some(s=>s.id===a.site_id) || !a.site_id);
   const actesHorsTotal = horsPortee.reduce((n,a)=>n+(a.nombre||0),0);
 
   const cumul={};
@@ -4334,7 +4347,8 @@ function computeDashboardStats(){
     devenirBreakdown, devenirRenseigne, explorationsFaites, explorationsResultats,
     explorationsAnormales, explorationsGroupes, picActivite,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
-    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
+    typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu,
+    referencesTotal, referencesSurConsultation, referencesDeclarees, referencesDetail,
     actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
     praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice,
     joursConsultation, joursMinutes, debriefing };
@@ -4385,7 +4399,7 @@ async function renderDashboard(){
   const S=computeDashboardStats();
   const { total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     sexeRenseigne, sexeManquant,
-    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite } = S;
+    trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesTotal } = S;
   const collegues = ME.role==="admin" ? [] : await loadCollegues();
   let referencesRecues=[];
   {
@@ -4432,7 +4446,7 @@ async function renderDashboard(){
     ${statCard(ICON_TREND,"teal",semaine,"7 derniers jours")}
     ${statCard(ICON_USER,"blue",ageMoyen??"-","Âge moyen (ans)")}
     ${statCard(ICON_FLASK,"purple",explorations,"Explorations demandées")}
-    ${statCard(ICON_REFER,"red",referencesHorsSite,"Nombre référence")}
+    ${statCard(ICON_REFER,"red",referencesTotal,"Références")}
     ${statCard(ICON_CHECK,"gold",S.actesTotal,"Actes réalisés")}
   </div>`;
 
@@ -4860,6 +4874,8 @@ function noteDebriefing(D){
        + "verbatims ne quittent pas le questionnaire.";
 }
 
+const NOTE_REFERENCES="Seules les orientations vers une structure extérieure sont comptées. Orienter un patient vers un confrère présent sur le site est un mouvement interne à l'équipe : le patient reste dans la campagne et sa consultation est déjà comptée.";
+
 const NOTE_MATRICE_ANONYME="Les patients ne sont pas nommés. Le numéro de consultation permet de retrouver la fiche complète dans l'application, où l'identité reste accessible aux seuls comptes autorisés.";
 const NOTE_EXAMENS_GROUPES="Les examens sont regroupés par intitulé et ne sont rattachés à aucun patient. La réalisation et l'anomalie sont notées par consultation : lorsqu'une consultation demande plusieurs examens, elles comptent pour chacun d'eux.";
 
@@ -5042,7 +5058,7 @@ async function downloadReportPDF(){
   y=tileRow([
     { color:teal, value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes" },
     { color:blue, value:S.ageMoyen??"-", label:"Âge moyen (ans)" },
-    { color:red, value:String(S.referencesHorsSite), label:"Références hors site" },
+    { color:red, value:String(S.referencesTotal), label:"Références" },
   ], y, 26);
 
   // Un bilan doit dire sur quoi il repose : sans cette ligne, un lecteur pourrait croire
@@ -5254,6 +5270,33 @@ async function downloadReportPDF(){
     }
   }
 
+  // Références : total, origine, et destinations déclarées.
+  if(S.referencesTotal){
+    if(y>215){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Références",red); y+=6;
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:red, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+      head:[["Origine","Patients"]],
+      body:[["Référés depuis une consultation", String(S.referencesSurConsultation)],
+            ["Déclarés sans fiche de consultation", String(S.referencesDeclarees)],
+            ["Total", String(S.referencesTotal)]],
+    });
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,NOTE_REFERENCES); y+=14;
+    if(S.referencesDetail.length){
+      if(y>235){ doc.addPage(); y=20; }
+      pdfSectionHeader(doc,margin,y,"Destinations déclarées",red); y+=6;
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:red, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Destination","Site d'origine","Patients"]],
+        body:S.referencesDetail.map(r=>[r.acte, r.site_id?(siteName(r.site_id)||"-"):"Toute la campagne", String(r.nombre||0)]),
+      });
+      y=doc.lastAutoTable.finalY+10;
+    }
+  }
+
   // ---------- PAGE 6 — Prise en charge thérapeutique ----------
   if(ME.role==="admin" && (S.medDeliveredBreakdown.length || S.medParClasse.length)){
     doc.addPage(); y=20;
@@ -5376,7 +5419,7 @@ async function downloadReportPDF(){
     if(S.topDiag.length) constats.push(["Pathologie dominante", `${S.topDiag[0][0]} (${S.topDiag[0][1]} cas)`]);
     if(S.picActivite) constats.push(["Journée la plus chargée", `${S.picActivite.date} — ${S.picActivite.count} consultations`]);
     if(S.actesTotal) constats.push(["Actes réalisés", String(S.actesTotal)]);
-    if(S.referencesHorsSite) constats.push(["Patients référés hors site", String(S.referencesHorsSite)]);
+    if(S.referencesTotal) constats.push(["Patients référés", String(S.referencesTotal)]);
     constats.push(["Complétude moyenne des dossiers", S.completudeGlobale+"%"]);
 
     if(constats.length || textes.length){
@@ -5571,7 +5614,7 @@ async function downloadReportWord(){
     kpiRow([
       { value:`${S.femmes} / ${S.hommes}`, label:"Femmes / Hommes", color:TEAL },
       { value:S.ageMoyen??"-", label:"Âge moyen (ans)", color:BLUE },
-      { value:String(S.referencesHorsSite), label:"Références hors site", color:RED },
+      { value:String(S.referencesTotal), label:"Références", color:RED },
     ]),
     note(`Complétude moyenne des dossiers : ${S.completudeGlobale}% — le détail figure en annexe.`),
   );
@@ -5663,6 +5706,21 @@ async function downloadReportWord(){
   addChartImage("age","Pyramide des âges");
   addChartImage("diag","Pathologies les plus fréquentes");
   addChartImage("actes","Actes réalisés");
+
+  // ---------- Références ----------
+  if(S.referencesTotal){
+    children.push(sectionHeading("Références"));
+    children.push(mkTable(["Origine","Patients"],
+      [["Référés depuis une consultation", S.referencesSurConsultation],
+       ["Déclarés sans fiche de consultation", S.referencesDeclarees],
+       ["Total", S.referencesTotal]]));
+    children.push(note(NOTE_REFERENCES));
+    if(S.referencesDetail.length){
+      children.push(sectionHeading("Destinations déclarées"));
+      children.push(mkTable(["Destination","Site d'origine","Patients"],
+        S.referencesDetail.map(r=>[r.acte, r.site_id?(siteName(r.site_id)||"-"):"Toute la campagne", r.nombre||0])));
+    }
+  }
   addChartImage("medDelivered","Pharmacie - médicaments les plus délivrés");
 
   // ---------- Morbidité ----------
@@ -5755,7 +5813,7 @@ async function downloadReportWord(){
     if(S.topDiag.length) constats.push(["Pathologie dominante", `${S.topDiag[0][0]} (${S.topDiag[0][1]} cas)`]);
     if(S.picActivite) constats.push(["Journée la plus chargée", `${S.picActivite.date} — ${S.picActivite.count} consultations`]);
     if(S.actesTotal) constats.push(["Actes réalisés", String(S.actesTotal)]);
-    if(S.referencesHorsSite) constats.push(["Patients référés hors site", String(S.referencesHorsSite)]);
+    if(S.referencesTotal) constats.push(["Patients référés", String(S.referencesTotal)]);
     constats.push(["Complétude moyenne des dossiers", S.completudeGlobale+"%"]);
     children.push(sectionHeading("Analyse de la campagne"));
     children.push(mkTable(["Constat","Valeur"], constats));
@@ -5903,10 +5961,32 @@ function pharmaciensDeCampagne(campagneId){
    Pour les actes faits sans qu'un patient soit enregistré : on saisit un nombre, jamais
    une fiche patient. Créer de fausses fiches pour les compter inventerait des personnes
    et fausserait l'âge moyen, la répartition par sexe et les diagnostics. */
-function actesHorsHtml(c){
-  const lignes=ACTES_HORS.filter(a=>a.campagne_id===c.id);
+// Actes et références déclarés à la main partagent la même table et le même écran :
+// un intitulé, un site facultatif, un nombre. Seuls les mots changent.
+const COMPTAGES={
+  acte:      { prefixe:"acthors", liste:' list="actesCourants"',
+               placeholder:"Acte ou dépistage", ajout:"Ajouter l'acte",
+               manqueNom:"Indiquez le nom de l'acte",
+               doublon:"Cet acte existe déjà pour ce site : modifiez le nombre existant.",
+               ajoute:"Acte ajouté", vide:"Aucun acte déclaré." },
+  reference: { prefixe:"refhors", liste:"",
+               placeholder:"Hôpital ou structure de destination", ajout:"Ajouter la référence",
+               manqueNom:"Indiquez la structure vers laquelle le patient a été référé",
+               doublon:"Cette destination existe déjà pour ce site : modifiez le nombre existant.",
+               ajoute:"Référence ajoutée", vide:"Aucune référence déclarée." },
+};
+
+function comptagesDe(campagneId,categorie){
+  return ACTES_HORS.filter(a=>a.campagne_id===campagneId
+                           && (a.categorie||"acte")===categorie);
+}
+
+function comptageHorsHtml(c,categorie){
+  const cfg=COMPTAGES[categorie];
+  const lignes=comptagesDe(c.id,categorie);
   const sites=SITES.filter(s=>s.campagne_id===c.id);
   return `<div>
+    ${lignes.length?"":`<div class="rec-meta" style="margin:0 0 8px">${cfg.vide}</div>`}
     ${lignes.map(a=>`
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <span style="flex:1;min-width:130px;font-size:13px">${esc(a.acte)}${a.site_id?` <span class="rec-meta">· ${esc(siteName(a.site_id))}</span>`:""}</span>
@@ -5915,36 +5995,45 @@ function actesHorsHtml(c){
         <button class="btn btn-danger btn-sm" onclick="supprimerActeHors('${a.id}')">Supprimer</button>
       </div>`).join("")}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
-      <input type="text" id="acthors_nom_${c.id}" list="actesCourants" placeholder="Acte ou dépistage" style="flex:1;min-width:130px;padding:6px 8px;font-size:13px">
-      <select id="acthors_site_${c.id}" style="padding:6px 8px;font-size:12.5px">
+      <input type="text" id="${cfg.prefixe}_nom_${c.id}"${cfg.liste} placeholder="${cfg.placeholder}" aria-label="${cfg.placeholder}" style="flex:1;min-width:130px;padding:6px 8px;font-size:13px">
+      <select id="${cfg.prefixe}_site_${c.id}" aria-label="Site concerné" style="padding:6px 8px;font-size:12.5px">
         <option value="">- Toute la campagne -</option>
         ${sites.map(s=>`<option value="${s.id}">${esc(s.nom)}</option>`).join("")}
       </select>
-      <input type="number" min="0" id="acthors_nb_${c.id}" placeholder="Nombre" style="width:90px;padding:6px 8px;font-size:13px">
-      <button class="btn btn-accent btn-sm" onclick="ajouterActeHors('${c.id}',this)">Ajouter</button>
+      <input type="number" min="0" id="${cfg.prefixe}_nb_${c.id}" placeholder="Nombre" aria-label="Nombre" style="width:90px;padding:6px 8px;font-size:13px">
+      <button class="btn btn-accent btn-sm" onclick="ajouterComptageHors('${c.id}','${categorie}',this)">${cfg.ajout}</button>
     </div>
   </div>`;
 }
 
 async function rechargerActesHors(){ ACTES_HORS=await loadActesHors(); renderCampagnes(); }
 
-async function ajouterActeHors(campagneId,btn){
-  const acte=($("acthors_nom_"+campagneId).value||"").trim();
-  const nb=parseInt($("acthors_nb_"+campagneId).value);
-  const site=$("acthors_site_"+campagneId).value||null;
-  if(!acte){ toast("Indiquez le nom de l'acte",true); return; }
+async function ajouterComptageHors(campagneId,categorie,btn){
+  const cfg=COMPTAGES[categorie]||COMPTAGES.acte;
+  const acte=($(cfg.prefixe+"_nom_"+campagneId).value||"").trim();
+  const nb=parseInt($(cfg.prefixe+"_nb_"+campagneId).value);
+  const site=$(cfg.prefixe+"_site_"+campagneId).value||null;
+  if(!acte){ toast(cfg.manqueNom,true); return; }
   if(isNaN(nb)||nb<0){ toast("Indiquez un nombre valide",true); return; }
   btn.disabled=true;
   const {error}=await sb.from("actes_hors_consultation").insert({
-    campagne_id:campagneId, site_id:site, acte, nombre:nb,
+    campagne_id:campagneId, site_id:site, acte, nombre:nb, categorie,
     saisi_par:`${ME.prenom||""} ${ME.nom||""}`.trim()||ME.email });
   btn.disabled=false;
-  // Le doublon est empêché par un index unique côté base : un même acte ne doit exister
-  // qu'une fois par site et par campagne, on le corrige plutôt que de l'empiler.
-  if(error){ toast(/duplicate|unique/i.test(errMsg(error))
-    ? "Cet acte existe déjà pour ce site : modifiez le nombre existant."
-    : "Échec : "+errMsg(error), true); return; }
-  toast("Acte ajouté");
+  if(error){
+    // Le doublon est empêché par un index unique côté base : une même ligne ne doit
+    // exister qu'une fois par site et par campagne, on la corrige plutôt que de l'empiler.
+    if(/duplicate|unique/i.test(errMsg(error))){ toast(cfg.doublon,true); return; }
+    // Une colonne manquante ne peut venir que du script non exécuté : le dire plutôt
+    // que de laisser un message de base de données.
+    if(/categorie/.test(errMsg(error))){
+      toast("Les références demandent le script rls_references_declarees.sql",true); return;
+    }
+    toast("Échec : "+errMsg(error),true); return;
+  }
+  $(cfg.prefixe+"_nom_"+campagneId).value="";
+  $(cfg.prefixe+"_nb_"+campagneId).value="";
+  toast(cfg.ajoute);
   rechargerActesHors();
 }
 
@@ -7264,7 +7353,11 @@ function campagneCardHtml(c){
 
       ${campSectionHtml(c.id,"actes","Actes hors consultation",resumeActesHors(c.id),
         "Actes faits sans que le patient soit enregistré. Comptés dans le bilan, sans créer de fiche.",
-        actesHorsHtml(c))}
+        comptageHorsHtml(c,"acte"))}
+
+      ${campSectionHtml(c.id,"references","Références",resumeReferences(c.id),
+        "Patients orientés vers une structure extérieure sans qu'une fiche de consultation ait été ouverte : orientation depuis l'accueil, évacuation décidée dans l'urgence. Elles s'ajoutent aux références déjà portées par les fiches. Une orientation vers un confrère présent sur le site n'est pas une référence : le patient reste dans la campagne.",
+        comptageHorsHtml(c,"reference"))}
 
       ${campSectionHtml(c.id,"effectifs","Effectifs mobilisés",resumeEffectifs(c),
         "Le nombre réel de professionnels par métier. Un métier laissé vide est compté automatiquement d'après les comptes rattachés à la campagne ; un métier renseigné remplace ce comptage, sans toucher aux autres.",
@@ -7304,8 +7397,12 @@ function resumeJours(id){
   return n ? n+(n>1?" journées":" journée") : "à renseigner";
 }
 function resumeActesHors(id){
-  const total=ACTES_HORS.filter(a=>a.campagne_id===id).reduce((n,a)=>n+(a.nombre||0),0);
+  const total=comptagesDe(id,"acte").reduce((n,a)=>n+(a.nombre||0),0);
   return total ? total+" au total" : "aucun";
+}
+function resumeReferences(id){
+  const total=comptagesDe(id,"reference").reduce((n,a)=>n+(a.nombre||0),0);
+  return total ? total+" déclarée"+(total>1?"s":"") : "aucune déclarée";
 }
 function resumeEffectifs(c){
   const d=c.effectifs_declares||{};

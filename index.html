@@ -4140,13 +4140,39 @@ function computeDashboardStats(){
   const actesBreakdown=Object.entries(cumul).sort((a,b)=>b[1]-a[1]).slice(0,10);
   const actesTotal=actesSurConsultation+actesHorsTotal;
 
-  // --- Activité par praticien : c'est medecin_nom qui fait foi, et non le compte auteur.
-  // Sur un registre repris après coup, toutes les fiches portent le même compte de saisie
-  // alors que les soins ont été donnés par des praticiens différents.
+  // --- Charge de travail par praticien. Le rapport sort de l'association : il donne la
+  // distribution de l'activité, jamais un classement nominatif, qui se lirait comme une
+  // évaluation individuelle des bénévoles. Les noms servent ici uniquement à distinguer
+  // les praticiens les uns des autres et ne quittent pas cette fonction.
+  // C'est medecin_nom qui fait foi, et non le compte auteur : sur un registre repris
+  // après coup, toutes les fiches portent le même compte de saisie alors que les soins
+  // ont été donnés par des praticiens différents.
   const parPraticienMap={};
-  rows.forEach(r=>{ const n=(r.medecin_nom||"").trim()||"Non renseigné";
+  let consultSansPraticien=0;
+  rows.forEach(r=>{ const n=(r.medecin_nom||"").trim();
+                    if(!n){ consultSansPraticien++; return; }
                     parPraticienMap[n]=(parPraticienMap[n]||0)+1; });
-  const parPraticien=Object.entries(parPraticienMap).sort((a,b)=>b[1]-a[1]);
+  const charges=Object.values(parPraticienMap).sort((a,b)=>a-b);
+  const mediane = charges.length===0 ? 0
+    : charges.length%2 ? charges[(charges.length-1)/2]
+    : Math.round((charges[charges.length/2-1]+charges[charges.length/2])/2*10)/10;
+  // Les tranches disent ce qu'une moyenne cache : une poignée de praticiens qui portent
+  // l'essentiel de la charge, ou une répartition homogène. Les tranches vides sautent.
+  const praticiens={
+    n: charges.length,
+    moyenne: charges.length?Math.round(charges.reduce((a,b)=>a+b,0)/charges.length*10)/10:0,
+    mediane,
+    min: charges.length?charges[0]:0,
+    max: charges.length?charges[charges.length-1]:0,
+    sansPraticien: consultSansPraticien,
+    tranches: [[1,5,"1 à 5 consultations"],[6,10,"6 à 10 consultations"],
+               [11,20,"11 à 20 consultations"],[21,50,"21 à 50 consultations"],
+               [51,Infinity,"Plus de 50 consultations"]]
+      .map(([min,max,label])=>{
+        const g=charges.filter(c=>c>=min&&c<=max);
+        return { label, praticiens:g.length, consultations:g.reduce((a,b)=>a+b,0) };
+      }).filter(t=>t.praticiens>0),
+  };
 
   // --- Médicaments par classe thérapeutique. La classe n'est pas portée par la
   // prescription mais par l'article de stock auquel elle est reliée : on remonte donc
@@ -4191,9 +4217,10 @@ function computeDashboardStats(){
     numero: r.numero_consultation||"-",
     date: r.created_at?new Date(r.created_at).toLocaleDateString("fr-FR"):"-",
     site: siteName(r.site_id)||"-",
-    patient: `${r.prenom||"-"} ${r.nom||"-"}`.trim(),
+    // Pas de nom de patient : le numéro de consultation suffit à retrouver la fiche dans
+    // l'application, et lui seul peut figurer dans un document qui circule à l'extérieur.
     age: r.age!=null?String(r.age):"-",
-    sexe: r.sexe||"-",
+    sexe: r.sexe==="M"?"M":r.sexe==="F"?"F":"-",
     motif: r.motifs||"-",
     diagnostic: r.diagnostic||"-",
     examen: r.explorations||"-",
@@ -4217,12 +4244,25 @@ function computeDashboardStats(){
   const explorationsFaites=rows.filter(r=>r.exploration_faite).length;
   const explorationsResultats=rows.filter(r=>(r.exploration_resultat||"").trim()).length;
   const explorationsAnormales=rows.filter(r=>r.exploration_anormale).length;
-  const explorationsDetail=rows
-    .filter(r=>(r.explorations||"").trim())
-    .map(r=>({ patient:`${r.prenom||"-"} ${r.nom||"-"}`.trim(), site:siteName(r.site_id)||"-",
-               demande:r.explorations, faite:r.exploration_faite?"Oui":"-",
-               resultat:(r.exploration_resultat||"").trim()||"-",
-               anormal:r.exploration_anormale?"Anormal":"-" }));
+  // Le détail des examens était donné patient par patient, nommément. Il est désormais
+  // regroupé par intitulé : c'est à la fois anonyme et plus utile, puisqu'un rapport a
+  // besoin de savoir quels examens reviennent, pas qui les a passés.
+  // Le champ est du texte libre : on coupe sur les séparateurs usuels et on rapproche les
+  // graphies sans tenir compte des accents ni de la casse, en gardant la première
+  // orthographe rencontrée pour l'affichage.
+  const exploMap={};
+  rows.forEach(r=>{
+    const raw=(r.explorations||"").trim(); if(!raw) return;
+    const libelles=[...new Set(raw.split(/[;,+\n\/]+/).map(x=>x.trim()).filter(Boolean))];
+    libelles.forEach(lib=>{
+      const cle=sansAccents(lib);
+      if(!exploMap[cle]) exploMap[cle]={ libelle:lib, demandes:0, faits:0, anormaux:0 };
+      exploMap[cle].demandes++;
+      if(r.exploration_faite) exploMap[cle].faits++;
+      if(r.exploration_anormale) exploMap[cle].anormaux++;
+    });
+  });
+  const explorationsGroupes=Object.values(exploMap).sort((a,b)=>b.demandes-a.demandes);
 
   // --- Pic d'activité : la journée la plus chargée, utile pour dimensionner l'édition
   // suivante. Sans date exploitable, il n'y a pas de pic à annoncer.
@@ -4231,11 +4271,11 @@ function computeDashboardStats(){
 
   return { rows, total, today, semaine, hommes, femmes, ageMoyen, explorations, topDiag,
     devenirBreakdown, devenirRenseigne, explorationsFaites, explorationsResultats,
-    explorationsAnormales, explorationsDetail, picActivite,
+    explorationsAnormales, explorationsGroupes, picActivite,
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
     actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
-    parPraticien, medParClasse, actesParSite, completude, completudeGlobale, matrice };
+    praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice };
 }
 
 // Classe thérapeutique par article de stock, chargée à la demande pour le rapport.
@@ -4705,6 +4745,27 @@ function pdfNote(doc,x,y,pageW,texte){
   doc.setFont("helvetica","normal"); doc.setTextColor(0,0,0);
 }
 
+// Ces trois blocs du rapport ne nomment plus personne : praticiens, patients et examens
+// y sont agrégés. Les notes qui l'expliquent sont écrites une fois et servent au PDF
+// comme au Word, pour que les deux versions ne divergent jamais.
+const NOTE_MATRICE_ANONYME="Les patients ne sont pas nommés. Le numéro de consultation permet de retrouver la fiche complète dans l'application, où l'identité reste accessible aux seuls comptes autorisés.";
+const NOTE_EXAMENS_GROUPES="Les examens sont regroupés par intitulé et ne sont rattachés à aucun patient. La réalisation et l'anomalie sont notées par consultation : lorsqu'une consultation demande plusieurs examens, elles comptent pour chacun d'eux.";
+
+function noteChargePraticiens(S){
+  let t="Les praticiens ne sont pas nommés : ce tableau décrit la répartition de la charge, non l'activité de chacun.";
+  if(S.praticiens.sansPraticien>0)
+    t+=" "+S.praticiens.sansPraticien+" consultation(s) ne portent aucun praticien identifié et sont exclues de ces chiffres.";
+  // Un maximum qui à lui seul pèse deux cinquièmes du total ne vient pas d'une personne
+  // mais d'un registre repris en bloc sous un même intitulé de saisie. Le dire évite de
+  // laisser croire qu'un praticien a vu la moitié des patients.
+  if(S.praticiens.n>1 && S.praticiens.max>=S.total*0.4)
+    t+=" Un registre repris après coup peut porter le même intitulé de saisie sur toutes ses fiches : le maximum est alors celui d'un registre, pas d'une personne.";
+  return t;
+}
+
+// Virgule décimale : "10,6" et non "10.6", dans un document en français.
+function nbFr(v){ return String(v).replace(".",","); }
+
 // Coupe proprement une cellule trop longue pour rester lisible dans la matrice.
 function tronque(t,n){
   const s=(t==null?"":String(t)).trim();
@@ -4860,18 +4921,36 @@ async function downloadReportPDF(){
     y=doc.lastAutoTable.finalY+10;
   }
 
-  // Activité par praticien. Sur un registre repris après coup, ce champ porte le nom du
-  // médecin qui a réellement vu le patient, et non celui du compte de saisie.
-  if(S.parPraticien.length){
-    if(y>240){ doc.addPage(); y=20; }
-    pdfSectionHeader(doc,margin,y,"Consultations par praticien",green); y+=6;
+  // Charge de travail par praticien, sans nommer personne : le rapport est destiné à des
+  // partenaires, et un classement nominatif de bénévoles se lirait comme une notation.
+  if(S.praticiens.n){
+    if(y>200){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Charge de travail par praticien",green); y+=6;
     doc.autoTable({
       startY:y, margin:{left:margin,right:margin}, theme:"grid",
       headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
-      head:[["Praticien","Consultations","Part"]],
-      body:S.parPraticien.map(([n,c])=>[n,String(c),S.total?Math.round(c/S.total*100)+"%":"-"]),
+      head:[["Indicateur","Valeur"]],
+      body:[
+        ["Praticiens ayant consulté", String(S.praticiens.n)],
+        ["Consultations par praticien - moyenne", nbFr(S.praticiens.moyenne)],
+        ["Consultations par praticien - médiane", nbFr(S.praticiens.mediane)],
+        ["Consultations par praticien - minimum", String(S.praticiens.min)],
+        ["Consultations par praticien - maximum", String(S.praticiens.max)],
+      ],
     });
-    y=doc.lastAutoTable.finalY+10;
+    y=doc.lastAutoTable.finalY+8;
+    if(S.praticiens.tranches.length){
+      if(y>230){ doc.addPage(); y=20; }
+      doc.autoTable({
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+        head:[["Volume d'activité","Praticiens","Consultations"]],
+        body:S.praticiens.tranches.map(t=>[t.label,String(t.praticiens),String(t.consultations)]),
+      });
+      y=doc.lastAutoTable.finalY+6;
+    }
+    pdfNote(doc,margin,y,pageW,noteChargePraticiens(S));
+    y+=14;
   }
 
   // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
@@ -5005,18 +5084,21 @@ async function downloadReportPDF(){
       pdfNote(doc,margin,y,pageW,"Le suivi des examens (réalisation, résultat, anomalie) n'était pas collecté lors de cette campagne : seuls les examens demandés sont connus.");
       y+=10;
     }
-    if(S.explorationsDetail.length){
-      if(y>230){ doc.addPage(); y=20; }
-      pdfSectionHeader(doc,margin,y,"Détail des examens demandés",purple); y+=6;
+    if(S.explorationsGroupes.length){
+      if(y>220){ doc.addPage(); y=20; }
+      pdfSectionHeader(doc,margin,y,"Examens demandés, par type",purple); y+=6;
       doc.autoTable({
-        startY:y, margin:{left:10,right:10}, theme:"grid",
-        headStyles:{ fillColor:purple, textColor:255, fontStyle:"bold", fontSize:8 },
-        styles:{ fontSize:7.5, cellPadding:1.4, overflow:"linebreak" },
-        head:[["Patient","Site","Examen demandé","Réalisé","Résultat","Anomalie"]],
-        body:S.explorationsDetail.map(e=>[e.patient,e.site,tronque(e.demande,60),e.faite,
-                                          tronque(e.resultat,45),e.anormal]),
+        startY:y, margin:{left:margin,right:margin}, theme:"grid",
+        headStyles:{ fillColor:purple, textColor:255, fontStyle:"bold", fontSize:9 },
+        styles:{ fontSize:9, cellPadding:1.6, overflow:"linebreak" },
+        columnStyles:{0:{cellWidth:96},1:{cellWidth:24},2:{cellWidth:24},3:{cellWidth:26}},
+        head:[["Examen demandé","Demandes","Réalisés","Résultats anormaux"]],
+        body:S.explorationsGroupes.map(e=>[tronque(e.libelle,70),String(e.demandes),
+                                           String(e.faits),String(e.anormaux)]),
       });
-      y=doc.lastAutoTable.finalY+10;
+      y=doc.lastAutoTable.finalY+6;
+      pdfNote(doc,margin,y,pageW,NOTE_EXAMENS_GROUPES);
+      y+=14;
     }
   }
 
@@ -5117,15 +5199,19 @@ async function downloadReportPDF(){
       startY:y, margin:{left:8,right:8}, theme:"grid",
       headStyles:{ fillColor:green900, textColor:255, fontStyle:"bold", fontSize:7 },
       styles:{ fontSize:6.2, cellPadding:1.2, overflow:"linebreak" },
-      columnStyles:{0:{cellWidth:20},1:{cellWidth:14},2:{cellWidth:20},3:{cellWidth:24},
-                    4:{cellWidth:8},5:{cellWidth:26},6:{cellWidth:26},7:{cellWidth:20},
-                    8:{cellWidth:20},9:{cellWidth:26}},
-      head:[["N°","Date","Site","Patient","Âge","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"]],
-      body:S.matrice.map(m=>[m.numero,m.date,m.site,m.patient,m.age,
+      // 190 mm de colonnes + 16 mm de marges tiennent dans les 210 mm d'une A4 portrait.
+      // L'ancienne annexe en totalisait 220 et débordait de la page.
+      columnStyles:{0:{cellWidth:22},1:{cellWidth:13},2:{cellWidth:18},3:{cellWidth:7},
+                    4:{cellWidth:10},5:{cellWidth:26},6:{cellWidth:26},7:{cellWidth:20},
+                    8:{cellWidth:20},9:{cellWidth:28}},
+      head:[["N°","Date","Site","Âge","Sexe","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"]],
+      body:S.matrice.map(m=>[m.numero,m.date,m.site,m.age,m.sexe,
                              tronque(m.motif,60),tronque(m.diagnostic,60),tronque(m.examen,40),
                              tronque(m.acte,40),
                              tronque(m.devenir!=="-"?m.devenir:m.traitement,60)]),
     });
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,NOTE_MATRICE_ANONYME);
   }
 
   // Pied de page (numérotation), sur toutes les pages sauf la couverture
@@ -5277,11 +5363,20 @@ async function downloadReportWord(){
     children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
   }
 
-  // Activité par praticien : medecin_nom fait foi, et non le compte de saisie.
-  if(S.parPraticien.length){
-    children.push(sectionHeading("Consultations par praticien"));
-    children.push(mkTable(["Praticien","Consultations","Part"],
-      S.parPraticien.map(([n,c])=>[n,c,S.total?Math.round(c/S.total*100)+"%":"-"])));
+  // Charge de travail par praticien, sans nommer personne (voir la version PDF).
+  if(S.praticiens.n){
+    children.push(sectionHeading("Charge de travail par praticien"));
+    children.push(mkTable(["Indicateur","Valeur"],[
+      ["Praticiens ayant consulté", S.praticiens.n],
+      ["Consultations par praticien - moyenne", nbFr(S.praticiens.moyenne)],
+      ["Consultations par praticien - médiane", nbFr(S.praticiens.mediane)],
+      ["Consultations par praticien - minimum", S.praticiens.min],
+      ["Consultations par praticien - maximum", S.praticiens.max],
+    ]));
+    if(S.praticiens.tranches.length)
+      children.push(mkTable(["Volume d'activité","Praticiens","Consultations"],
+        S.praticiens.tranches.map(t=>[t.label,t.praticiens,t.consultations])));
+    children.push(note(noteChargePraticiens(S)));
   }
 
   // Graphiques - régénérés pour le rapport (voir generateReportCharts), donc toujours
@@ -5353,10 +5448,11 @@ async function downloadReportWord(){
     ]));
     if(S.explorationsFaites===0)
       children.push(note("Le suivi des examens (réalisation, résultat, anomalie) n'était pas collecté lors de cette campagne : seuls les examens demandés sont connus."));
-    if(S.explorationsDetail.length){
-      children.push(sectionHeading("Détail des examens demandés"));
-      children.push(mkTable(["Patient","Site","Examen demandé","Réalisé","Résultat","Anomalie"],
-        S.explorationsDetail.map(e=>[e.patient,e.site,tronque(e.demande,50),e.faite,tronque(e.resultat,40),e.anormal])));
+    if(S.explorationsGroupes.length){
+      children.push(sectionHeading("Examens demandés, par type"));
+      children.push(mkTable(["Examen demandé","Demandes","Réalisés","Résultats anormaux"],
+        S.explorationsGroupes.map(e=>[tronque(e.libelle,70),e.demandes,e.faits,e.anormaux])));
+      children.push(note(NOTE_EXAMENS_GROUPES));
     }
   }
 
@@ -5413,10 +5509,11 @@ async function downloadReportWord(){
 
   if(S.matrice.length){
     children.push(sectionHeading("Annexe 2 — Parcours patient détaillé"));
-    children.push(mkTable(["N°","Date","Site","Patient","Âge","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"],
-      S.matrice.map(m=>[m.numero,m.date,m.site,m.patient,m.age,
+    children.push(mkTable(["N°","Date","Site","Âge","Sexe","Motif","Diagnostic","Examen","Acte","Traitement / Devenir"],
+      S.matrice.map(m=>[m.numero,m.date,m.site,m.age,m.sexe,
                         tronque(m.motif,50),tronque(m.diagnostic,50),tronque(m.examen,35),
                         tronque(m.acte,35),tronque(m.devenir!=="-"?m.devenir:m.traitement,50)])));
+    children.push(note(NOTE_MATRICE_ANONYME));
   }
 
   const footer=new Footer({ children:[ new Paragraph({ alignment:AlignmentType.CENTER, children:[

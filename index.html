@@ -4234,7 +4234,13 @@ function computeDashboardStats(){
   // Actes réalisés : nombre de consultations en comportant au moins un, et détail acte par
   // acte. splitMulti re-scinde la chaîne "; " pour qu'une consultation "Pansement + Mise en
   // observation" alimente les deux lignes plutôt que de créer une catégorie composite.
-  const actesSurConsultation=rows.filter(r=>r.actes_medicaux&&r.actes_medicaux.trim()).length;
+  // Deux grandeurs distinctes, qui étaient confondues : le nombre d'ACTES et le nombre de
+  // CONSULTATIONS en comportant au moins un. Une fiche « Pansement ; Mise en observation »
+  // vaut deux actes et une consultation. Le total annoncé étant construit sur le second,
+  // il tombait sous la somme de son propre tableau de détail.
+  const actesConsultationsConcernees=rows.filter(r=>r.actes_medicaux&&r.actes_medicaux.trim()).length;
+  const listeActes=r=>(r.actes_medicaux||"").split("; ").map(x=>x.trim()).filter(Boolean);
+  const actesSurConsultation=rows.reduce((n,r)=>n+listeActes(r).length,0);
 
   // Actes réalisés SANS patient enregistré : ils ont eu lieu, ils comptent, mais ils ne
   // correspondent à aucune fiche. On les additionne au détail par acte, tout en gardant
@@ -4242,9 +4248,13 @@ function computeDashboardStats(){
   const actesHorsTotal = horsPortee.reduce((n,a)=>n+(a.nombre||0),0);
 
   const cumul={};
-  countTop(rows,"actes_medicaux",50,true).forEach(([nom,n])=>{ cumul[nom]=(cumul[nom]||0)+n; });
+  rows.forEach(r=>listeActes(r).forEach(a=>{ cumul[a]=(cumul[a]||0)+1; }));
   horsPortee.forEach(a=>{ const nom=(a.acte||"").trim(); if(nom) cumul[nom]=(cumul[nom]||0)+(a.nombre||0); });
-  const actesBreakdown=Object.entries(cumul).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  // Le tableau du rapport s'arrête aux dix actes les plus fréquents : il faut alors dire
+  // combien il en reste, sinon la somme des lignes affichées dément le total annoncé.
+  const actesTousTypes=Object.entries(cumul).sort((a,b)=>b[1]-a[1]);
+  const actesBreakdown=actesTousTypes.slice(0,10);
+  const actesTypesRestants=Math.max(0, actesTousTypes.length-actesBreakdown.length);
   const actesTotal=actesSurConsultation+actesHorsTotal;
 
   // --- Charge de travail par praticien. Le rapport sort de l'association : il donne la
@@ -4383,7 +4393,8 @@ function computeDashboardStats(){
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu,
     referencesTotal, referencesSurConsultation, referencesDeclarees, referencesDetail,
-    actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
+    actesTotal, actesBreakdown, actesSurConsultation, actesConsultationsConcernees,
+    actesTypesRestants, actesHorsTotal, actesHorsDetail:horsPortee,
     praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice,
     joursConsultation, joursMinutes, debriefing };
 }
@@ -4911,7 +4922,31 @@ function noteDebriefing(D){
 const NOTE_REFERENCES="Seules les orientations vers une structure extérieure sont comptées. Orienter un patient vers un confrère présent sur le site est un mouvement interne à l'équipe : le patient reste dans la campagne et sa consultation est déjà comptée.";
 
 const NOTE_MATRICE_ANONYME="Les patients ne sont pas nommés. Le numéro de consultation permet de retrouver la fiche complète dans l'application, où l'identité reste accessible aux seuls comptes autorisés.";
-const NOTE_EXAMENS_GROUPES="Les examens sont regroupés par intitulé et ne sont rattachés à aucun patient. La réalisation et l'anomalie sont notées par consultation : lorsqu'une consultation demande plusieurs examens, elles comptent pour chacun d'eux.";
+const NOTE_EXAMENS_GROUPES="Les examens sont regroupés par intitulé et ne sont rattachés à aucun patient. Une consultation pouvant en demander plusieurs, la somme de ce tableau dépasse le nombre de consultations comportant une demande d'examen. La réalisation et l'anomalie sont notées par consultation : quand plusieurs examens y figurent, elles comptent pour chacun d'eux.";
+
+// Ce que compte le tableau des actes, et ce qu'il ne montre pas. Écrit une fois, servi
+// au PDF comme au Word.
+function noteActes(S){
+  const pl=n=>n>1?"s":"";
+  let t=S.actesSurConsultation+" acte"+pl(S.actesSurConsultation)
+      +" rattaché"+pl(S.actesSurConsultation)+" à "+S.actesConsultationsConcernees
+      +" consultation"+pl(S.actesConsultationsConcernees);
+  // La précision ne se justifie que si les deux nombres diffèrent : la donner quand ils
+  // sont égaux ferait douter d'un chiffre qui ne pose pourtant aucune question.
+  if(S.actesSurConsultation>S.actesConsultationsConcernees)
+    t+=" (une même consultation peut en comporter plusieurs)";
+  // De même pour un zéro : « 0 réalisé sans patient enregistré » attire l'attention sur
+  // une catégorie vide au lieu de l'écarter.
+  t+= S.actesHorsTotal
+    ? ", et "+S.actesHorsTotal+" réalisé"+pl(S.actesHorsTotal)+" sans patient enregistré."
+    : ". Aucun acte n'a été déclaré sans patient enregistré.";
+  if(S.actesTypesRestants)
+    t+=" Le tableau s'arrête aux dix actes les plus fréquents : "+S.actesTypesRestants
+      +" autre"+(S.actesTypesRestants>1?"s":"")+" type"+(S.actesTypesRestants>1?"s":"")
+      +" d'acte"+(S.actesTypesRestants>1?"s":"")+" ne figure"+(S.actesTypesRestants>1?"nt":"")
+      +" pas ici mais entre"+(S.actesTypesRestants>1?"nt":"")+" dans le total.";
+  return t;
+}
 
 function noteChargePraticiens(S){
   let t="Les praticiens ne sont pas nommés : ce tableau décrit la répartition de la charge, non l'activité de chacun.";
@@ -5287,9 +5322,8 @@ async function downloadReportPDF(){
       body:S.actesBreakdown.map(([l,c])=>[l,String(c)]),
     });
     y=doc.lastAutoTable.finalY+6;
-    pdfNote(doc,margin,y,pageW,
-      `${S.actesSurConsultation} acte(s) rattaché(s) à une consultation, ${S.actesHorsTotal} réalisé(s) sans patient enregistré.`);
-    y+=10;
+    pdfNote(doc,margin,y,pageW,noteActes(S));
+    y+=14;
 
     if(S.actesParSite.length){
       if(y>240){ doc.addPage(); y=20; }
@@ -5774,6 +5808,7 @@ async function downloadReportWord(){
   if(S.actesBreakdown.length){
     children.push(sectionHeading("Détail des actes"));
     children.push(mkTable(["Acte","Nombre"], S.actesBreakdown.map(([l,c])=>[l,c])));
+    children.push(note(noteActes(S)));
     children.push(note(`${S.actesSurConsultation} acte(s) rattaché(s) à une consultation, ${S.actesHorsTotal} réalisé(s) sans patient enregistré.`));
     if(S.actesParSite.length){
       children.push(sectionHeading("Actes par site"));

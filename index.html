@@ -4102,7 +4102,27 @@ function computeDashboardStats(){
   });
   const dailyCounts=Object.entries(dayMap)
     .sort((a,b)=>a[0].localeCompare(b[0]))
-    .map(([key,count])=>({ date:new Date(key+"T00:00:00").toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"}), count }));
+    // La clé ISO est conservée à côté de la date lisible : c'est elle qui permet de
+    // rapprocher une journée de son horaire d'ouverture déclaré.
+    .map(([key,count])=>({ cle:key, date:dateFrDepuisIso(key), count }));
+
+  // --- Journées de consultation : dates et horaires d'ouverture saisis à la main sur la
+  // fiche de campagne. Aucune donnée de la base ne peut les fournir - l'heure
+  // d'enregistrement d'une fiche n'est pas l'heure d'ouverture du site.
+  const joursConsultation=((campagneInfo && Array.isArray(campagneInfo.jours_consultation))
+      ? campagneInfo.jours_consultation : [])
+    .filter(j=>j && j.date)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)))
+    .map(j=>{
+      const minutes=minutesEntre(j.debut,j.fin);
+      const jour=dailyCounts.find(d=>d.cle===j.date);
+      const consultations=jour?jour.count:0;
+      return { date:j.date, dateFr:dateFrDepuisIso(j.date),
+               debut:(j.debut||"-"), fin:(j.fin||"-"),
+               minutes, duree:dureeTexte(minutes), consultations,
+               rythme: minutes ? Math.round(consultations/(minutes/60)*10)/10 : null };
+    });
+  const joursMinutes=joursConsultation.reduce((a,j)=>a+(j.minutes||0),0);
 
   // Aperçu de toutes les campagnes actives d'un coup d'œil - uniquement en vue globale (admin, sans filtre)
   let campagneApercu=[];
@@ -4275,7 +4295,8 @@ function computeDashboardStats(){
     trendLabels, trendCounts, ageF, ageM, hasAgeData, siteStats, dailyCounts, campagneInfo,
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
     actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
-    praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice };
+    praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice,
+    joursConsultation, joursMinutes };
 }
 
 // Classe thérapeutique par article de stock, chargée à la demande pour le rapport.
@@ -4763,6 +4784,47 @@ function noteChargePraticiens(S){
   return t;
 }
 
+// --- Horaires des journées de consultation -------------------------------------------
+// "08:30" devient un nombre de minutes depuis minuit. Tout ce qui n'a pas cette forme
+// est traité comme non renseigné plutôt que deviné.
+function minutesHeure(h){
+  const m=/^(\d{1,2}):(\d{2})$/.exec((h||"").trim()); if(!m) return null;
+  const v=parseInt(m[1],10)*60+parseInt(m[2],10);
+  return (v>=0 && v<=1440) ? v : null;
+}
+// Une fin antérieure au début est une erreur de saisie, pas une séance à cheval sur
+// minuit : on refuse de trancher et la journée ne compte pas dans la durée totale.
+function minutesEntre(debut,fin){
+  const a=minutesHeure(debut), b=minutesHeure(fin);
+  if(a==null || b==null || b<=a) return null;
+  return b-a;
+}
+function dureeTexte(min){
+  if(min==null) return "-";
+  const h=Math.floor(min/60), m=min%60;
+  return m ? h+" h "+String(m).padStart(2,"0") : h+" h";
+}
+function dateFrDepuisIso(iso){
+  if(!iso) return "-";
+  const d=new Date(iso+"T00:00:00");
+  return isNaN(d) ? iso : d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"});
+}
+
+// Ce que le rapport doit dire au lecteur sur la provenance des horaires, et sur ce qui
+// manque. Écrit une fois, servi au PDF comme au Word.
+function noteJoursConsultation(S){
+  let t="Horaires déclarés par l'équipe sur la fiche de campagne. Ils ne se déduisent pas des enregistrements : une consultation saisie tardivement peut être la reprise d'un registre papier, non un soin donné à cette heure-là.";
+  const declarees=new Set(S.joursConsultation.map(j=>j.date));
+  const absentes=S.dailyCounts.filter(d=>!declarees.has(d.cle));
+  if(absentes.length)
+    t+=" "+absentes.length+" journée(s) portant des consultations ne figurent pas dans ce tableau : "+absentes.map(d=>d.date).join(", ")+".";
+  const sansHoraire=S.joursConsultation.filter(j=>j.minutes==null);
+  if(sansHoraire.length)
+    t+=" "+sansHoraire.length+" journée(s) sans horaires complets ne comptent pas dans la durée totale ni dans le rythme horaire.";
+  return t;
+}
+const NOTE_HORAIRES_ABSENTS="Les horaires d'ouverture n'ont pas été relevés pour cette campagne. Ils se saisissent sur la fiche de campagne, rubrique « Journées de consultation », et permettent alors de rapporter l'activité au temps d'ouverture réel.";
+
 // Virgule décimale : "10,6" et non "10.6", dans un document en français.
 function nbFr(v){ return String(v).replace(".",","); }
 
@@ -4919,6 +4981,31 @@ async function downloadReportPDF(){
       body:S.dailyCounts.map(d=>[d.date,String(d.count)]),
     });
     y=doc.lastAutoTable.finalY+10;
+  }
+
+  // Journées de consultation : horaires d'ouverture déclarés sur la fiche de campagne.
+  // Rapportées au nombre de patients, elles donnent le rythme réel - le seul chiffre qui
+  // permette de dimensionner l'édition suivante.
+  if(S.joursConsultation.length){
+    if(y>195){ doc.addPage(); y=20; }
+    pdfSectionHeader(doc,margin,y,"Journées de consultation",green); y+=6;
+    const corpsJ=S.joursConsultation.map(j=>[j.dateFr,j.debut,j.fin,j.duree,
+      String(j.consultations), j.rythme!=null?nbFr(j.rythme):"-"]);
+    corpsJ.push(["Total","","",dureeTexte(S.joursMinutes||null),
+      String(S.joursConsultation.reduce((a,j)=>a+j.consultations,0)),
+      S.joursMinutes?nbFr(Math.round(S.joursConsultation.reduce((a,j)=>a+j.consultations,0)/(S.joursMinutes/60)*10)/10):"-"]);
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin}, theme:"grid",
+      headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:9.5 },
+      head:[["Date","Ouverture","Fermeture","Durée","Consultations","Par heure"]],
+      body:corpsJ,
+    });
+    y=doc.lastAutoTable.finalY+6;
+    pdfNote(doc,margin,y,pageW,noteJoursConsultation(S));
+    y+=16;
+  } else if(S.dailyCounts.length){
+    pdfNote(doc,margin,y,pageW,NOTE_HORAIRES_ABSENTS);
+    y+=12;
   }
 
   // Charge de travail par praticien, sans nommer personne : le rapport est destiné à des
@@ -5363,6 +5450,20 @@ async function downloadReportWord(){
     children.push(mkTable(["Date","Patients consultés"], S.dailyCounts.map(d=>[d.date,d.count])));
   }
 
+  // Journées de consultation : horaires déclarés, et rythme réel (voir la version PDF).
+  if(S.joursConsultation.length){
+    children.push(sectionHeading("Journées de consultation"));
+    const totalJ=S.joursConsultation.reduce((a,j)=>a+j.consultations,0);
+    const corpsJ=S.joursConsultation.map(j=>[j.dateFr,j.debut,j.fin,j.duree,j.consultations,
+      j.rythme!=null?nbFr(j.rythme):"-"]);
+    corpsJ.push(["Total","","",dureeTexte(S.joursMinutes||null),totalJ,
+      S.joursMinutes?nbFr(Math.round(totalJ/(S.joursMinutes/60)*10)/10):"-"]);
+    children.push(mkTable(["Date","Ouverture","Fermeture","Durée","Consultations","Par heure"],corpsJ));
+    children.push(note(noteJoursConsultation(S)));
+  } else if(S.dailyCounts.length){
+    children.push(note(NOTE_HORAIRES_ABSENTS));
+  }
+
   // Charge de travail par praticien, sans nommer personne (voir la version PDF).
   if(S.praticiens.n){
     children.push(sectionHeading("Charge de travail par praticien"));
@@ -5561,8 +5662,17 @@ async function downloadFullBackup(){
   }
 }
 
-function exportCSV(){
+async function exportCSV(){
   const rows=currentRows(); if(!rows.length){ toast("Aucune donnée à exporter",true); return; }
+  // Ce fichier porte l'identité complète des patients. C'est légitime pour un usage
+  // interne, mais c'est aussi celui qu'on transfère le plus facilement par inadvertance :
+  // l'avertissement rappelle ce qu'il contient avant qu'il ne quitte l'application.
+  const ok=await confirmModal(
+    `Ce fichier contient les <b>données nominatives</b> des ${rows.length} consultation(s) affichées :`
+    +`<br><br>nom et prénom, âge, sexe, adresse, téléphone, motifs, diagnostic et traitement.`
+    +`<br><br>Il est destiné à un usage <b>interne</b>. Ne le transmettez ni à un partenaire ni à un bailleur : pour cela, utilisez le <b>rapport PDF ou Word</b>, qui ne nomme aucun patient.`,
+    {title:"Export nominatif", okLabel:"Télécharger quand même"});
+  if(!ok) return;
   const cols=["numero_consultation","patient_id","created_at","type_consultation","medecin_nom","prenom","nom","sexe","age","adresse","telephone_patient","motifs","ta","temperature","fc","taille","poids","antecedents","dent_concernee","acte_dentaire","actes_medicaux","specialite_medicale","signes","diagnostic","explorations","conduite","medicaments_resume"];
   const rowsForExport=rows.map(r=>{
     const meds=Array.isArray(r.medicaments)?r.medicaments:[];
@@ -5572,7 +5682,7 @@ function exportCSV(){
   const csv=[cols.join(",")].concat(rowsForExport.map(r=>cols.map(c=>`"${(r[c]??"").toString().replace(/"/g,'""')}"`).join(","))).join("\n");
   const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-  a.download=`consultations_amstc_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download=`consultations_amstc_NOMINATIF_${new Date().toISOString().slice(0,10)}.csv`; a.click();
 }
 
 /* =====================================================================
@@ -6825,8 +6935,68 @@ function addSiteFormHtml(campagneId){
   </div>`;
 }
 
+// Brouillon des journées de consultation, une entrée par campagne. Ajouter ou retirer
+// une ligne redessine le bloc : sans ce brouillon, ce qui vient d'être tapé dans les
+// autres lignes serait perdu à chaque clic.
+const JOURS_DRAFT={};
+
+function joursDeCampagne(c){
+  if(!JOURS_DRAFT[c.id])
+    JOURS_DRAFT[c.id]=Array.isArray(c.jours_consultation)
+      ? c.jours_consultation.filter(j=>j).map(j=>({date:j.date||"",debut:j.debut||"",fin:j.fin||""}))
+      : [];
+  return JOURS_DRAFT[c.id];
+}
+
+// Relit les champs affichés avant toute modification de la liste : le brouillon en mémoire
+// n'est jamais la source de vérité tant que la fiche est à l'écran.
+function lireJoursDuDom(id){
+  return (JOURS_DRAFT[id]||[]).map((j,i)=>({
+    date: $("jc_date_"+id+"_"+i)?.value || "",
+    debut:$("jc_debut_"+id+"_"+i)?.value || "",
+    fin:  $("jc_fin_"+id+"_"+i)?.value || "",
+  }));
+}
+
+function joursRowsHtml(id){
+  const liste=JOURS_DRAFT[id]||[];
+  if(!liste.length)
+    return `<div class="rec-meta" style="margin:0">Aucune journée saisie. Le rapport indiquera que les horaires n'ont pas été relevés.</div>`;
+  return liste.map((j,i)=>`
+    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
+      <div style="flex:2;min-width:118px">
+        ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_date_${id}_${i}">Date</label>`:""}
+        <input type="date" value="${esc(j.date||"")}" id="jc_date_${id}_${i}" aria-label="Date de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+      </div>
+      <div style="flex:1;min-width:76px">
+        ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_debut_${id}_${i}">Début</label>`:""}
+        <input type="time" value="${esc(j.debut||"")}" id="jc_debut_${id}_${i}" aria-label="Heure de début de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+      </div>
+      <div style="flex:1;min-width:76px">
+        ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_fin_${id}_${i}">Fin</label>`:""}
+        <input type="time" value="${esc(j.fin||"")}" id="jc_fin_${id}_${i}" aria-label="Heure de fin de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+      </div>
+      <button class="btn btn-ghost btn-sm" aria-label="Retirer la journée ${i+1}" title="Retirer cette journée" onclick="retirerJour('${id}',${i})">&times;</button>
+    </div>`).join("");
+}
+
+function redessinerJours(id){
+  const el=$("joursBody_"+id); if(el) el.innerHTML=joursRowsHtml(id);
+}
+function ajouterJour(id){
+  JOURS_DRAFT[id]=lireJoursDuDom(id);
+  JOURS_DRAFT[id].push({date:"",debut:"",fin:""});
+  redessinerJours(id);
+}
+function retirerJour(id,i){
+  JOURS_DRAFT[id]=lireJoursDuDom(id);
+  JOURS_DRAFT[id].splice(i,1);
+  redessinerJours(id);
+}
+
 function campagneCardHtml(c){
   const sites=SITES.filter(s=>s.campagne_id===c.id);
+  joursDeCampagne(c);
   const statusBadge = c.archivee
     ? '<span class="tag" style="background:var(--line);color:var(--muted)">Archivée</span>'
     : (c.actif ? '<span class="tag tag-sent">Active</span>' : '<span class="tag tag-queue">Terminée</span>');
@@ -6865,6 +7035,15 @@ function campagneCardHtml(c){
           <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:7px 9px;font-size:13px"></div>
         <div><label style="font-size:11px;color:var(--muted)">Fin</label>
           <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+      </div>
+
+      <!-- Journées de consultation. Les dates de début et de fin ci-dessus donnent une
+           période ; elles ne disent pas les jours réellement ouverts ni les horaires.
+           Rien dans la base ne peut les déduire : ils se déclarent ici. -->
+      <div style="border-top:1px solid var(--line);padding-top:10px;margin:8px 0">
+        <div class="rec-meta" style="margin-bottom:6px"><b>Journées de consultation</b> — horaires d'ouverture, repris dans le rapport</div>
+        <div id="joursBody_${c.id}">${joursRowsHtml(c.id)}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="ajouterJour('${c.id}')">+ Ajouter une journée</button>
       </div>
       <!-- Le pharmacien en chef est désormais désigné pour la CAMPAGNE : c'est elle qui
            porte le stock. Les candidats sont les pharmaciens affectés à l'un de ses sites. -->
@@ -7102,6 +7281,21 @@ async function updateCampagne(id,btn){
     });
     if(saisi) maj.effectifs_declares=eff;
   }
+  // Journées de consultation : envoyées seulement si au moins une date est saisie, pour
+  // que la colonne reste absente tant que rls_jours_consultation.sql n'a pas été exécuté.
+  {
+    const jours=lireJoursDuDom(id).filter(j=>j.date);
+    const mauvais=jours.find(j=>j.debut && j.fin && minutesEntre(j.debut,j.fin)===null);
+    if(mauvais){
+      if(btn) btn.disabled=false;
+      alertIn("campagnesAlert","err","Journée du "+dateFrDepuisIso(mauvais.date)
+        +" : l'heure de fin ("+mauvais.fin+") doit suivre l'heure de début ("+mauvais.debut+").");
+      toast("Horaires impossibles pour le "+dateFrDepuisIso(mauvais.date),true);
+      return;
+    }
+    if(jours.length)
+      maj.jours_consultation=jours.sort((a,b)=>a.date.localeCompare(b.date));
+  }
   const {error}=await sb.from("campagnes").update(maj).eq("id",id);
   if(error){
     if(btn) btn.disabled=false;
@@ -7110,13 +7304,16 @@ async function updateCampagne(id,btn){
     // on croit alors avoir enregistré des chiffres qui n'ont jamais été écrits.
     const cause=analyserErreurEnvoi(error);
     const manquante = /colonne attendue/.test(cause.texte)
-      ? " Les effectifs et les textes d'analyse demandent rls_effectifs_declares.sql et rls_bilan_campagne.sql."
+      ? " Les effectifs demandent rls_effectifs_declares.sql, les textes d'analyse rls_bilan_campagne.sql, les journées de consultation rls_jours_consultation.sql."
       : "";
     alertIn("campagnesAlert","err","Campagne non enregistrée : "+cause.texte+"."+manquante);
     toast("Campagne non enregistrée : "+cause.texte,true);
     return;
   }
   alertIn("campagnesAlert","","");
+  // Le brouillon a été enregistré : on l'oublie, pour que la fiche reparte de ce que la
+  // base contient réellement plutôt que de ce qui a été tapé.
+  delete JOURS_DRAFT[id];
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne mise à jour");
@@ -7270,7 +7467,7 @@ function renderAide(){
         <li>Chaque fiche affiche le numéro AMSTC, la date, l'âge et le sexe du patient, le type de consultation, puis motifs, signes, diagnostic, traitement, explorations et téléphone.</li>
         <li><b>Statut :</b> « Synchronisée » = enregistrée sur le serveur ; « À envoyer » = encore en attente de réseau (voir la section hors connexion).</li>
         <li><b>Recherche :</b> par nom du patient, numéro AMSTC, diagnostic ou motifs.</li>
-        <li><b>Exporter CSV :</b> télécharge la liste affichée avec toutes les colonnes, ouvrable dans Excel.</li>
+        <li><b>Exporter CSV :</b> télécharge la liste affichée avec toutes les colonnes, ouvrable dans Excel. Ce fichier est <b>nominatif</b> - nom, adresse, téléphone - et un avertissement le rappelle avant le téléchargement. Il est réservé à un usage interne : pour un partenaire ou un bailleur, utilisez le <b>rapport PDF ou Word</b>, qui ne nomme aucun patient.</li>
         <li><b>Imprimer la fiche :</b> un petit document à remettre au patient (résumé de sa consultation + un QR) - utile en tournée, quand on ne reverra pas forcément le même patient. Scanner ce QR lors d'une prochaine visite ouvre directement sa fiche dans l'Historique patient.</li>
         <li><b>Supprimer :</b> définitif, avec confirmation - nécessite une connexion internet.</li>
       </ul>`},
@@ -7374,6 +7571,7 @@ function renderAide(){
         <li><b>Pharmacien en chef :</b> désigné site par site parmi les pharmaciens qui y sont affectés - c'est le seul <i>pharmacien</i> autorisé à modifier le stock de ce site. Vous-même, en tant qu'administrateur, pouvez ajouter et corriger le stock de n'importe quel site depuis l'onglet Pharmacie : indispensable avant une campagne, tant qu'aucun pharmacien en chef n'est encore désigné.</li>
         <li><b>Actes hors consultation :</b> pour les actes réalisés <b>sans qu'un patient soit enregistré</b> (pansements, mises en observation lors d'un afflux). On saisit un simple nombre par acte et par site. Ces actes sont comptés dans le tableau de bord et le bilan, avec la mention de leur origine - mais <b>aucune fiche patient n'est créée</b> : inventer des patients fausserait l'âge moyen, la répartition par sexe et les diagnostics.</li>
         <li><b>Voir les statistiques :</b> bascule le tableau de bord filtré sur cette campagne.</li>
+        <li><b>Journées de consultation :</b> une ligne par jour d'ouverture, avec l'heure de début et l'heure de fin. Ces horaires ne se devinent pas depuis les fiches - une consultation saisie le soir peut être la reprise d'un registre papier. Renseignés, ils permettent au rapport de donner le <b>rythme réel</b> : le nombre de patients rapporté au temps d'ouverture, le seul chiffre qui serve à dimensionner l'édition suivante.</li>
         <li><b>Effectifs mobilisés :</b> saisissez le nombre réel de professionnels par métier. Laissés vides, ils sont comptés automatiquement d'après les comptes rattachés à la campagne - ce qui sous-estime l'équipe dès qu'une personne est intervenue sans compte. Le rapport indique toujours laquelle des deux sources il présente.</li>
         <li><b>Analyse de fin de campagne :</b> trois zones de texte - difficultés rencontrées, besoins constatés, recommandations. Elles ne se calculent pas : elles sont reprises telles quelles dans la dernière page du rapport, avant les annexes.</li>
       </ul>`},

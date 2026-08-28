@@ -1,0 +1,37 @@
+-- =====================================================================
+-- Journées de consultation : dates et horaires d'ouverture
+-- =====================================================================
+-- La campagne portait déjà une date de début et une date de fin. Cela donne
+-- une période, pas les jours réellement ouverts ni les heures pendant
+-- lesquelles les sites ont reçu des patients.
+--
+-- Ces horaires ne se déduisent d'aucune donnée existante. L'heure
+-- d'enregistrement d'une fiche n'est pas l'heure de la consultation : une
+-- bonne part des fiches du Gamou 2026 a été saisie après coup, à partir des
+-- registres papier. Les calculer aurait produit des amplitudes fausses.
+--
+-- Ils se déclarent donc à la main, sur la fiche de campagne, rubrique
+-- « Journées de consultation ». Le rapport les reprend et en tire le rythme
+-- réel : nombre de patients rapporté au temps d'ouverture. C'est ce chiffre,
+-- et non le total brut, qui permet de dimensionner l'édition suivante.
+--
+-- Format : un tableau JSON, une entrée par journée
+--   [{"date": "2026-08-25", "debut": "08:00", "fin": "18:00"},
+--    {"date": "2026-08-26", "debut": "08:30", "fin": "14:00"}]
+--
+-- Une journée sans horaires complets reste comptée comme journée ouverte,
+-- mais n'entre ni dans la durée totale ni dans le rythme horaire : le rapport
+-- le signale plutôt que de compléter de lui-même.
+--
+-- Aucune nouvelle règle de sécurité n'est nécessaire : cette colonne suit
+-- celles de la table campagnes, déjà couvertes par les policies en place.
+--
+-- SANS CE SCRIPT, l'application continue de fonctionner : les journées ne sont
+-- envoyées que si au moins une date est saisie.
+--
+-- À exécuter dans Supabase : Dashboard > SQL Editor > New query.
+-- Ce script peut être relancé sans risque.
+-- =====================================================================
+
+alter table public.campagnes
+  add column if not exists jours_consultation jsonb;

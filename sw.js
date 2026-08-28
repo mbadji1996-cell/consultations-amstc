@@ -3,7 +3,7 @@
    caches obsolètes chez les utilisateurs (voir aussi la stratégie réseau
    ci-dessous, qui limite déjà fortement le risque de rester bloqué sur une
    ancienne version même sans y penser). */
-const CACHE_VERSION="amstc-v74";
+const CACHE_VERSION="amstc-v75";
 // Toutes les bibliothèques CDN utilisées par l'app y figurent : sans elles, un utilisateur
 // qui rouvre l'app hors connexion sans les avoir jamais chargées perdrait les graphiques et
 // surtout les exports PDF/Word et l'import/export Excel (fonctions clés sur le terrain).

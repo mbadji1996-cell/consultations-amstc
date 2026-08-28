@@ -7093,6 +7093,9 @@ function campagneCardHtml(c){
              : ""}
          </div>`)}
 
+      ${campSectionHtml(c.id,"sites","Sites",String(sites.length),"",
+        siteListHtml(sites)+addSiteFormHtml(c.id))}
+
       ${campSectionHtml(c.id,"pharma","Pharmacien en chef",
         c.pharmacien_chef_id?"":"non désigné", "Il gère le stock de la campagne, avec l'administrateur. Les candidats sont les pharmaciens affectés à l'un de ses sites.",
         `<select onchange="setPharmacienChefCampagne('${c.id}',this.value)" aria-label="Pharmacien en chef" style="padding:7px 9px;font-size:13px;width:100%">
@@ -7122,9 +7125,6 @@ function campagneCardHtml(c){
         `<textarea id="cp_difficultes_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Difficultés rencontrées" style="font-size:13px;min-height:54px">${esc(c.bilan_difficultes||"")}</textarea>
          <textarea id="cp_besoins_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Besoins constatés" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_besoins||"")}</textarea>
          <textarea id="cp_recommandations_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Recommandations pour la prochaine édition" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_recommandations||"")}</textarea>`)}
-
-      ${campSectionHtml(c.id,"sites","Sites",String(sites.length),"",
-        siteListHtml(sites)+addSiteFormHtml(c.id))}
 
       <div class="actions" style="margin:14px 0 6px;border-top:1px solid var(--line);padding-top:12px">
         <button class="btn btn-primary btn-sm" id="campSaveBtn_${c.id}" disabled onclick="updateCampagne('${c.id}',this)">Enregistrer</button>

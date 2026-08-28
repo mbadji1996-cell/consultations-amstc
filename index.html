@@ -205,6 +205,13 @@
   .btn-accent:hover{filter:brightness(.95);color:#3a2600}
   .btn-ghost{background:transparent;color:var(--accent-text);border:1px solid var(--line)}
   .btn-ghost:hover{background:var(--green-50)}
+  /* En-tête de rubrique dans la fiche de campagne. Les intitulés étaient de simples
+     lignes de légende, plus petites que le contenu qu'elles annonçaient : on ne
+     repérait plus les rubriques dans une fiche devenue longue. */
+  .camp-sec{width:100%;justify-content:space-between;margin-bottom:8px;
+            font-size:14.5px;font-weight:700;padding:11px 12px;text-align:left}
+  .camp-sec .camp-sec-count{font-weight:500;color:var(--muted);font-size:13px}
+  .camp-sec-help{font-size:12px;color:var(--muted);margin:-2px 0 8px}
   .btn-danger{background:transparent;color:var(--danger);border:1px solid #f0c9c4}
   .btn-danger:hover{background:var(--danger-bg)}
   .btn-sm{padding:6px 10px;font-size:13px}
@@ -1710,10 +1717,26 @@ let SELECTED_CAMPAGNE = ""; // filtre courant du tableau de bord/rapports ("" = 
 // refermer systématiquement et forcer un nouveau clic sur "Modifier"/"Détails" à chaque fois.
 let OPEN_USER_EDITS = new Set();
 let OPEN_CAMP_DETAILS = new Set();
-let OPEN_CAMP_SITES = new Set();
+// Rubriques dépliées de la fiche de campagne, clé "idCampagne|rubrique". Toutes sont
+// repliées au départ : la fiche tenait sur plusieurs écrans, on n'y trouvait plus rien.
+let OPEN_CAMP_SECTIONS = new Set();
 
 /* ---------- utilitaires ---------- */
 const $ = id => document.getElementById(id);
+
+// Un bouton « Enregistrer » toujours actif laisse croire qu'il reste quelque chose à
+// faire, et invite à réenregistrer à l'identique. Chaque champ modifiable porte donc
+// l'identifiant du bouton qui l'enregistre ; le bouton naît désactivé et ne s'active
+// qu'à la première modification. Un seul écouteur pour toute la page : les champs sont
+// redessinés en permanence, en accrocher un par champ les perdrait à chaque rendu.
+function activerBoutonEnregistrer(idBouton){
+  const b=idBouton && $(idBouton);
+  if(b) b.disabled=false;
+}
+["input","change"].forEach(ev=>document.addEventListener(ev,e=>{
+  const cible=e.target && e.target.getAttribute && e.target.getAttribute("data-save-target");
+  if(cible) activerBoutonEnregistrer(cible);
+},true));
 function toast(msg, isErr){ const t=$("toast"); t.textContent=msg; t.className="toast show"+(isErr?" err":"");
   setTimeout(()=>t.className="toast",2600); }
 function alertIn(id,type,msg){ const el=$(id); el.innerHTML=`<div class="alert alert-${type}">${msg}</div>`;
@@ -5724,16 +5747,13 @@ function pharmaciensDeCampagne(campagneId){
    et fausserait l'âge moyen, la répartition par sexe et les diagnostics. */
 function actesHorsHtml(c){
   const lignes=ACTES_HORS.filter(a=>a.campagne_id===c.id);
-  const total=lignes.reduce((n,a)=>n+(a.nombre||0),0);
   const sites=SITES.filter(s=>s.campagne_id===c.id);
-  return `<div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:10px">
-    <div class="rec-meta" style="margin-bottom:6px"><b>Actes réalisés hors consultation</b>${total?` - ${total} au total`:""}
-      <span style="display:block">Actes faits sans que le patient soit enregistré. Comptés dans le bilan, sans créer de fiche.</span></div>
+  return `<div>
     ${lignes.map(a=>`
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <span style="flex:1;min-width:130px;font-size:13px">${esc(a.acte)}${a.site_id?` <span class="rec-meta">· ${esc(siteName(a.site_id))}</span>`:""}</span>
-        <input type="number" min="0" value="${a.nombre}" id="acthors_${a.id}" style="width:80px;padding:6px 8px;font-size:13px">
-        <button class="btn btn-primary btn-sm" onclick="majActeHors('${a.id}',this)">Enregistrer</button>
+        <input type="number" min="0" value="${a.nombre}" id="acthors_${a.id}" data-save-target="acteSaveBtn_${a.id}" aria-label="Nombre pour ${esc(a.acte)}" style="width:80px;padding:6px 8px;font-size:13px">
+        <button class="btn btn-primary btn-sm" id="acteSaveBtn_${a.id}" disabled onclick="majActeHors('${a.id}',this)">Enregistrer</button>
         <button class="btn btn-danger btn-sm" onclick="supprimerActeHors('${a.id}')">Supprimer</button>
       </div>`).join("")}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
@@ -6916,12 +6936,12 @@ function siteListHtml(sites){
   return sites.map(s=>`
     <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" style="flex:1;min-width:120px;padding:7px 9px;font-size:13.5px">
-        <select id="site_actif_${s.id}" style="padding:7px 8px;font-size:12.5px">
+        <input type="text" value="${esc(s.nom)}" id="site_nom_${s.id}" data-save-target="siteSaveBtn_${s.id}" aria-label="Nom du site" style="flex:1;min-width:120px;padding:7px 9px;font-size:13.5px">
+        <select id="site_actif_${s.id}" data-save-target="siteSaveBtn_${s.id}" aria-label="État du site" style="padding:7px 8px;font-size:12.5px">
           <option value="true"${s.actif?" selected":""}>Actif</option>
           <option value="false"${!s.actif?" selected":""}>Inactif</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="updateSite('${s.id}',this)">Enregistrer</button>
+        <button class="btn btn-primary btn-sm" id="siteSaveBtn_${s.id}" disabled onclick="updateSite('${s.id}',this)">Enregistrer</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSite('${s.id}')">Supprimer</button>
       </div>
     </div>`).join("");
@@ -6958,23 +6978,47 @@ function lireJoursDuDom(id){
   }));
 }
 
+// Les jours ouvrés d'une campagne sont presque toujours ceux de sa période. Les
+// proposer d'un clic évite de ressaisir quatre dates à la main - mais le geste reste
+// explicite : remplir d'office la liste enregistrerait des journées que personne n'a
+// confirmées.
+function joursDeLaPeriode(c){
+  if(!c || !c.date_debut || !c.date_fin) return [];
+  const d=new Date(c.date_debut+"T00:00:00"), f=new Date(c.date_fin+"T00:00:00");
+  if(isNaN(d)||isNaN(f)||f<d) return [];
+  const jours=[];
+  for(let x=new Date(d); x<=f && jours.length<32; x.setDate(x.getDate()+1))
+    jours.push({date:x.toISOString().slice(0,10), debut:"", fin:""});
+  return jours;
+}
+
+function reprendrePeriode(id){
+  const c=CAMPAGNES.find(x=>x.id===id); if(!c) return;
+  const dejaLa=new Set(lireJoursDuDom(id).map(j=>j.date).filter(Boolean));
+  const ajout=joursDeLaPeriode(c).filter(j=>!dejaLa.has(j.date));
+  if(!ajout.length){ toast("Toutes les journées de la période sont déjà dans la liste"); return; }
+  JOURS_DRAFT[id]=lireJoursDuDom(id).concat(ajout).sort((a,b)=>a.date.localeCompare(b.date));
+  redessinerJours(id);
+  activerBoutonEnregistrer("campSaveBtn_"+id);
+}
+
 function joursRowsHtml(id){
   const liste=JOURS_DRAFT[id]||[];
   if(!liste.length)
-    return `<div class="rec-meta" style="margin:0">Aucune journée saisie. Le rapport indiquera que les horaires n'ont pas été relevés.</div>`;
+    return `<div class="rec-meta" style="margin:0 0 8px">Aucune journée saisie. Le rapport indiquera que les horaires n'ont pas été relevés.</div>`;
   return liste.map((j,i)=>`
     <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
       <div style="flex:2;min-width:118px">
         ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_date_${id}_${i}">Date</label>`:""}
-        <input type="date" value="${esc(j.date||"")}" id="jc_date_${id}_${i}" aria-label="Date de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+        <input type="date" value="${esc(j.date||"")}" id="jc_date_${id}_${i}" data-save-target="campSaveBtn_${id}" aria-label="Date de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
       </div>
       <div style="flex:1;min-width:76px">
         ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_debut_${id}_${i}">Début</label>`:""}
-        <input type="time" value="${esc(j.debut||"")}" id="jc_debut_${id}_${i}" aria-label="Heure de début de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+        <input type="time" value="${esc(j.debut||"")}" id="jc_debut_${id}_${i}" data-save-target="campSaveBtn_${id}" aria-label="Heure de début de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
       </div>
       <div style="flex:1;min-width:76px">
         ${i===0?`<label style="font-size:11px;color:var(--muted)" for="jc_fin_${id}_${i}">Fin</label>`:""}
-        <input type="time" value="${esc(j.fin||"")}" id="jc_fin_${id}_${i}" aria-label="Heure de fin de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
+        <input type="time" value="${esc(j.fin||"")}" id="jc_fin_${id}_${i}" data-save-target="campSaveBtn_${id}" aria-label="Heure de fin de la journée ${i+1}" style="padding:6px 8px;font-size:13px">
       </div>
       <button class="btn btn-ghost btn-sm" aria-label="Retirer la journée ${i+1}" title="Retirer cette journée" onclick="retirerJour('${id}',${i})">&times;</button>
     </div>`).join("");
@@ -6987,11 +7031,13 @@ function ajouterJour(id){
   JOURS_DRAFT[id]=lireJoursDuDom(id);
   JOURS_DRAFT[id].push({date:"",debut:"",fin:""});
   redessinerJours(id);
+  activerBoutonEnregistrer("campSaveBtn_"+id);
 }
 function retirerJour(id,i){
   JOURS_DRAFT[id]=lireJoursDuDom(id);
   JOURS_DRAFT[id].splice(i,1);
   redessinerJours(id);
+  activerBoutonEnregistrer("campSaveBtn_"+id);
 }
 
 function campagneCardHtml(c){
@@ -7022,64 +7068,66 @@ function campagneCardHtml(c){
         <code style="font-size:11.5px;background:var(--green-50);padding:3px 8px;border-radius:6px;word-break:break-all">${c.id}</code>
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('${c.id}').then(()=>toast('ID de la campagne copié'))">Copier l'ID</button>
       </div>
-      <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
+      <input type="text" value="${esc(c.nom)}" id="cp_nom_${c.id}" data-save-target="campSaveBtn_${c.id}" aria-label="Nom de la campagne" style="font-weight:700;font-size:15.5px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;margin-bottom:8px">
       <div class="row2" style="gap:8px;margin-bottom:8px">
-        <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" placeholder="Lieu" style="padding:7px 9px;font-size:13.5px">
-        <select id="cp_actif_${c.id}" style="padding:7px 9px;font-size:13.5px">
+        <input type="text" value="${esc(c.lieu||"")}" id="cp_lieu_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Lieu" aria-label="Lieu de la campagne" style="padding:7px 9px;font-size:13.5px">
+        <select id="cp_actif_${c.id}" data-save-target="campSaveBtn_${c.id}" aria-label="État de la campagne" style="padding:7px 9px;font-size:13.5px">
           <option value="true"${c.actif?" selected":""}>Active</option>
           <option value="false"${!c.actif?" selected":""}>Terminée</option>
         </select>
       </div>
-      <div class="row2" style="gap:8px;margin-bottom:6px">
-        <div><label style="font-size:11px;color:var(--muted)">Début</label>
-          <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" style="padding:7px 9px;font-size:13px"></div>
-        <div><label style="font-size:11px;color:var(--muted)">Fin</label>
-          <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+      <div class="row2" style="gap:8px;margin-bottom:10px">
+        <div><label style="font-size:11px;color:var(--muted)" for="cp_debut_${c.id}">Début</label>
+          <input type="date" value="${c.date_debut||""}" id="cp_debut_${c.id}" data-save-target="campSaveBtn_${c.id}" style="padding:7px 9px;font-size:13px"></div>
+        <div><label style="font-size:11px;color:var(--muted)" for="cp_fin_${c.id}">Fin</label>
+          <input type="date" value="${c.date_fin||""}" id="cp_fin_${c.id}" data-save-target="campSaveBtn_${c.id}" style="padding:7px 9px;font-size:13px"></div>
       </div>
 
-      <!-- Journées de consultation. Les dates de début et de fin ci-dessus donnent une
-           période ; elles ne disent pas les jours réellement ouverts ni les horaires.
-           Rien dans la base ne peut les déduire : ils se déclarent ici. -->
-      <div style="border-top:1px solid var(--line);padding-top:10px;margin:8px 0">
-        <div class="rec-meta" style="margin-bottom:6px"><b>Journées de consultation</b> — horaires d'ouverture, repris dans le rapport</div>
-        <div id="joursBody_${c.id}">${joursRowsHtml(c.id)}</div>
-        <button class="btn btn-ghost btn-sm" style="margin-top:4px" onclick="ajouterJour('${c.id}')">+ Ajouter une journée</button>
-      </div>
-      <!-- Le pharmacien en chef est désormais désigné pour la CAMPAGNE : c'est elle qui
-           porte le stock. Les candidats sont les pharmaciens affectés à l'un de ses sites. -->
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <label style="font-size:11px;color:var(--muted)">Pharmacien en chef (gère le stock de la campagne, avec l'administrateur)</label>
-        <select onchange="setPharmacienChefCampagne('${c.id}',this.value)" style="padding:6px 8px;font-size:12.5px">
+      ${campSectionHtml(c.id,"jours","Journées de consultation",resumeJours(c.id),
+        "Une ligne par jour d'ouverture. Ces horaires ne se devinent pas depuis les fiches : une consultation saisie le soir peut être la reprise d'un registre papier. Renseignés, ils permettent au rapport de donner le rythme réel, patients rapportés au temps d'ouverture.",
+        `<div id="joursBody_${c.id}">${joursRowsHtml(c.id)}</div>
+         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+           <button class="btn btn-ghost btn-sm" onclick="ajouterJour('${c.id}')">+ Ajouter une journée</button>
+           ${joursDeLaPeriode(c).length
+             ? `<button class="btn btn-ghost btn-sm" onclick="reprendrePeriode('${c.id}')">Reprendre les ${joursDeLaPeriode(c).length} jours de la période</button>`
+             : ""}
+         </div>`)}
+
+      ${campSectionHtml(c.id,"pharma","Pharmacien en chef",
+        c.pharmacien_chef_id?"":"non désigné", "Il gère le stock de la campagne, avec l'administrateur. Les candidats sont les pharmaciens affectés à l'un de ses sites.",
+        `<select onchange="setPharmacienChefCampagne('${c.id}',this.value)" aria-label="Pharmacien en chef" style="padding:7px 9px;font-size:13px;width:100%">
           <option value="">- Aucun -</option>
           ${pharmaciensDeCampagne(c.id).map(p=>`<option value="${p.id}"${c.pharmacien_chef_id===p.id?" selected":""}>${esc((p.prenom||"")+" "+(p.nom||"")).trim()||esc(p.email)}</option>`).join("")}
         </select>
-        ${!pharmaciensDeCampagne(c.id).length?'<span class="rec-meta">Aucun pharmacien affecté aux sites de cette campagne.</span>':""}
-      </div>
-      ${actesHorsHtml(c)}
-      <!-- Effectifs réellement mobilisés. Le comptage automatique ne voit que les comptes
-           de l'application : il manque forcément les renforts venus sans compte. -->
-      <div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
-        <div class="rec-meta" style="margin-bottom:6px"><b>Effectifs mobilisés</b> — laissez vide pour compter automatiquement les comptes rattachés</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${!pharmaciensDeCampagne(c.id).length?'<div class="rec-meta" style="margin-top:6px">Aucun pharmacien affecté aux sites de cette campagne.</div>':""}`)}
+
+      ${campSectionHtml(c.id,"actes","Actes hors consultation",resumeActesHors(c.id),
+        "Actes faits sans que le patient soit enregistré. Comptés dans le bilan, sans créer de fiche.",
+        actesHorsHtml(c))}
+
+      ${campSectionHtml(c.id,"effectifs","Effectifs mobilisés",resumeEffectifs(c),
+        "Le nombre réel de professionnels par métier. Un métier laissé vide est compté automatiquement d'après les comptes rattachés à la campagne ; un métier renseigné remplace ce comptage, sans toucher aux autres.",
+        `<div style="display:flex;gap:8px;flex-wrap:wrap">
           ${EFFECTIF_PROFESSIONS.map(([cle,libelle])=>`
             <div style="flex:1;min-width:96px">
-              <label style="font-size:11px;color:var(--muted)">${libelle}</label>
-              <input type="number" min="0" id="eff_${cle}_${c.id}" value="${(c.effectifs_declares&&c.effectifs_declares[cle])||""}"
+              <label style="font-size:11px;color:var(--muted)" for="eff_${cle}_${c.id}">${libelle}</label>
+              <input type="number" min="0" id="eff_${cle}_${c.id}" data-save-target="campSaveBtn_${c.id}"
+                     value="${(c.effectifs_declares&&c.effectifs_declares[cle])||""}"
                      placeholder="-" style="padding:6px 8px;font-size:13px">
             </div>`).join("")}
-        </div>
-      </div>
+        </div>`)}
 
-      <!-- Analyse de fin de campagne : ces trois textes ne se calculent pas, ils s'écrivent.
-           Ils sont repris tels quels dans la dernière page du rapport. -->
-      <div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
-        <div class="rec-meta" style="margin-bottom:6px"><b>Analyse de fin de campagne</b> — repris dans le rapport</div>
-        <textarea id="cp_difficultes_${c.id}" placeholder="Difficultés rencontrées" style="font-size:13px;min-height:54px">${esc(c.bilan_difficultes||"")}</textarea>
-        <textarea id="cp_besoins_${c.id}" placeholder="Besoins constatés" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_besoins||"")}</textarea>
-        <textarea id="cp_recommandations_${c.id}" placeholder="Recommandations pour la prochaine édition" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_recommandations||"")}</textarea>
-      </div>
-      <div class="actions" style="margin:8px 0 14px">
-        <button class="btn btn-primary btn-sm" onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
+      ${campSectionHtml(c.id,"bilan","Analyse de fin de campagne",resumeBilan(c),
+        "Ces trois textes ne se calculent pas, ils s'écrivent. Ils sont repris tels quels dans la dernière page du rapport.",
+        `<textarea id="cp_difficultes_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Difficultés rencontrées" style="font-size:13px;min-height:54px">${esc(c.bilan_difficultes||"")}</textarea>
+         <textarea id="cp_besoins_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Besoins constatés" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_besoins||"")}</textarea>
+         <textarea id="cp_recommandations_${c.id}" data-save-target="campSaveBtn_${c.id}" placeholder="Recommandations pour la prochaine édition" style="font-size:13px;min-height:54px;margin-top:6px">${esc(c.bilan_recommandations||"")}</textarea>`)}
+
+      ${campSectionHtml(c.id,"sites","Sites",String(sites.length),"",
+        siteListHtml(sites)+addSiteFormHtml(c.id))}
+
+      <div class="actions" style="margin:14px 0 6px;border-top:1px solid var(--line);padding-top:12px">
+        <button class="btn btn-primary btn-sm" id="campSaveBtn_${c.id}" disabled onclick="updateCampagne('${c.id}',this)">Enregistrer</button>
         <button class="btn btn-ghost btn-sm" onclick="viewCampagneStats('${c.id}')">Voir les statistiques</button>
         <button class="btn btn-ghost btn-sm" onclick="bilanCampagnePdf('${c.id}',this)">Bilan PDF</button>
         ${c.archivee
@@ -7087,25 +7135,60 @@ function campagneCardHtml(c){
              <button class="btn btn-danger btn-sm" onclick="deleteCampagne('${c.id}')">Supprimer définitivement</button>`
           : `<button class="btn btn-ghost btn-sm" onclick="archiveCampagne('${c.id}',true)">Archiver</button>`}
       </div>
-      <div style="border-top:1px solid var(--line);padding-top:12px">
-        <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:space-between;margin-bottom:8px" onclick="toggleCampagneSites('${c.id}')" id="campSitesToggleBtn_${c.id}">
-          <span>Sites (${sites.length})</span><span id="campSitesChevron_${c.id}">${OPEN_CAMP_SITES.has(c.id)?"▴":"▾"}</span>
-        </button>
-        <div id="campSitesBody_${c.id}" class="${OPEN_CAMP_SITES.has(c.id)?"":"hidden"}">
-          ${siteListHtml(sites)}
-          ${addSiteFormHtml(c.id)}
-        </div>
-      </div>
     </div>
   </div>`;
 }
 
-function toggleCampagneSites(id){
-  const el=$("campSitesBody_"+id); if(!el) return;
-  el.classList.toggle("hidden");
-  const nowHidden=el.classList.contains("hidden");
-  if(nowHidden) OPEN_CAMP_SITES.delete(id); else OPEN_CAMP_SITES.add(id);
-  $("campSitesChevron_"+id).textContent = nowHidden ? "▾" : "▴";
+// Résumés affichés à côté du titre d'une rubrique repliée : ils disent si elle est
+// renseignée, pour ne pas avoir à toutes les déplier.
+function resumeJours(id){
+  const n=(JOURS_DRAFT[id]||[]).filter(j=>j.date).length;
+  return n ? n+(n>1?" journées":" journée") : "à renseigner";
+}
+function resumeActesHors(id){
+  const total=ACTES_HORS.filter(a=>a.campagne_id===id).reduce((n,a)=>n+(a.nombre||0),0);
+  return total ? total+" au total" : "aucun";
+}
+function resumeEffectifs(c){
+  const d=c.effectifs_declares||{};
+  const n=EFFECTIF_PROFESSIONS.filter(([cle])=>d[cle]!==undefined&&d[cle]!==null&&d[cle]!=="").length;
+  return n ? n+(n>1?" métiers déclarés":" métier déclaré") : "comptage automatique";
+}
+function resumeBilan(c){
+  const n=["bilan_difficultes","bilan_besoins","bilan_recommandations"]
+    .filter(k=>(c[k]||"").trim()).length;
+  return n ? n+" / 3 renseignés" : "à rédiger";
+}
+
+function toggleCampSection(campId,cle){
+  const corps=$("campsec_"+campId+"_"+cle); if(!corps) return;
+  corps.classList.toggle("hidden");
+  const replie=corps.classList.contains("hidden");
+  const k=campId+"|"+cle;
+  if(replie) OPEN_CAMP_SECTIONS.delete(k); else OPEN_CAMP_SECTIONS.add(k);
+  const chev=$("campsecchev_"+campId+"_"+cle);
+  if(chev) chev.textContent = replie ? "▾" : "▴";
+  const btn=$("campsecbtn_"+campId+"_"+cle);
+  if(btn) btn.setAttribute("aria-expanded", replie?"false":"true");
+}
+
+// Une rubrique = un en-tête cliquable qui résume son contenu replié, et un corps.
+// Le résumé compte : il évite d'avoir à déplier chaque rubrique pour savoir si elle
+// est renseignée.
+function campSectionHtml(campId,cle,titre,resume,aide,corps){
+  const ouvert=OPEN_CAMP_SECTIONS.has(campId+"|"+cle);
+  return `<div style="border-top:1px solid var(--line);padding-top:10px;margin-bottom:8px">
+    <button class="btn btn-ghost camp-sec" id="campsecbtn_${campId}_${cle}"
+            aria-expanded="${ouvert}" aria-controls="campsec_${campId}_${cle}"
+            onclick="toggleCampSection('${campId}','${cle}')">
+      <span>${titre}${resume?` <span class="camp-sec-count">${resume}</span>`:""}</span>
+      <span id="campsecchev_${campId}_${cle}" aria-hidden="true">${ouvert?"▴":"▾"}</span>
+    </button>
+    <div id="campsec_${campId}_${cle}" class="${ouvert?"":"hidden"}">
+      ${aide?`<p class="camp-sec-help">${aide}</p>`:""}
+      ${corps}
+    </div>
+  </div>`;
 }
 
 function toggleCampagneDetails(id){

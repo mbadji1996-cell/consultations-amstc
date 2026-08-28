@@ -4161,6 +4161,9 @@ function computeDashboardStats(){
     });
   const joursMinutes=joursConsultation.reduce((a,j)=>a+(j.minutes||0),0);
 
+  // --- Débriefing de l'équipe, s'il a été déposé sur la campagne.
+  const debriefing=lireDebriefing(campagneInfo);
+
   // Aperçu de toutes les campagnes actives d'un coup d'œil - uniquement en vue globale (admin, sans filtre)
   let campagneApercu=[];
   if(ME.role==="admin" && !SELECTED_CAMPAGNE){
@@ -4334,7 +4337,7 @@ function computeDashboardStats(){
     typeCounts, specialiteBreakdown, medDeliveredBreakdown, campagneApercu, referencesHorsSite,
     actesTotal, actesBreakdown, actesSurConsultation, actesHorsTotal, actesHorsDetail:horsPortee,
     praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice,
-    joursConsultation, joursMinutes };
+    joursConsultation, joursMinutes, debriefing };
 }
 
 // Classe thérapeutique par article de stock, chargée à la demande pour le rapport.
@@ -4738,6 +4741,43 @@ async function generateReportCharts(S){
     },900,Math.max(260,S.medDeliveredBreakdown.length*70));
   }
 
+  // --- Débriefing de l'équipe. Barres horizontales et non camemberts : on compare des
+  // fréquences, et un camembert de douze parts ne se lit pas.
+  if(S.debriefing){
+    const D=S.debriefing;
+    const barresH=(libelles,valeurs,couleurs,max)=>({
+      type:"bar",
+      data:{ labels:libelles, datasets:[{ data:valeurs, backgroundColor:couleurs,
+                                          borderRadius:6, maxBarThickness:24 }] },
+      options:{ indexAxis:"y", plugins:{legend:{display:false}},
+        scales:{ x:{ beginAtZero:true, max:max, ticks:{precision:0}, grid:{color:grid} },
+                 y:{ grid:{display:false} } } },
+    });
+    if(D.satisfaction.length){
+      // Sous 3 sur 5, le domaine est un point faible : la couleur le dit avant que le
+      // lecteur n'ait à comparer les longueurs de barres.
+      make("debriefSatisf", barresH(
+        D.satisfaction.map(x=>x.libelle),
+        D.satisfaction.map(x=>Math.round(x.valeur*100)/100),
+        D.satisfaction.map(x=>x.valeur<3?orange:green), 5),
+        900, Math.max(280, D.satisfaction.length*56));
+    }
+    if(D.difficultes.length){
+      // L'axe va jusqu'au nombre de répondants : une barre se lit alors comme une part
+      // de l'équipe, pas comme un nombre isolé.
+      make("debriefDiff", barresH(
+        D.difficultes.map(x=>x.libelle), D.difficultes.map(x=>x.valeur),
+        chartColors(D.difficultes.length), D.repondants),
+        900, Math.max(280, D.difficultes.length*56));
+    }
+    if(D.besoins.length){
+      make("debriefBesoins", barresH(
+        D.besoins.map(x=>x.libelle), D.besoins.map(x=>x.valeur),
+        chartColors(D.besoins.length), D.repondants),
+        900, Math.max(280, D.besoins.length*56));
+    }
+  }
+
   if(S.hommes+S.femmes){
     make("sex",{ type:"doughnut", data:{ labels:["Féminin","Masculin"], datasets:[{ data:[S.femmes,S.hommes], backgroundColor:[orange,green], borderWidth:2, borderColor:"#fff", hoverOffset:6 }] },
       options:{ cutout:"68%", plugins:{legend:{position:"bottom"}} }
@@ -4810,6 +4850,16 @@ function pdfNote(doc,x,y,pageW,texte){
 // Ces trois blocs du rapport ne nomment plus personne : praticiens, patients et examens
 // y sont agrégés. Les notes qui l'expliquent sont écrites une fois et servent au PDF
 // comme au Word, pour que les deux versions ne divergent jamais.
+function noteDebriefing(D){
+  return "Questionnaire anonyme renseigné par "+D.repondants+" intervenant"
+       + (D.repondants>1?"s":"")
+       + (D.date ? ", dépouillé le "+dateFrDepuisIso(D.date) : "")
+       + ". Les effectifs sont donnés en valeur brute : sur "+D.repondants
+       + " répondant"+(D.repondants>1?"s":"")+", un pourcentage laisserait croire à une "
+       + "précision que l'échantillon ne porte pas. Les réponses individuelles et les "
+       + "verbatims ne quittent pas le questionnaire.";
+}
+
 const NOTE_MATRICE_ANONYME="Les patients ne sont pas nommés. Le numéro de consultation permet de retrouver la fiche complète dans l'application, où l'identité reste accessible aux seuls comptes autorisés.";
 const NOTE_EXAMENS_GROUPES="Les examens sont regroupés par intitulé et ne sont rattachés à aucun patient. La réalisation et l'anomalie sont notées par consultation : lorsqu'une consultation demande plusieurs examens, elles comptent pour chacun d'eux.";
 
@@ -4877,6 +4927,33 @@ function baseSexeTexte(renseigne,manquant){
     return "Sexe renseigné sur les "+renseigne+" fiche"+pluriel(renseigne);
   return "Pourcentages calculés sur "+renseigne+" fiche"+pluriel(renseigne)
        +" renseignée"+pluriel(renseigne)+" · "+manquant+" non renseignée"+pluriel(manquant);
+}
+
+// Le débriefing est rempli hors de l'application - formulaire anonyme, puis
+// dépouillement - et seuls ses agrégats sont déposés sur la campagne. On ne fait donc
+// aucune hypothèse sur ce qui est présent : chaque bloc absent ou mal formé est
+// simplement omis du rapport, plutôt que de le faire échouer.
+function lireDebriefing(campagneInfo){
+  const d = campagneInfo && campagneInfo.debriefing;
+  if(!d || typeof d!=="object" || Array.isArray(d)) return null;
+  const liste=(v,cle)=>Array.isArray(v)
+    ? v.filter(x=>x && x.libelle && isFinite(Number(x[cle])))
+       .map(x=>({ libelle:String(x.libelle), valeur:Number(x[cle]), n:Number(x.n)||null }))
+    : [];
+  const parValeur=(a,b)=>b.valeur-a.valeur;
+  const out={
+    repondants: Math.max(0, parseInt(d.repondants,10)||0),
+    date: typeof d.date==="string" ? d.date : null,
+    // La satisfaction garde l'ordre de saisie : c'est celui du questionnaire, et il
+    // regroupe les domaines par nature. Le reste se classe par fréquence.
+    satisfaction: liste(d.satisfaction,"moyenne"),
+    difficultes: liste(d.difficultes,"n").sort(parValeur),
+    besoins: liste(d.besoins,"n").sort(parValeur),
+    reconduction: liste(d.reconduction,"n").sort(parValeur),
+  };
+  const rien = !out.satisfaction.length && !out.difficultes.length
+            && !out.besoins.length && !out.reconduction.length;
+  return (out.repondants && !rien) ? out : null;
 }
 
 // Virgule décimale : "10,6" et non "10.6", dans un document en français.
@@ -5311,6 +5388,29 @@ async function downloadReportPDF(){
         head:[["Constat","Valeur"]], body:constats,
       });
       y=doc.lastAutoTable.finalY+10;
+
+      // Le débriefing chiffré vient avant les textes d'analyse : ceux-ci le commentent.
+      const D=S.debriefing;
+      if(D){
+        doc.addPage(); y=20;
+        pdfSectionHeader(doc,margin,y,"Débriefing de l'équipe",green); y+=6;
+        pdfNote(doc,margin,y,pageW,noteDebriefing(D)); y+=16;
+        addChartImage("debriefSatisf","Satisfaction par domaine (moyenne sur 5)");
+        addChartImage("debriefDiff","Difficultés rencontrées (nombre de répondants)");
+        addChartImage("debriefBesoins","Besoins prioritaires (3 choix au maximum par répondant)");
+        if(D.reconduction.length){
+          if(y>235){ doc.addPage(); y=20; }
+          pdfSectionHeader(doc,margin,y,"Reconduction du dispositif",green); y+=6;
+          doc.autoTable({
+            startY:y, margin:{left:margin,right:margin}, theme:"grid",
+            headStyles:{ fillColor:green, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
+            head:[["Avis","Répondants"]],
+            body:D.reconduction.map(x=>[x.libelle,String(x.valeur)]),
+          });
+          y=doc.lastAutoTable.finalY+10;
+        }
+      }
+
       textes.forEach(([titre,texte])=>{
         if(y>245){ doc.addPage(); y=20; }
         pdfSectionHeader(doc,margin,y,titre,green); y+=7;
@@ -5659,6 +5759,21 @@ async function downloadReportWord(){
     constats.push(["Complétude moyenne des dossiers", S.completudeGlobale+"%"]);
     children.push(sectionHeading("Analyse de la campagne"));
     children.push(mkTable(["Constat","Valeur"], constats));
+
+    // Le débriefing chiffré vient avant les textes d'analyse : ceux-ci le commentent.
+    const D=S.debriefing;
+    if(D){
+      children.push(sectionHeading("Débriefing de l'équipe"));
+      children.push(note(noteDebriefing(D)));
+      addChartImage("debriefSatisf","Satisfaction par domaine (moyenne sur 5)");
+      addChartImage("debriefDiff","Difficultés rencontrées (nombre de répondants)");
+      addChartImage("debriefBesoins","Besoins prioritaires (3 choix au maximum par répondant)");
+      if(D.reconduction.length){
+        children.push(sectionHeading("Reconduction du dispositif"));
+        children.push(mkTable(["Avis","Répondants"], D.reconduction.map(x=>[x.libelle,x.valeur])));
+      }
+    }
+
     textes.forEach(([titre,texte])=>{
       children.push(sectionHeading(titre));
       // Chaque saut de ligne saisi devient un paragraphe Word distinct.

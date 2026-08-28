@@ -9,17 +9,28 @@
 -- bilan_recommandations de la campagne, et sont repris tels quels dans la
 -- dernière page du rapport PDF et Word.
 --
+-- Le script dépose aussi les AGRÉGATS CHIFFRÉS du questionnaire dans la
+-- colonne debriefing : satisfaction par domaine, difficultés et besoins classés
+-- par fréquence, avis sur la reconduction. Le rapport en tire trois graphiques
+-- et un tableau, sur une page qui précède les textes d'analyse.
+--
 -- Les verbatims ne sont ni cités ni attribués : le formulaire était anonyme,
 -- et c'est cette garantie qui a permis de recueillir les remarques les plus
 -- utiles. Les chiffres cités sont donnés en effectifs bruts (« 27 sur 34 »)
 -- et non en pourcentages seuls : un pourcentage sur 34 répondants laisserait
 -- croire à une précision que l'échantillon ne porte pas.
 --
--- PRÉREQUIS : rls_bilan_campagne.sql doit avoir été exécuté.
+-- Une seule organisation est nommée, COSKAS Santé, et sur une demande de
+-- moyens et de reconnaissance formulée par un répondant. Aucune personne n'est
+-- nommée, ni pour être mise en cause ni pour être remerciée.
 --
--- Vous pouvez aussi saisir ces textes à la main dans l'application :
+-- PRÉREQUIS : rls_bilan_campagne.sql et rls_debriefing_campagne.sql doivent
+-- avoir été exécutés.
+--
+-- Vous pouvez aussi saisir les trois textes à la main dans l'application :
 -- onglet Campagnes > Détails > Analyse de fin de campagne > Enregistrer.
--- Faire l'un ou l'autre, pas besoin des deux.
+-- Les graphiques, eux, demandent ce script : la colonne debriefing ne se
+-- saisit pas depuis l'application.
 --
 -- À exécuter dans Supabase : Dashboard > SQL Editor > New query.
 -- Relançable sans risque.
@@ -54,6 +65,158 @@ Ces trois premières priorités se retrouvent dans les réponses libres. Cinq r�
 
 Sur la collecte des données, l''information que l''équipe souhaite le mieux voir renseignée est le devenir du patient — domicile, observation, référence ou évacuation — citée par 11 répondants sur 34, devant les médicaments effectivement dispensés (8) et le diagnostic (7). Le système de collecte lui-même obtient une note de 3,6 sur 5, et 19 répondants sur 32 déclarent n''avoir jamais ou rarement eu de mal à renseigner les fiches.',
 
+debriefing = '{
+  "repondants": 34,
+  "date": "2026-08-28",
+  "satisfaction": [
+    {
+      "libelle": "Organisation générale",
+      "moyenne": 3.62,
+      "n": 34
+    },
+    {
+      "libelle": "Coordination entre les intervenants",
+      "moyenne": 3.84,
+      "n": 32
+    },
+    {
+      "libelle": "Répartition du personnel entre les sites",
+      "moyenne": 3.41,
+      "n": 34
+    },
+    {
+      "libelle": "Disponibilité du matériel médical",
+      "moyenne": 2.81,
+      "n": 32
+    },
+    {
+      "libelle": "Disponibilité des médicaments",
+      "moyenne": 2.88,
+      "n": 34
+    },
+    {
+      "libelle": "Conditions de travail sur le site",
+      "moyenne": 3.03,
+      "n": 34
+    },
+    {
+      "libelle": "Système de collecte des données",
+      "moyenne": 3.55,
+      "n": 33
+    }
+  ],
+  "difficultes": [
+    {
+      "libelle": "Rupture ou insuffisance de médicaments",
+      "n": 27
+    },
+    {
+      "libelle": "Matériel médical insuffisant",
+      "n": 14
+    },
+    {
+      "libelle": "Affluence des patients",
+      "n": 13
+    },
+    {
+      "libelle": "Accès aux examens complémentaires",
+      "n": 11
+    },
+    {
+      "libelle": "Logistique et transport",
+      "n": 7
+    },
+    {
+      "libelle": "Locaux inadaptés",
+      "n": 6
+    },
+    {
+      "libelle": "Référence ou évacuation vers l''hôpital",
+      "n": 6
+    },
+    {
+      "libelle": "Orientation des patients sur le site",
+      "n": 5
+    },
+    {
+      "libelle": "Prise en charge des urgences",
+      "n": 5
+    },
+    {
+      "libelle": "Personnel insuffisant",
+      "n": 3
+    },
+    {
+      "libelle": "Communication entre les équipes",
+      "n": 3
+    },
+    {
+      "libelle": "Aucune difficulté notable",
+      "n": 1
+    }
+  ],
+  "besoins": [
+    {
+      "libelle": "Augmentation du stock de médicaments",
+      "n": 22
+    },
+    {
+      "libelle": "Matériel et médicaments d''urgence",
+      "n": 17
+    },
+    {
+      "libelle": "Moyens de transport et d''évacuation",
+      "n": 15
+    },
+    {
+      "libelle": "Renforcement du personnel paramédical",
+      "n": 7
+    },
+    {
+      "libelle": "Amélioration des locaux",
+      "n": 7
+    },
+    {
+      "libelle": "Renforcement du personnel médical",
+      "n": 5
+    },
+    {
+      "libelle": "Organisation et répartition des équipes",
+      "n": 5
+    },
+    {
+      "libelle": "Matériel de diagnostic",
+      "n": 4
+    },
+    {
+      "libelle": "Moyens de communication entre les sites",
+      "n": 4
+    },
+    {
+      "libelle": "Système informatisé de collecte",
+      "n": 4
+    },
+    {
+      "libelle": "Formation du personnel",
+      "n": 1
+    }
+  ],
+  "reconduction": [
+    {
+      "libelle": "Oui, avec quelques améliorations",
+      "n": 23
+    },
+    {
+      "libelle": "Oui, mais avec une réorganisation importante",
+      "n": 9
+    },
+    {
+      "libelle": "Oui, tel quel",
+      "n": 2
+    }
+  ]
+}'::jsonb,
+
 bilan_recommandations =
 '1. Constituer un stock tampon sur les produits qui ont rompu, et suivre les sorties en temps réel pendant la campagne. Les six familles concernées sont connues : vitamine C, antiparasitaires (albendazole, mébendazole), antihistaminiques, inhibiteurs de la pompe à protons, antihypertenseurs et paracétamol injectable. La vitamine C étant partie dès le premier jour, son volume doit être révisé en priorité.
 
@@ -67,7 +230,9 @@ bilan_recommandations =
 
 6. Renseigner systématiquement le devenir du patient sur chaque fiche. C''est l''information la plus réclamée par l''équipe, et celle qui manque aujourd''hui pour mesurer ce que la couverture a réellement produit.
 
-7. Reconduire le dispositif. Les 34 répondants se prononcent pour sa reconduction : 23 avec quelques améliorations, 9 avec une réorganisation importante, 2 en l''état. Aucun avis défavorable.'
+7. Faire valoir auprès de COSKAS Santé la contribution de l''AMSTC à cette couverture, afin d''obtenir des moyens à la hauteur des conditions constatées. Un répondant lie explicitement les difficultés de travail - chaleur, locaux, matériel - au niveau de moyens mis à disposition, et demande que l''utilité de l''équipe soit mieux reconnue par le partenaire.
+
+8. Reconduire le dispositif. Les 34 répondants se prononcent pour sa reconduction : 23 avec quelques améliorations, 9 avec une réorganisation importante, 2 en l''état. Aucun avis défavorable.'
 
 where nom = 'Couverture Médicale du Gamou de Tivaouane 2026';
 
@@ -75,6 +240,7 @@ where nom = 'Couverture Médicale du Gamou de Tivaouane 2026';
 select nom,
        length(bilan_difficultes)     as difficultes,
        length(bilan_besoins)         as besoins,
-       length(bilan_recommandations) as recommandations
+       length(bilan_recommandations) as recommandations,
+       debriefing->>'repondants'     as repondants_debriefing
   from public.campagnes
  where nom = 'Couverture Médicale du Gamou de Tivaouane 2026';

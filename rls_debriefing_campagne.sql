@@ -1,0 +1,46 @@
+-- =====================================================================
+-- Débriefing de l'équipe : chiffres du questionnaire de fin de campagne
+-- =====================================================================
+-- Les trois textes d'analyse (bilan_difficultes, bilan_besoins,
+-- bilan_recommandations) disent ce que l'équipe a constaté. Ils ne se
+-- comptent pas : un lecteur qui veut savoir combien de personnes ont signalé
+-- une rupture de médicaments doit pouvoir le lire dans un graphique, pas dans
+-- une phrase.
+--
+-- Cette colonne stocke les chiffres agrégés du questionnaire de débriefing.
+-- Le rapport en tire trois graphiques - satisfaction par domaine, difficultés
+-- classées par fréquence, besoins prioritaires - et un tableau de reconduction.
+--
+-- Le questionnaire lui-même reste hors de l'application : il se remplit dans un
+-- formulaire en ligne, anonyme, ce qui est la condition de réponses franches.
+-- Seuls les agrégats sont déposés ici. Aucune réponse individuelle, aucun
+-- verbatim, aucun nom.
+--
+-- Format attendu (tous les blocs sont facultatifs : ce qui manque est
+-- simplement omis du rapport) :
+--
+--   {
+--     "repondants": 34,
+--     "date": "2026-08-28",
+--     "satisfaction":  [{"libelle": "Organisation générale", "moyenne": 3.62, "n": 34}],
+--     "difficultes":   [{"libelle": "Rupture de médicaments", "n": 27}],
+--     "besoins":       [{"libelle": "Augmentation du stock", "n": 22}],
+--     "reconduction":  [{"libelle": "Oui, avec quelques améliorations", "n": 23}]
+--   }
+--
+-- Les valeurs "n" sont des effectifs bruts, jamais des pourcentages : sur
+-- quelques dizaines de répondants, un pourcentage laisserait croire à une
+-- précision que l'échantillon ne porte pas.
+--
+-- Aucune nouvelle règle de sécurité n'est nécessaire : cette colonne suit
+-- celles de la table campagnes, déjà couvertes par les policies en place.
+--
+-- SANS CE SCRIPT, l'application continue de fonctionner : le rapport se
+-- contente d'omettre la page de débriefing.
+--
+-- À exécuter dans Supabase : Dashboard > SQL Editor > New query.
+-- Ce script peut être relancé sans risque.
+-- =====================================================================
+
+alter table public.campagnes
+  add column if not exists debriefing jsonb;

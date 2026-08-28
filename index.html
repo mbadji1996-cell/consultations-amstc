@@ -4301,6 +4301,16 @@ function computeDashboardStats(){
     classeMap[cat]=(classeMap[cat]||0)+(parseFloat(m.quantite)||1);
   }));
   const medParClasse=Object.entries(classeMap).sort((a,b)=>b[1]-a[1]);
+  // Un classement dont la première ligne est « Classe non renseignée » n'est pas un
+  // classement. Au Gamou 2026, 754 unités sur 1169 - 64 % - n'avaient pas de catégorie :
+  // les 33 vraies classes se partageaient le tiers restant, et le tableau donnait du
+  // désordre du stock l'apparence d'un résultat. Au-delà du seuil, il n'est pas publié et
+  // le rapport dit pourquoi, ce qui indique du même coup ce qu'il y a à corriger.
+  const MED_CLASSE_SEUIL=0.30;
+  const medClasseTotal=medParClasse.reduce((n,[,q])=>n+q,0);
+  const medClasseSansCat=classeMap["Classe non renseignée"]||0;
+  const medClassePart = medClasseTotal ? medClasseSansCat/medClasseTotal : 0;
+  const medClassePubliable = medParClasse.length>0 && medClassePart<=MED_CLASSE_SEUIL;
 
   // --- Actes par site, actes sur consultation et actes hors consultation réunis.
   const actesSiteMap={};
@@ -4395,7 +4405,8 @@ function computeDashboardStats(){
     referencesTotal, referencesSurConsultation, referencesDeclarees, referencesDetail,
     actesTotal, actesBreakdown, actesSurConsultation, actesConsultationsConcernees,
     actesTypesRestants, actesHorsTotal, actesHorsDetail:horsPortee,
-    praticiens, medParClasse, actesParSite, completude, completudeGlobale, matrice,
+    praticiens, medParClasse, medClasseTotal, medClasseSansCat, medClassePart,
+    medClassePubliable, actesParSite, completude, completudeGlobale, matrice,
     joursConsultation, joursMinutes, debriefing };
 }
 
@@ -4933,6 +4944,17 @@ function noteDebriefing(D){
        + "verbatims ne quittent pas le questionnaire.";
 }
 
+// Pourquoi le classement thérapeutique n'apparaît pas, et comment le faire apparaître.
+function noteClassesMasquees(S){
+  return "Le classement par classe thérapeutique n'est pas publié : "
+       + Math.round(S.medClasseSansCat) + " unités dispensées sur "
+       + Math.round(S.medClasseTotal) + ", soit " + Math.round(S.medClassePart*100)
+       + " %, proviennent d'articles de stock sans catégorie. Un classement dont la"
+       + " première ligne serait « Classe non renseignée » donnerait du désordre du stock"
+       + " l'apparence d'un résultat. Renseigner la catégorie des articles dans le stock"
+       + " le fera apparaître automatiquement.";
+}
+
 const NOTE_REFERENCES="Seules les orientations vers une structure extérieure sont comptées. Orienter un patient vers un confrère présent sur le site est un mouvement interne à l'équipe : le patient reste dans la campagne et sa consultation est déjà comptée.";
 
 const NOTE_MATRICE_ANONYME="Les patients ne sont pas nommés. Le numéro de consultation permet de retrouver la fiche complète dans l'application, où l'identité reste accessible aux seuls comptes autorisés.";
@@ -5387,18 +5409,22 @@ async function downloadReportPDF(){
   // ---------- PAGE 6 — Prise en charge thérapeutique ----------
   if(ME.role==="admin" && (S.medDeliveredBreakdown.length || S.medParClasse.length)){
     doc.addPage(); y=20;
-    if(S.medParClasse.length){
+    if(S.medClassePubliable){
       pdfSectionHeader(doc,margin,y,"Médicaments par classe thérapeutique",teal); y+=6;
-      const totalCl=S.medParClasse.reduce((s,[,n])=>s+n,0);
       doc.autoTable({
         startY:y, margin:{left:margin,right:margin}, theme:"grid",
         headStyles:{ fillColor:teal, textColor:255, fontStyle:"bold" }, styles:{ fontSize:10 },
         head:[["Classe thérapeutique","Quantité dispensée","Part"]],
-        body:S.medParClasse.map(([l,c])=>[l,String(Math.round(c*10)/10),totalCl?Math.round(c/totalCl*100)+"%":"-"]),
+        body:S.medParClasse.map(([l,c])=>[l,String(Math.round(c*10)/10),
+          S.medClasseTotal?Math.round(c/S.medClasseTotal*100)+"%":"-"]),
       });
       y=doc.lastAutoTable.finalY+6;
       pdfNote(doc,margin,y,pageW,"La classe provient de l'article de stock ; une prescription hors stock n'en a pas.");
       y+=10;
+    } else if(S.medParClasse.length){
+      pdfSectionHeader(doc,margin,y,"Médicaments par classe thérapeutique",teal); y+=6;
+      pdfNote(doc,margin,y,pageW,noteClassesMasquees(S));
+      y+=18;
     }
     if(S.medDeliveredBreakdown.length){
       if(y>230){ doc.addPage(); y=20; }
@@ -5837,11 +5863,15 @@ async function downloadReportWord(){
 
   // ---------- Prise en charge thérapeutique ----------
   if(ME.role==="admin" && S.medParClasse.length){
-    const totalCl=S.medParClasse.reduce((a,[,n])=>a+n,0);
     children.push(sectionHeading("Médicaments par classe thérapeutique"));
-    children.push(mkTable(["Classe thérapeutique","Quantité dispensée","Part"],
-      S.medParClasse.map(([l,c])=>[l,Math.round(c*10)/10,totalCl?Math.round(c/totalCl*100)+"%":"-"])));
-    children.push(note("La classe provient de l'article de stock ; une prescription hors stock n'en a pas."));
+    if(S.medClassePubliable){
+      children.push(mkTable(["Classe thérapeutique","Quantité dispensée","Part"],
+        S.medParClasse.map(([l,c])=>[l,Math.round(c*10)/10,
+          S.medClasseTotal?Math.round(c/S.medClasseTotal*100)+"%":"-"])));
+      children.push(note("La classe provient de l'article de stock ; une prescription hors stock n'en a pas."));
+    } else {
+      children.push(note(noteClassesMasquees(S)));
+    }
   }
   if(ME.role==="admin" && S.medDeliveredBreakdown.length){
     children.push(sectionHeading("Médicaments les plus dispensés"));

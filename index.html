@@ -1214,6 +1214,14 @@
     <!-- AGENT: nouvelle consultation -->
     <div class="panel" id="panel-form">
       <div id="formAlert"></div>
+      <!-- Consultation commencée mais jamais enregistrée, retrouvée sur l'appareil. -->
+      <div class="alert alert-info hidden" id="brouillonBanner" style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between;flex-wrap:wrap">
+        <span id="brouillonBannerText"></span>
+        <span style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-primary btn-sm" onclick="reprendreBrouillon()">Reprendre</button>
+          <button class="btn btn-ghost btn-sm" onclick="supprimerBrouillon()">Supprimer</button>
+        </span>
+      </div>
       <!-- Bandeau permanent en mode modification : sans lui, rien ne distinguerait ce
            formulaire pré-rempli d'une nouvelle consultation, et on créerait un doublon
            en croyant corriger. -->
@@ -1674,13 +1682,21 @@ const CAMPAGNES_CACHE_KEY = "amstc_campagnes_cache";
 // l'onglet déconnecte réellement - demande explicite, un compte étant
 // resté ouvert après fermeture de la page sur un poste partagé. La
 // déconnexion après 30 min d'inactivité (plus bas) reste en place.
+// La session vit en stockage PERMANENT, et non dans celui de l'onglet. En sessionStorage,
+// elle disparaissait dès que le navigateur fermait l'onglet - ce qu'un téléphone fait de
+// lui-même dès qu'il manque de mémoire, donc à chaque appel reçu ou passage sur une autre
+// application. Le praticien devait alors se reconnecter en pleine consultation.
+//
+// Plus grave : se reconnecter exige le réseau. Une déconnexion survenue HORS LIGNE rendait
+// l'application inutilisable jusqu'au retour du réseau, avec des consultations en attente
+// d'envoi sur l'appareil.
+//
+// Ce n'est pas une session éternelle pour autant : la déconnexion automatique après
+// inactivité (voir IDLE_TIMEOUT_MS) joue ce rôle, et bien mieux - elle mesure l'usage réel
+// plutôt que l'ouverture d'un onglet.
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { storage: window.sessionStorage },
+  auth: { storage: window.localStorage },
 });
-
-// Purge les sessions déjà enregistrées en localStorage par l'ancienne
-// configuration : sans cela, elles resteraient valides indéfiniment.
-try{ localStorage.removeItem("sb-api-auth-token"); localStorage.removeItem("sb-api-auth-token-user"); }catch{}
 
 /* ---------- Mode sombre ----------
    L'amorçage (avant le premier rendu, tout en haut du <head>) a déjà posé data-theme="dark"
@@ -3132,7 +3148,10 @@ function switchTab(tab){
   if(tab==="dashboard") renderDashboard();
   // Recharge le stock disponible : il a pu changer depuis la connexion (réassort saisi
   // par l'administrateur, délivrances du pharmacien).
-  if(tab==="form" && !isPharmacien() && !isInfirmier()) refreshFormStockForSite(formSiteId());
+  if(tab==="form" && !isPharmacien() && !isInfirmier()){
+    refreshFormStockForSite(formSiteId());
+    proposerBrouillon();
+  }
   if(tab==="list"){
     renderList();
     // L'historique des modifications est chargé à l'ouverture de l'onglet, pour les seules
@@ -3314,6 +3333,9 @@ async function saveConsultation(){
     toast("Enregistré hors ligne · sera synchronisé");
     confirmMsg="Consultation enregistrée hors ligne - elle sera synchronisée dès le retour de la connexion.";
   }
+  // La consultation est partie, ou en file d'attente : dans les deux cas elle n'est plus
+  // une saisie en cours, et son brouillon n'a plus lieu d'être.
+  supprimerBrouillon();
   resetForm();
   alertIn("formAlert","ok",confirmMsg);
 }
@@ -8123,10 +8145,160 @@ window.addEventListener("beforeunload",(ev)=>{
 });
 window.addEventListener("offline",updateSync);
 
+/* ---------- mémoire de la consultation en cours ----------
+   Une consultation à moitié saisie ne vivait que dans la page. Un rechargement, un
+   navigateur qui ferme l'onglet en arrière-plan, une batterie vide : tout était à
+   retaper, patient en face. Le formulaire est donc recopié sur l'appareil à mesure de
+   la frappe, et proposé à la reprise au retour.
+
+   Rien n'est envoyé : ce brouillon ne quitte pas l'appareil, et disparaît dès que la
+   consultation est enregistrée. Il est rangé par compte, pour qu'une tablette partagée
+   ne propose pas à un praticien la saisie d'un autre. */
+const BROUILLON_MAX_AGE_MS = 7*24*60*60*1000;
+function brouillonCle(){ return ME ? "amstc_brouillon_"+ME.id : null; }
+
+// Les champs porteurs de sens : tant qu'aucun n'est renseigné, il n'y a rien à retenir et
+// on ne veut pas proposer la reprise d'un formulaire vide.
+const BROUILLON_CHAMPS_CLES=["c_prenom","c_nom","c_motifs","c_signes","c_signes_spec",
+  "c_diagnostic_texte","c_diagnostic_spec","c_conduite_notes","c_conduite_notes_spec"];
+
+function lireFormulaire(){
+  const panel=$("panel-form"); if(!panel) return null;
+  const champs={};
+  panel.querySelectorAll("input[id],select[id],textarea[id]").forEach(el=>{
+    champs[el.id] = (el.type==="checkbox"||el.type==="radio") ? el.checked : el.value;
+  });
+  // Les lignes de médicaments n'ont pas d'identifiant : elles sont retenues par position.
+  const meds={};
+  ["generaliste","specialiste"].forEach(scope=>{
+    const c=$("medsList_"+scope); if(!c) return;
+    meds[scope]=[...c.querySelectorAll(".med-row")].map(r=>({
+      stock:r.querySelector(".med-stock-select")?.value||"",
+      libre:r.querySelector(".med-nom-libre")?.value||"",
+      poso:r.querySelector(".med-poso")?.value||"",
+    }));
+  });
+  // Les cases cochées sans identifiant (pathologies, actes dentaires) sont retenues par
+  // leur valeur, qui est stable : c'est elle qu'on recoche à la reprise.
+  const coches=[...panel.querySelectorAll("input[type=checkbox]:checked")]
+    .filter(el=>!el.id).map(el=>el.value);
+  return { champs, meds, coches, patient_id:CURRENT_PATIENT_ID, quand:Date.now() };
+}
+
+function brouillonUtile(b){
+  if(!b) return false;
+  if(BROUILLON_CHAMPS_CLES.some(id=>String(b.champs?.[id]||"").trim())) return true;
+  return Object.values(b.meds||{}).some(l=>l.some(m=>m.stock||m.libre||m.poso));
+}
+
+let brouillonMinuteur=null;
+function enregistrerBrouillon(){
+  const cle=brouillonCle(); if(!cle) return;
+  // Une consultation en cours de MODIFICATION n'est pas un brouillon : elle existe déjà en
+  // base, et la proposer à la reprise créerait un doublon.
+  if(EDIT_ID) return;
+  const b=lireFormulaire();
+  if(brouillonUtile(b)){ try{ localStorage.setItem(cle, JSON.stringify(b)); }catch{} }
+  else { try{ localStorage.removeItem(cle); }catch{} }
+}
+function enregistrerBrouillonDifferé(){
+  clearTimeout(brouillonMinuteur);
+  brouillonMinuteur=setTimeout(enregistrerBrouillon, 800);
+}
+
+function chargerBrouillon(){
+  const cle=brouillonCle(); if(!cle) return null;
+  try{
+    const b=JSON.parse(localStorage.getItem(cle)||"null");
+    if(!b || !brouillonUtile(b)) return null;
+    // Un brouillon d'il y a une semaine ne correspond plus à personne devant soi.
+    if(Date.now()-(b.quand||0) > BROUILLON_MAX_AGE_MS){ localStorage.removeItem(cle); return null; }
+    return b;
+  }catch{ return null; }
+}
+
+function supprimerBrouillon(){
+  const cle=brouillonCle(); if(cle){ try{ localStorage.removeItem(cle); }catch{} }
+  $("brouillonBanner")?.classList.add("hidden");
+}
+
+function proposerBrouillon(){
+  const banniere=$("brouillonBanner"); if(!banniere) return;
+  const b=chargerBrouillon();
+  if(!b || EDIT_ID){ banniere.classList.add("hidden"); return; }
+  const nom=[b.champs?.c_prenom, b.champs?.c_nom].map(x=>(x||"").trim()).filter(Boolean).join(" ");
+  const quand=new Date(b.quand).toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"});
+  $("brouillonBannerText").innerHTML =
+    "<b>Consultation non enregistrée</b> — commencée le "+esc(quand)
+    + (nom ? ", pour "+esc(nom) : "") + ". Elle n'a pas quitté cet appareil.";
+  banniere.classList.remove("hidden");
+}
+
+function reprendreBrouillon(){
+  const b=chargerBrouillon(); if(!b) return;
+  const appliquer=(id,v)=>{
+    const el=$(id); if(!el) return null;
+    if(el.type==="checkbox"||el.type==="radio") el.checked=!!v; else el.value=v;
+    return el;
+  };
+  // Le site et le type d'abord : ils commandent l'affichage des sous-formulaires, et le
+  // reste doit être posé dans la bonne section.
+  ["c_site","c_type"].forEach(id=>{
+    const el=appliquer(id, b.champs?.[id]);
+    if(el) el.dispatchEvent(new Event("change",{bubbles:true}));
+  });
+  Object.entries(b.champs||{}).forEach(([id,v])=>{ if(id!=="c_site"&&id!=="c_type") appliquer(id,v); });
+  // Les cases sans identifiant : pathologies cochées, actes dentaires.
+  const panel=$("panel-form");
+  (b.coches||[]).forEach(val=>{
+    panel.querySelectorAll("input[type=checkbox]").forEach(el=>{
+      if(!el.id && el.value===val) el.checked=true;
+    });
+  });
+  ["generaliste","specialiste"].forEach(scope=>{
+    clearMedRows(scope);
+    (b.meds?.[scope]||[]).forEach(m=>{
+      addMedRow(scope);
+      const lignes=$("medsList_"+scope)?.querySelectorAll(".med-row")||[];
+      const r=lignes[lignes.length-1]; if(!r) return;
+      const sel=r.querySelector(".med-stock-select");
+      if(sel){ sel.value=m.stock; onMedStockSelectChange(sel); }
+      const lib=r.querySelector(".med-nom-libre"); if(lib) lib.value=m.libre;
+      const po=r.querySelector(".med-poso"); if(po) po.value=m.poso;
+    });
+  });
+  CURRENT_PATIENT_ID=b.patient_id||null;
+  // Les champs restants portent des gestionnaires en ligne (suivi d'examen, référence,
+  // « pas de traitement »…) : on les réveille pour que l'affichage suive les valeurs.
+  Object.keys(b.champs||{}).forEach(id=>{
+    if(id==="c_site"||id==="c_type") return;
+    const el=$(id); if(!el) return;
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    el.dispatchEvent(new Event("change",{bubbles:true}));
+  });
+  $("brouillonBanner")?.classList.add("hidden");
+  toast("Consultation reprise");
+}
+
+// Enregistrement à la frappe, et immédiatement quand la page passe en arrière-plan : c'est
+// là que le navigateur peut fermer l'onglet sans prévenir.
+document.addEventListener("input", e=>{
+  if(e.target?.closest?.("#panel-form")) enregistrerBrouillonDifferé();
+}, true);
+document.addEventListener("change", e=>{
+  if(e.target?.closest?.("#panel-form")) enregistrerBrouillonDifferé();
+}, true);
+["visibilitychange","pagehide"].forEach(evt=>
+  document.addEventListener(evt, ()=>{ if(ME) enregistrerBrouillon(); })
+);
+
 /* ---------- déconnexion automatique après inactivité ----------
    Un appareil de terrain peut rester ouvert sur des données patients sans surveillance :
    on déconnecte automatiquement après une période sans la moindre interaction. */
-const IDLE_TIMEOUT_MS = 30*60*1000; // 30 minutes
+// 30 minutes déconnectaient un praticien pendant une consultation longue, ou dès que la
+// tablette restait posée entre deux patients. Une journée de couverture dure douze heures :
+// le délai couvre la journée, et la déconnexion reste garantie la nuit venue.
+const IDLE_TIMEOUT_MS = 12*60*60*1000; // 12 heures
 let idleTimer=null;
 function resetIdleTimer(){
   if(!ME) return; // pas de compte connecté : rien à surveiller

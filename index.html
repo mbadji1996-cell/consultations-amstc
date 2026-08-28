@@ -6990,7 +6990,20 @@ async function updateCampagne(id,btn){
     if(saisi) maj.effectifs_declares=eff;
   }
   const {error}=await sb.from("campagnes").update(maj).eq("id",id);
-  if(error){ if(btn) btn.disabled=false; toast("Échec : "+errMsg(error),true); return; }
+  if(error){
+    if(btn) btn.disabled=false;
+    // Un échec sur ces colonnes est presque toujours un script SQL non exécuté. Le dire
+    // explicitement, et dans une alerte persistante : une notification fugace se rate, et
+    // on croit alors avoir enregistré des chiffres qui n'ont jamais été écrits.
+    const cause=analyserErreurEnvoi(error);
+    const manquante = /colonne attendue/.test(cause.texte)
+      ? " Les effectifs et les textes d'analyse demandent rls_effectifs_declares.sql et rls_bilan_campagne.sql."
+      : "";
+    alertIn("campagnesAlert","err","Campagne non enregistrée : "+cause.texte+"."+manquante);
+    toast("Campagne non enregistrée : "+cause.texte,true);
+    return;
+  }
+  alertIn("campagnesAlert","","");
   await reloadCampagnes();
   renderCampagnes(); buildTabs(); switchTab("campagnes");
   toast("Campagne mise à jour");

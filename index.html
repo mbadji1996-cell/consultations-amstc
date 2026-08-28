@@ -2884,8 +2884,21 @@ async function saveInfirmierIntake(){
   if(!refereVersId) missing.push("médecin à référer");
   if(missing.length){ alertIn("intakeAlert","err","Champs requis manquants : "+missing.join(", ")+"."); window.scrollTo({top:0,behavior:"smooth"}); return; }
 
+  // Même règle que pour une consultation : une fiche ouverte après la fin des
+  // consultations est rattachée à la dernière journée, et l'infirmier en est informé.
+  let messageDate="";
+  {
+    const rattachee=dateRattachee(rec.site_id);
+    if(rattachee){
+      rec.created_at=rattachee;
+      messageDate=" Saisie après la fin des consultations, elle est rattachée au "
+                + dateFrDepuisIso(rattachee.slice(0,10))
+                + ", dernière journée de consultation de la campagne.";
+    }
+  }
+
   $("intakeSaveBtn").disabled=true;
-  let confirmMsg="Patient référé au médecin.";
+  let confirmMsg="Patient référé au médecin."+messageDate;
   if(navigator.onLine){
     const {error}=await insererConsultation(rec);
     $("intakeSaveBtn").disabled=false;
@@ -3266,8 +3279,21 @@ async function saveConsultation(){
   // MODIFICATION d'une consultation existante : chemin entièrement distinct de la création.
   if(EDIT_ID){ await enregistrerModification(rec); return; }
 
+  // Rattachement à la dernière journée de consultation, s'il y a lieu. Jamais silencieux :
+  // l'utilisateur doit savoir sous quelle date sa fiche vient d'être rangée.
+  let messageDate="";
+  {
+    const rattachee=dateRattachee(rec.site_id);
+    if(rattachee){
+      rec.created_at=rattachee;
+      messageDate=" Saisie après la fin des consultations, elle est rattachée au "
+                + dateFrDepuisIso(rattachee.slice(0,10))
+                + ", dernière journée de consultation de la campagne.";
+    }
+  }
+
   $("saveBtn").disabled=true;
-  let confirmMsg="Consultation enregistrée.";
+  let confirmMsg="Consultation enregistrée."+messageDate;
   if(navigator.onLine){
     const {error}=await insererConsultation(rec);
     $("saveBtn").disabled=false;
@@ -3622,6 +3648,14 @@ async function flushQueue(){
     // elles n'existent pas en base, et en envoyer une provoquerait un rejet définitif
     // "colonne inconnue" - donc exactement la panne que ce mécanisme doit signaler.
     const rec={}; Object.keys(item).forEach(k=>{ if(k[0]!=="_") rec[k]=item[k]; });
+    // Sans cette ligne, une consultation saisie hors ligne un jour et envoyée le lendemain
+    // prenait la date de l'ENVOI : la base appliquait son défaut now() au moment de
+    // l'insertion. Le moment de la saisie est connu, il fait foi - puis il est rattaché
+    // comme une saisie directe s'il tombe après la fin des consultations.
+    if(item._local && !rec.created_at){
+      rec.created_at = dateRattachee(rec.site_id, item._local)
+                    || new Date(item._local).toISOString();
+    }
     const {error}=await insererConsultation(rec);
     if(!error){ sentCount++; continue; }
     // Une violation de clé unique sur l'id signifie que cette consultation a DÉJÀ été
@@ -6797,6 +6831,46 @@ function goToPharmaSubTab(sub,showDelivered){
 }
 
 // Campagne à laquelle appartient un site.
+// Une consultation saisie après la fin des consultations est une reprise différée -
+// registre papier repris le lendemain, fiche oubliée - et non un soin donné ce jour-là.
+// Sans rattachement, le rapport annonce des journées d'activité qui n'ont jamais eu lieu :
+// le Gamou 2026 affichait des consultations les 26 et 27 août alors que les sites étaient
+// fermés depuis le 25.
+//
+// La référence est la dernière JOURNÉE DE CONSULTATION déclarée sur la campagne ; à
+// défaut, sa date de fin. Sans l'une ni l'autre, on ne rattache rien : mieux vaut une date
+// de saisie qu'une date inventée.
+function derniereJourneeCampagne(campagneId){
+  const c=CAMPAGNES.find(x=>x.id===campagneId);
+  if(!c) return null;
+  const jours=Array.isArray(c.jours_consultation)
+    ? c.jours_consultation.map(j=>j&&j.date).filter(Boolean).sort()
+    : [];
+  return jours.length ? jours[jours.length-1] : (c.date_fin||null);
+}
+
+// yyyy-mm-dd dans le fuseau de l'utilisateur. toISOString() donnerait la date UTC, qui
+// change de jour au mauvais moment dès qu'on s'éloigne du méridien de Greenwich.
+function jourLocal(d){
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+
+// Date à enregistrer pour une consultation, ou null s'il n'y a rien à rattacher.
+// L'heure est conservée : elle garde l'ordre relatif des saisies dans la journée.
+function dateRattachee(siteId, moment){
+  const campagneId=campagneDuSite(siteId);
+  const dernier=campagneId ? derniereJourneeCampagne(campagneId) : null;
+  if(!dernier) return null;
+  const d=moment ? new Date(moment) : new Date();
+  if(isNaN(d)) return null;
+  if(jourLocal(d)<=dernier) return null;
+  const rattache=new Date(dernier+"T00:00:00");
+  if(isNaN(rattache)) return null;
+  rattache.setHours(d.getHours(),d.getMinutes(),d.getSeconds(),0);
+  return rattache.toISOString();
+}
+
 function campagneDuSite(siteId){
   const s=SITES.find(x=>x.id===siteId);
   return s?(s.campagne_id||null):null;

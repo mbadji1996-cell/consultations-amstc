@@ -1472,6 +1472,7 @@
       <!-- Suggestions pour la saisie des actes hors consultation. Une liste ouverte
            (datalist) et non un menu fermé : ces propositions couvrent le courant, mais
            le terrain apporte toujours des actes qu'on n'avait pas prévus. -->
+      <datalist id="unitesStock"></datalist>
       <datalist id="actesCourants">
         <option value="Pansement"></option>
         <option value="Mise en observation"></option>
@@ -1539,7 +1540,7 @@
             <div class="field"><label for="stock_categorie">Catégorie</label><select id="stock_categorie"></select></div>
             <div class="row2">
               <div class="field"><label for="stock_qte">Quantité</label><input type="number" id="stock_qte" min="0" placeholder="0"></div>
-              <div class="field"><label for="stock_unite">Unité</label><select id="stock_unite"></select></div>
+              <div class="field"><label for="stock_unite">Unité</label><input type="text" id="stock_unite" list="unitesStock" placeholder="ex : Boîtes"></div>
             </div>
             <div class="field"><label for="stock_seuil">Seuil d'alerte (stock bas)</label><input type="number" id="stock_seuil" min="0" placeholder="ex : 5"></div>
             <button class="btn btn-primary btn-sm" onclick="addStockItem(this)">Ajouter au stock</button>
@@ -1590,7 +1591,7 @@
             <div class="field"><label for="astock_categorie">Catégorie</label><select id="astock_categorie"></select></div>
             <div class="row2">
               <div class="field"><label for="astock_qte">Quantité</label><input type="number" id="astock_qte" min="0" placeholder="0"></div>
-              <div class="field"><label for="astock_unite">Unité</label><select id="astock_unite"></select></div>
+              <div class="field"><label for="astock_unite">Unité</label><input type="text" id="astock_unite" list="unitesStock" placeholder="ex : Boîtes"></div>
             </div>
             <div class="field"><label for="astock_seuil">Seuil d'alerte (stock bas)</label><input type="number" id="astock_seuil" min="0" placeholder="ex : 5"></div>
             <button class="btn btn-primary btn-sm" onclick="addStockItem(this,'astock')">Ajouter au stock</button>
@@ -2551,13 +2552,23 @@ const STOCK_CATEGORIES=["Injectables","Soins infirmiers","Antalgiques / AINS","A
   "Antiparasitaires","Antihistaminiques","Antihypertenseurs","Fer / Acide folique / Vitamines","Antitussifs",
   "Nébulisations","Gynécologie","Ophtalmologie","Pommades / Gel","Gastro-entérologie",
   "Anti-inflammatoires (usage externe)","Dentaire","Autres"];
-const STOCK_UNITS=["Boîte","Flacon","Ampoule","Sachet","Tube","Rouleau","Plaquette","Paire","Unité","Litre","Kilogramme"];
+// Suggestions, et non liste fermée : l'inventaire de l'AMSTC emploie « Boîtes »,
+// « Tablettes », « Comprimés », « Perfuseurs », « Tests »… qu'aucune liste figée ne
+// prévoira toutes. Une liste fermée faisait pire que gêner : une unité importée d'Excel
+// ne correspondant à aucune option, elle disparaissait dès qu'on rouvrait la fiche de
+// l'article pour en corriger la quantité.
+const STOCK_UNITS=["Boîte","Boîtes","Plaquette","Tablette","Tablettes","Comprimé","Comprimés",
+  "Flacon","Flacons","Ampoule","Ampoules","Sachet","Sachets","Tube","Tubes","Stick","Sticks",
+  "Seringue","Seringues","Cathéter","Cathéters","Perfuseur","Perfuseurs","Gant","Gants",
+  "Masque","Masques","Test","Tests","Rouleau","Paire","Unité","Litre","Kilogramme"];
 const STOCK_TYPES={medicament:"Médicament",consommable:"Consommable",materiel:"Matériel"};
 function stockCategorySelect(id,current){
   return `<select id="${id}">${STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}"${c===current?" selected":""}>${esc(c)}</option>`).join("")}</select>`;
 }
 function stockUnitSelect(id,current,disabled){
-  return `<select id="${id}"${disabled?" disabled":""}>${STOCK_UNITS.map(u=>`<option value="${esc(u)}"${u===current?" selected":""}>${esc(u)}</option>`).join("")}</select>`;
+  // Champ libre à suggestions : l'unité déjà enregistrée est conservée telle quelle,
+  // même si elle ne figure pas parmi les suggestions.
+  return `<input type="text" id="${id}" list="unitesStock" value="${esc(current||"")}"${disabled?" disabled":""} placeholder="Unité">`;
 }
 function stockTypeSelect(id,current){
   return `<select id="${id}">${Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${esc(l)}</option>`).join("")}</select>`;
@@ -6498,8 +6509,11 @@ function medicamentDispensationHtml(r,m,i,origine){
     </div>`;
   }
   const qId=`dispqte_${r.id}_${i}`, uId=`dispunite_${r.id}_${i}`;
-  // Unité déjà utilisée pour cet article en stock, pré-sélectionnée par défaut : le
-  // pharmacien peut toujours la changer (ex. délivrer en plaquettes un article stocké en boîte).
+  // L'unité est CELLE DU STOCK, et ne se choisit plus. Elle était laissée au choix du
+  // pharmacien, mais la sortie de stock est calculée sur le seul nombre saisi : délivrer
+  // « 2 comprimés » d'un article stocké en boîtes retirait 2 BOÎTES. L'inventaire décrit
+  // désormais chaque présentation séparément - « Amoxicilline 500 mg » en boîtes,
+  // « Albendazole 400 mg » en comprimés - donc l'unité d'un article ne fait plus débat.
   const stockUnite=m.stock_id?DISPENSATION_STOCK_UNITS[m.stock_id]:null;
   return `<div id="${cle}" style="padding:9px 0;border-bottom:1px solid var(--line)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
@@ -6510,7 +6524,9 @@ function medicamentDispensationHtml(r,m,i,origine){
       <div style="flex:0 0 80px"><label style="font-size:11px;color:var(--muted)">Quantité</label>
         <input type="number" min="0" step="0.5" id="${qId}" placeholder="1"></div>
       <div style="flex:1"><label style="font-size:11px;color:var(--muted)">Unité</label>
-        <select id="${uId}"><option value="">- Choisir -</option>${STOCK_UNITS.map(u=>`<option value="${esc(u)}" ${u===stockUnite?"selected":""}>${esc(u)}</option>`).join("")}</select></div>
+        ${stockUnite
+          ? `<div id="${uId}" data-unite="${esc(stockUnite)}" style="padding:8px 0;font-weight:600">${esc(stockUnite)}</div>`
+          : `<input type="text" id="${uId}" list="unitesStock" placeholder="Unité" value="">`}</div>
       <button class="btn btn-accent btn-sm" onclick="confirmDelivery('${r.id}',${i})">Délivré</button>
     </div>
   </div>`;
@@ -6712,9 +6728,12 @@ function renderDispensationAdmin(){
 
 function confirmDelivery(consultId,idx){
   const qval=$(`dispqte_${consultId}_${idx}`).value.trim();
-  const qunite=$(`dispunite_${consultId}_${idx}`).value;
+  // Article lié au stock : l'unité est imposée et affichée, elle est lue sur l'élément.
+  // Prescription hors stock : rien n'est décompté, l'unité reste une simple mention.
+  const champUnite=$(`dispunite_${consultId}_${idx}`);
+  const qunite=(champUnite?.dataset?.unite ?? champUnite?.value ?? "").trim();
   if(!qval){ toast("Indiquez une quantité avant de confirmer",true); return; }
-  if(!qunite){ toast("Choisissez une unité avant de confirmer",true); return; }
+  if(!qunite){ toast("Indiquez l'unité avant de confirmer",true); return; }
   toggleMedDelivered(consultId, idx, true, `${qval} ${qunite}`);
 }
 
@@ -6883,7 +6902,7 @@ function loadPharmacieTab(){
     if(!$("astock_categorie").innerHTML){
       $("astock_categorie").innerHTML=`<option value="">- Choisir -</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
       $("astock_type").innerHTML=`<option value="">- Choisir -</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
-      $("astock_unite").innerHTML=`<option value="">- Choisir -</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+      // La liste de suggestions est partagée (datalist "unitesStock") : rien à remplir ici.
     }
     loadPharmaAdminOverview();
   } else {
@@ -6892,7 +6911,7 @@ function loadPharmacieTab(){
     if(!$("stock_categorie").innerHTML){
       $("stock_categorie").innerHTML=`<option value="">- Choisir -</option>`+STOCK_CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
       $("stock_type").innerHTML=`<option value="">- Choisir -</option>`+Object.entries(STOCK_TYPES).map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("");
-      $("stock_unite").innerHTML=`<option value="">- Choisir -</option>`+STOCK_UNITS.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+      // La liste de suggestions est partagée (datalist "unitesStock") : rien à remplir ici.
     }
     loadDispensation();
   }
@@ -7142,7 +7161,18 @@ async function handleStockImportFile(evt){
     const nom=(getVal(row,["nom","médicament","medicament","article"])||"").toString().trim();
     const categorie=(getVal(row,["catégorie","categorie"])||"").toString().trim();
     const typeRaw=norm(getVal(row,["type","type d'article","type d article"]));
-    const type_article = typeRaw.includes("consommable")?"consommable" : typeRaw.includes("matériel")||typeRaw.includes("materiel")?"materiel" : "medicament";
+    // Le type d'article commande ce que les praticiens voient : seuls les « médicament »
+    // entrent dans la liste de prescription. L'inventaire de l'AMSTC range les consommables
+    // dans la colonne CATÉGORIE et réserve la colonne TYPE à leur usage - « Soins » pour les
+    // compresses, « Injectable » pour les cathéters et les perfuseurs. Ne lire que le type
+    // faisait entrer gants, compresses et abaisse-langue dans les ordonnances.
+    const catRaw=norm(categorie);
+    // Mots entiers : sans les bornes, « test » se retrouvait dans « gastro-intestinaux »
+    // et sortait un injectable prokinétique de la liste de prescription.
+    const estConsommable = /consommable|\bmasques?\b|\btdr\b|\btests?\b/.test(catRaw)
+                        || /consommable/.test(typeRaw);
+    const estMateriel = /mat[ée]riel/.test(catRaw) || /mat[ée]riel/.test(typeRaw);
+    const type_article = estConsommable ? "consommable" : estMateriel ? "materiel" : "medicament";
     const quantite=parseFloat(getVal(row,["quantité","quantite"]))||0;
     const unite=(getVal(row,["unité","unite"])||"Boîte").toString().trim();
     const seuil_alerte=parseInt(getVal(row,["seuil d'alerte","seuil","seuil alerte"]))||0;
@@ -8384,6 +8414,7 @@ sb.auth.onAuthStateChange((event)=>{
 })();
 
 /* ---------- démarrage ---------- */
+$("unitesStock").innerHTML=STOCK_UNITS.map(u=>`<option value="${esc(u)}"></option>`).join("");
 $("diagPicker").innerHTML=diagPickerHtml(); // liste statique, remplie une seule fois
 $("actePicker").innerHTML=actePickerHtml(); // idem pour les actes dentaires
 $("acteMedPicker_generaliste").innerHTML=acteMedPickerHtml("generaliste"); // actes réalisés

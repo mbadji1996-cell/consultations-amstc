@@ -4051,11 +4051,17 @@ function chartColors(n){ return Array.from({length:n},(_,i)=>CHART_PALETTE[i%CHA
 // Réglages Chart.js partagés par les deux tableaux de bord (général et pharmacien) :
 // légendes à puces rondes, infobulles aux couleurs de la marque, animation douce
 // (désactivée si l'utilisateur préfère réduire les animations).
-function applyChartDefaults(){
-  const dark=document.documentElement.getAttribute("data-theme")==="dark";
+// pourRapport : les graphiques du rapport sont aplatis sur fond blanc et destinés au
+// papier. Ils ne doivent donc RIEN devoir au thème de celui qui les produit - en mode
+// sombre, le gris clair des libellés devenait illisible sur ce fond blanc, et le rapport
+// changeait d'aspect selon le réglage d'écran de la personne qui cliquait.
+function applyChartDefaults(pourRapport){
+  const dark = !pourRapport && document.documentElement.getAttribute("data-theme")==="dark";
   CHART_GRID = dark ? "rgba(255,255,255,.12)" : "#e3e9e5";
   Chart.defaults.font.family="'Inter',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
-  Chart.defaults.color = dark ? "#9db0a4" : "#5f6b62";
+  // Les libellés d'axes et de légendes étaient d'un gris trop pâle : sur un graphique
+  // imprimé, les valeurs de l'axe se lisaient à peine. Ils passent en quasi-noir.
+  Chart.defaults.color = dark ? "#e6ede8" : "#14201a";
   Chart.defaults.plugins.legend.labels.usePointStyle=true;
   Chart.defaults.plugins.legend.labels.boxWidth=8;
   Chart.defaults.plugins.legend.labels.boxHeight=8;
@@ -4825,7 +4831,7 @@ function texteSourceEffectifs(eff){
 // rapport, et le PDF comme le Word utilisent exactement les mêmes images.
 async function generateReportCharts(S){
   if(typeof Chart==="undefined") return {};
-  applyChartDefaults();
+  applyChartDefaults(true);
   const green=CHART_GREEN, orange=CHART_ORANGE, grid=CHART_GRID;
   const images={};
   const make=(key,config,w,h)=>{

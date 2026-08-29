@@ -8258,7 +8258,15 @@ function supprimerBrouillon(){
 function proposerBrouillon(){
   const banniere=$("brouillonBanner"); if(!banniere) return;
   const b=chargerBrouillon();
-  if(!b || EDIT_ID){ banniere.classList.add("hidden"); return; }
+  // Le formulaire est déjà rempli : on ne propose rien. Trois chemins ouvrent l'onglet
+  // AVANT de le remplir - patient référé par un infirmier, modification d'une fiche,
+  // reprise d'un dossier depuis l'historique. Le bandeau s'affichait alors par-dessus une
+  // fiche déjà chargée, et « Reprendre » y aurait écrasé le patient en cours par un
+  // brouillon sans rapport, identifiant de dossier compris.
+  if(!b || EDIT_ID || brouillonUtile(lireFormulaire())){
+    banniere.classList.add("hidden");
+    return;
+  }
   const nom=[b.champs?.c_prenom, b.champs?.c_nom].map(x=>(x||"").trim()).filter(Boolean).join(" ");
   const quand=new Date(b.quand).toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"});
   $("brouillonBannerText").innerHTML =

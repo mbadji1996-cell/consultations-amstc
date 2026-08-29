@@ -4753,8 +4753,20 @@ function reportTitleLines(S){
   } else if(ME.role==="admin"){
     meta.push("Campagne : toutes campagnes confondues");
   }
-  meta.push(`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`);
+  meta.push(signatureRapport());
   return { title, meta };
+}
+
+// Signature du rapport. Elle nommait le compte qui avait cliqué sur « Télécharger », ce
+// qui n'apprend rien au lecteur et laisse croire à une rédaction personnelle : le document
+// est produit par la plateforme à partir des saisies de toute l'équipe. Elle nomme donc
+// désormais la source des données, ce qui vaut aussi référence pour un partenaire.
+function signatureRapport(){
+  const d=new Date();
+  return "Généré le "+d.toLocaleDateString("fr-FR",{dateStyle:"long"})
+       + " à "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})
+       + " · à partir de la plateforme de gestion des données de consultation"
+       + " www.consultations-amstc.org";
 }
 
 // Effectifs d'une campagne précise : nombre de sites et de praticiens par spécialité -
@@ -5179,8 +5191,10 @@ async function downloadReportPDF(){
     doc.addImage(logo.data,"PNG",margin,y,w,h);
   }
   doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(110,120,114);
-  doc.text(`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})}`, pageW-margin, y+8, {align:"right"});
-  doc.text(`Par ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(), pageW-margin, y+13, {align:"right"});
+  {
+    const lignes=doc.splitTextToSize(signatureRapport(), (pageW-margin*2)*0.55);
+    lignes.forEach((l,i)=>doc.text(l, pageW-margin, y+8+i*4.4, {align:"right"}));
+  }
   y+=34;
 
   // Chiffres clés, en cartes colorées plutôt qu'un simple tableau
@@ -5746,7 +5760,7 @@ async function downloadReportWord(){
     children.push(new Paragraph({ children:[new ImageRun({ data:dataUrlToBytes(logo.data), transformation:{width:w,height:h} })] }));
   }
   children.push(new Paragraph({ alignment:AlignmentType.RIGHT, spacing:{before:80,after:220}, children:[
-    new TextRun({ text:`Généré le ${new Date().toLocaleString("fr-FR",{dateStyle:"long",timeStyle:"short"})} · Par ${(ME.prenom||"")} ${(ME.nom||"")}`.trim(), color:"6E7872", size:16 }),
+    new TextRun({ text:signatureRapport(), color:"6E7872", size:16 }),
   ] }));
 
   children.push(
@@ -7707,7 +7721,10 @@ async function bilanCampagnePdf(id, btn){
     doc.setFont("helvetica", "normal"); doc.setFontSize(10);
     doc.text("AMSTC - Association Médico-Sociale des Talibés Cheikh", 14, 23);
     doc.setFontSize(8);
-    doc.text("Généré le " + new Date().toLocaleDateString("fr-FR", {day: "numeric", month: "long", year: "numeric"}), W - 14, 23, {align: "right"});
+    {
+      const lignes = doc.splitTextToSize(signatureRapport(), 96);
+      lignes.forEach((l, i) => doc.text(l, W - 14, 23 + i * 4, {align: "right"}));
+    }
 
     let y = 46;
     doc.setTextColor(20, 20, 20);
